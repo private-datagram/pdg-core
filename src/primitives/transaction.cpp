@@ -90,8 +90,8 @@ std::string CTxOut::ToString() const
     return strprintf("CTxOut(nValue=%d.%08d, scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30));
 }
 
-CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), nLockTime(0) {}
-CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime) {}
+CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), nLockTime(0) {}
+CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {}
 
 uint256 CMutableTransaction::GetHash() const
 {
@@ -101,8 +101,9 @@ uint256 CMutableTransaction::GetHash() const
 std::string CMutableTransaction::ToString() const
 {
     std::string str;
-    str += strprintf("CMutableTransaction(ver=%d, vin.size=%u, vout.size=%u, nLockTime=%u)\n",
+    str += strprintf("CMutableTransaction(ver=%d, type=%d, vin.size=%u, vout.size=%u, nLockTime=%u)\n",
         nVersion,
+        type,
         vin.size(),
         vout.size(),
         nLockTime);
@@ -118,16 +119,18 @@ void CTransaction::UpdateHash() const
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
 }
 
-CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), vin(), vout(), nLockTime(0) { }
+CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), vfiles(), nLockTime(0) { }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime) {
+CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {
     UpdateHash();
 }
 
 CTransaction& CTransaction::operator=(const CTransaction &tx) {
     *const_cast<int*>(&nVersion) = tx.nVersion;
+    *const_cast<int*>(&type) = tx.type;
     *const_cast<std::vector<CTxIn>*>(&vin) = tx.vin;
     *const_cast<std::vector<CTxOut>*>(&vout) = tx.vout;
+    *const_cast<std::vector<CFile>*>(&vfiles) = tx.vfiles;
     *const_cast<unsigned int*>(&nLockTime) = tx.nLockTime;
     *const_cast<uint256*>(&hash) = tx.hash;
     return *this;
@@ -249,9 +252,10 @@ unsigned int CTransaction::CalculateModifiedSize(unsigned int nTxSize) const
 std::string CTransaction::ToString() const
 {
     std::string str;
-    str += strprintf("CTransaction(hash=%s, ver=%d, vin.size=%u, vout.size=%u, nLockTime=%u)\n",
+    str += strprintf("CTransaction(hash=%s, ver=%d, type=%d, vin.size=%u, vout.size=%u, nLockTime=%u)\n",
         GetHash().ToString().substr(0,10),
         nVersion,
+        type,
         vin.size(),
         vout.size(),
         nLockTime);
@@ -261,3 +265,29 @@ std::string CTransaction::ToString() const
         str += "    " + vout[i].ToString() + "\n";
     return str;
 }
+
+
+CFile::CFile() : nFlags(0), vBytes() {
+    UpdateFileHash();
+}
+
+uint256 CFile::CalcFileHash() const
+{
+    return SerializeHash(vBytes);
+}
+
+uint256 CFile::UpdateFileHash()
+{
+    return this->fileHash = SerializeHash(vBytes);
+}
+
+std::string CFile::ToString() const
+{
+    std::string str;
+    str += strprintf("CFile(ver=%d, nFlags=%d, vBytes.size=%u, hash=%s)\n",
+                     nFlags,
+                     vBytes.size(),
+                     fileHash.ToString());
+    return str;
+}
+

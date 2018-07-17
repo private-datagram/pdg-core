@@ -64,7 +64,9 @@ public:
         /** Formatted amount, without brackets when unconfirmed */
         FormattedAmountRole,
         /** Transaction status (TransactionRecord::Status) */
-        StatusRole
+        StatusRole,
+        /** File */
+        FileRole
     };
 
     int rowCount(const QModelIndex& parent) const;

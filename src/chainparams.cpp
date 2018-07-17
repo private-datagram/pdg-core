@@ -53,10 +53,10 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 // + Contains no strange transactions
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
-    (0, uint256("00000f731261599d7e0625d928cd0115ef17071edf401c3c209e46b3e0a13659"));
+    (0, uint256("00000c83cb7e65c9bf899b652c885b90c122401a29a386840c14b5ab79637421"));
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
-    1527080200, // * UNIX timestamp of last checkpoint block
+    1528286400, // * UNIX timestamp of last checkpoint block
     0,    // * total number of transactions between genesis and last checkpoint
                 //   (the tx=... number in the SetBestChain debug.log lines)
     2000        // * estimated number of transactions per day after checkpoint
@@ -123,15 +123,14 @@ public:
         nMinerThreads = 0;
         nTargetTimespan = 1 * 60; // PIVX: 1 day
         nTargetSpacing = 1 * 60;  // PIVX: 1 minute
-        nMaturity = 100;
+        nMaturity = 5;
         nMasternodeCountDrift = 20;
         nMaxMoneyOut = 21000000 * COIN;
 
-        // current height 1175061 on 23 May 2018 14:28:34
         /** Height or Time Based Activations **/
         nLastPOWBlock = 259200;
         nModifierUpdateBlock = 615800;
-        nZerocoinStartHeight = 0;
+        nZerocoinStartHeight = 891737;
         nZerocoinStartTime = 1508214600; // October 17, 2017 4:30:00 AM
         nBlockEnforceSerialRange = 895400; //Enforce serial range starting this block
         nBlockRecalculateAccumulators = 908000; //Trigger a recalculation of accumulators
@@ -139,7 +138,7 @@ public:
         nBlockLastGoodCheckpoint = 891730; //Last valid accumulator checkpoint
         nBlockEnforceInvalidUTXO = 902850; //Start enforcing the invalid UTXO's
         nInvalidAmountFiltered = 268200*COIN; //Amount of invalid coins filtered through exchanges, that should be considered valid
-        nBlockZerocoinV2 = 0; //!> The block that zerocoin v2 becomes active - roughly Tuesday, May 8, 2018 4:00:00 AM GMT
+        nBlockZerocoinV2 = 891737; //!> The block that zerocoin v2 becomes active - roughly Tuesday, May 8, 2018 4:00:00 AM GMT
         nEnforceNewSporkKey = 1525158000; //!> Sporks signed after (GMT): Tuesday, May 1, 2018 7:00:00 AM GMT must use the new spork key
         nRejectOldSporkKey = 1527811200; //!> Fully reject old spork key after (GMT): Friday, June 1, 2018 12:00:00 AM
 
@@ -164,13 +163,13 @@ public:
         genesis.hashPrevBlock = 0;
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
         genesis.nVersion = 4;
-        genesis.nTime = 1527080200;
+        genesis.nTime = 1528286400;
         genesis.nBits = 0x1e0ffff0;
-        genesis.nNonce = 2637475;
+        genesis.nNonce = 538258;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("00000f731261599d7e0625d928cd0115ef17071edf401c3c209e46b3e0a13659"));
-        assert(genesis.hashMerkleRoot == uint256("0x1b2ef6e2f28be914103a277377ae7729dcd125dfeb8bf97bd5964ba72b6dc39b"));
+        assert(hashGenesisBlock == uint256("00000c83cb7e65c9bf899b652c885b90c122401a29a386840c14b5ab79637421"));
+        assert(genesis.hashMerkleRoot == uint256("5f9e3f938b212aecba1e9b4233c3488bf57c1c7034819068f26064370f715f14"));
 
         /*vSeeds.push_back(CDNSSeedData("fuzzbawls.pw", "pivx.seed.fuzzbawls.pw"));     // Primary DNS Seeder from Fuzzbawls
         vSeeds.push_back(CDNSSeedData("fuzzbawls.pw", "pivx.seed2.fuzzbawls.pw"));    // Secondary DNS Seeder from Fuzzbawls

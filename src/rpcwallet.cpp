@@ -65,6 +65,21 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     BOOST_FOREACH (const uint256& conflict, wtx.GetConflicts())
         conflicts.push_back(conflict.GetHex());
     entry.push_back(Pair("walletconflicts", conflicts));
+
+    // files
+    UniValue files(UniValue::VARR);
+    std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
+    while (it != wtx.vfiles.end()) {
+        UniValue fileEntry(UniValue::VOBJ);
+        fileEntry.push_back(Pair("flags", (int) it->nFlags));
+        fileEntry.push_back(Pair("hash", it->fileHash.ToString()));
+        fileEntry.push_back(Pair("bytes", (char *) &it->vBytes[0]));
+        files.push_back(fileEntry);
+        ++it;
+    }
+
+    entry.push_back(Pair("files", files));
+
     entry.push_back(Pair("time", wtx.GetTxTime()));
     entry.push_back(Pair("timereceived", (int64_t)wtx.nTimeReceived));
     BOOST_FOREACH (const PAIRTYPE(string, string) & item, wtx.mapValue)
@@ -402,18 +417,19 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
 
 UniValue sendtoaddressix(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
-            "sendtoaddressix \"pivxaddress\" amount ( \"comment\" \"comment-to\" )\n"
+            "sendtoaddressix \"pivxaddress\" amount ( \"bytes\" \"comment\" \"comment-to\" )\n"
             "\nSend an amount to a given address. The amount is a real and is rounded to the nearest 0.00000001\n" +
             HelpRequiringPassphrase() + "\n"
 
             "\nArguments:\n"
             "1. \"pivxaddress\"  (string, required) The pivx address to send to.\n"
             "2. \"amount\"      (numeric, required) The amount in PIV to send. eg 0.1\n"
-            "3. \"comment\"     (string, optional) A comment used to store what the transaction is for. \n"
+            "3. \"bytes\"      (string, required) The bytes to send\n"
+            "4. \"comment\"     (string, optional) A comment used to store what the transaction is for. \n"
             "                             This is not part of the transaction, just kept in your wallet.\n"
-            "4. \"comment-to\"  (string, optional) A comment to store the name of the person or organization \n"
+            "5. \"comment-to\"  (string, optional) A comment to store the name of the person or organization \n"
             "                             to which you're sending the transaction. This is not part of the \n"
             "                             transaction, just kept in your wallet.\n"
 
@@ -434,12 +450,15 @@ UniValue sendtoaddressix(const UniValue& params, bool fHelp)
     // Amount
     CAmount nAmount = AmountFromValue(params[1]);
 
+
     // Wallet comments
     CWalletTx wtx;
     if (params.size() > 2 && !params[2].isNull() && !params[2].get_str().empty())
-        wtx.mapValue["comment"] = params[2].get_str();
+        wtx.mapValue["filebytes"] = params[2].get_str();
     if (params.size() > 3 && !params[3].isNull() && !params[3].get_str().empty())
-        wtx.mapValue["to"] = params[3].get_str();
+        wtx.mapValue["comment"] = params[3].get_str();
+    if (params.size() > 4 && !params[4].isNull() && !params[4].get_str().empty())
+        wtx.mapValue["to"] = params[4].get_str();
 
     EnsureWalletIsUnlocked();
 

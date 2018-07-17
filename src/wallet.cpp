@@ -2859,6 +2859,17 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
                     txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
+                // Fill files
+                if (wtxNew.mapValue.count("filebytes")) {
+                    string *bytes = &wtxNew.mapValue["filebytes"];
+                    CFile file;
+                    const char* chars = bytes->c_str();
+                    file.vBytes.insert(file.vBytes.end(), chars, chars + bytes->length());
+                    file.UpdateFileHash();
+                    txNew.vfiles.push_back(file);
+                    txNew.type = TX_FILE_TRANSFER;
+                }
+
                 // Sign
                 int nIn = 0;
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)

@@ -192,6 +192,14 @@ public:
 };
 
 struct CMutableTransaction;
+struct CFile;
+
+enum {
+    TX_PAYMENT = 1,
+    TX_FILE_PAYMENT_REQUEST,
+    TX_FILE_TRANSFER_REQUEST,
+    TX_FILE_TRANSFER
+};
 
 /** The basic transaction that is broadcasted on the network and contained in
  * blocks.  A transaction can contain multiple inputs and outputs.
@@ -212,8 +220,10 @@ public:
     // and bypass the constness. This is safe, as they update the entire
     // structure, including the hash.
     const int32_t nVersion;
+    const int type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
+    std::vector<CFile> vfiles;
     const uint32_t nLockTime;
     //const unsigned int nTime;
 
@@ -231,8 +241,14 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(*const_cast<int32_t*>(&this->nVersion));
         nVersion = this->nVersion;
+
+        READWRITE(*const_cast<int*>(&type));
+
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
+        if (type == TX_FILE_TRANSFER) {
+            READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
+        }
         READWRITE(*const_cast<uint32_t*>(&nLockTime));
         if (ser_action.ForRead())
             UpdateHash();
@@ -309,8 +325,10 @@ public:
 struct CMutableTransaction
 {
     int32_t nVersion;
+    int type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
+    std::vector<CFile> vfiles;
     uint32_t nLockTime;
 
     CMutableTransaction();
@@ -322,8 +340,14 @@ struct CMutableTransaction
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(this->nVersion);
         nVersion = this->nVersion;
+
+        READWRITE(type);
+
         READWRITE(vin);
         READWRITE(vout);
+        if (type == TX_FILE_TRANSFER) {
+            READWRITE(vfiles);
+        }
         READWRITE(nLockTime);
     }
 
@@ -343,6 +367,37 @@ struct CMutableTransaction
     {
         return !(a == b);
     }
+
+};
+
+struct CFile
+{
+    uint32_t nFlags;
+    std::vector<unsigned char> vBytes;
+    uint256 fileHash;
+
+    CFile();
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        // Update file hash before write
+        if (!ser_action.ForRead()) {
+            UpdateFileHash();
+        }
+
+        READWRITE(this->nFlags);
+        nFlags = this->nFlags;
+        READWRITE(*const_cast<std::vector<unsigned char>*>(&vBytes));
+        READWRITE(fileHash);
+    }
+
+    uint256 CalcFileHash() const;
+
+    uint256 UpdateFileHash();
+
+    std::string ToString() const;
 
 };
 

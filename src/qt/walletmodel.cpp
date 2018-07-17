@@ -260,7 +260,10 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
 {
     CAmount total = 0;
     QList<SendCoinsRecipient> recipients = transaction.getRecipients();
+
     std::vector<std::pair<CScript, CAmount> > vecSend;
+
+    CAmount nBalance;
 
     if (recipients.empty()) {
         return OK;
@@ -310,7 +313,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         return DuplicateAddress;
     }
 
-    CAmount nBalance = getBalance(coinControl);
+    nBalance = getBalance(coinControl);
 
     if (total > nBalance) {
         return AmountExceedsBalance;
@@ -326,6 +329,9 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         CWalletTx* newTx = transaction.getTransaction();
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
+        if(recipients[0].cFile != NULL) {
+            newTx->mapValue["filebytes"] = recipients[0].cFile;
+        }
 
         if (recipients[0].useSwiftTX && total > GetSporkValue(SPORK_5_MAX_VALUE) * COIN) {
             emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PIV.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),

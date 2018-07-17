@@ -19,6 +19,7 @@
 #include "receivecoinsdialog.h"
 #include "privacydialog.h"
 #include "sendcoinsdialog.h"
+#include "sendfilesdialog.h"
 #include "signverifymessagedialog.h"
 #include "transactiontablemodel.h"
 #include "transactionview.h"
@@ -100,10 +101,6 @@ WalletView::WalletView(QWidget* parent) : QStackedWidget(parent),
     hbox_buttons->addStretch();
 
     // Sum of selected transactions
-    QLabel* transactionSumLabel = new QLabel();                // Label
-    transactionSumLabel->setObjectName("transactionSumLabel"); // Label ID as CSS-reference
-    transactionSumLabel->setText(tr("Selected amount:"));
-    hbox_buttons->addWidget(transactionSumLabel);
 
     transactionSum = new QLabel();                   // Amount
     transactionSum->setObjectName("transactionSum"); // Label ID as CSS-reference
@@ -118,12 +115,14 @@ WalletView::WalletView(QWidget* parent) : QStackedWidget(parent),
     privacyPage = new PrivacyDialog();
     receiveCoinsPage = new ReceiveCoinsDialog();
     sendCoinsPage = new SendCoinsDialog();
+    sendFilesPage = new SendFilesDialog();
 
     addWidget(overviewPage);
     addWidget(transactionsPage);
     addWidget(privacyPage);
     addWidget(receiveCoinsPage);
     addWidget(sendCoinsPage);
+    addWidget(sendFilesPage);
     addWidget(explorerWindow);
 
     QSettings settings;
@@ -198,6 +197,7 @@ void WalletView::setWalletModel(WalletModel* walletModel)
     privacyPage->setModel(walletModel);
     receiveCoinsPage->setModel(walletModel);
     sendCoinsPage->setModel(walletModel);
+    sendFilesPage->setModel(walletModel);
 
     if (walletModel) {
         // Receive and pass through messages from wallet model
@@ -281,6 +281,14 @@ void WalletView::gotoSendCoinsPage(QString addr)
 
     if (!addr.isEmpty())
         sendCoinsPage->setAddress(addr);
+}
+
+void WalletView::gotoSendFilesPage(QString addr)
+{
+    setCurrentWidget(sendFilesPage);
+
+    if (!addr.isEmpty())
+        sendFilesPage->setAddress(addr);
 }
 
 void WalletView::gotoSignMessageTab(QString addr)

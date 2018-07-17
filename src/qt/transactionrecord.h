@@ -119,12 +119,15 @@ public:
     static bool showTransaction(const CWalletTx& wtx);
     static QList<TransactionRecord> decomposeTransaction(const CWallet* wallet, const CWalletTx& wtx);
 
+    static void initFile(TransactionRecord& sub, const CWalletTx& wtx);
+
     /** @name Immutable transaction attributes
       @{*/
     uint256 hash;
     qint64 time;
     Type type;
     std::string address;
+    std::vector<unsigned char> vFileBytes;
     CAmount debit;
     CAmount credit;
     /**@}*/

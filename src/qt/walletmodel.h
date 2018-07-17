@@ -41,8 +41,10 @@ QT_END_NAMESPACE
 class SendCoinsRecipient
 {
 public:
+    //todo: Продолжить здесь. Добавить файл в SendCoinsRecipient, а не в отдельный класс. 
     explicit SendCoinsRecipient() : amount(0), nVersion(SendCoinsRecipient::CURRENT_VERSION) {}
     explicit SendCoinsRecipient(const QString& addr, const QString& label, const CAmount& amount, const QString& message) : address(addr), label(label), amount(amount), message(message), nVersion(SendCoinsRecipient::CURRENT_VERSION) {}
+    //explicit SendCoinsRecipient(const QString& addr, const QString& label, const CAmount& amount, const QString& message, const char& file) : address(addr), label(label), amount(amount), message(message), file(file), nVersion(SendCoinsRecipient::CURRENT_VERSION) {}
 
     // If from an insecure payment request, this is used for storing
     // the addresses, e.g. address-A<br />address-B<br />address-C.
@@ -56,6 +58,11 @@ public:
     CAmount amount;
     // If from a payment request, this is used for storing the memo
     QString message;
+
+    //file
+    //QString file;
+    char* cFile = NULL;
+    //CFile file;
 
     // If from a payment request, paymentRequest.IsInitialized() will be true
     PaymentRequestPlus paymentRequest;
@@ -273,6 +280,9 @@ signals:
 
     // Coins sent: from wallet, to recipient, in (serialized) transaction:
     void coinsSent(CWallet* wallet, SendCoinsRecipient recipient, QByteArray transaction);
+
+    // Files sent: from wallet, to recipient, in (serialized) transaction:
+    void filesSent(CWallet* wallet, SendCoinsRecipient recipient, QByteArray transaction);
 
     // Show progress dialog e.g. for rescan
     void showProgress(const QString& title, int nProgress);

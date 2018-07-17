@@ -50,6 +50,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
     if (wtx.IsCoinStake()) {
         TransactionRecord sub(hash, nTime);
         CTxDestination address;
+
+        TransactionRecord::initFile(sub, wtx);
+
         if (!wtx.IsZerocoinSpend() && !ExtractDestination(wtx.vout[1].scriptPubKey, address))
             return parts;
 
@@ -96,6 +99,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
 
                 isminetype mine = wallet->IsMine(txout);
                 TransactionRecord sub(hash, nTime);
+
+                TransactionRecord::initFile(sub, wtx);
+
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                 sub.type = TransactionRecord::ZerocoinSpend_Change_zPiv;
                 sub.address = mapValue["zerocoinmint"];
@@ -117,6 +123,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             isminetype mine = wallet->IsMine(txout);
             if (mine) {
                 TransactionRecord sub(hash, nTime);
+
+                TransactionRecord::initFile(sub, wtx);
+
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                 if (fZSpendFromMe) {
                     sub.type = TransactionRecord::ZerocoinSpend_FromMe;
@@ -138,6 +147,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
 
             // zerocoin spend that was sent to someone else
             TransactionRecord sub(hash, nTime);
+
+            TransactionRecord::initFile(sub, wtx);
+
             sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
             sub.debit = -txout.nValue;
             sub.type = TransactionRecord::ZerocoinSpend;
@@ -155,6 +167,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             isminetype mine = wallet->IsMine(txout);
             if (mine) {
                 TransactionRecord sub(hash, nTime);
+
+               TransactionRecord::initFile(sub, wtx);
+
                 CTxDestination address;
                 sub.idx = parts.size(); // sequence number
                 sub.credit = txout.nValue;
@@ -167,7 +182,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
                     sub.type = TransactionRecord::RecvFromOther;
                     sub.address = mapValue["from"];
-                }
+                    }
                 if (wtx.IsCoinBase()) {
                     // Generated
                     sub.type = TransactionRecord::Generated;
@@ -213,6 +228,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             // might need some additional work however
 
             TransactionRecord sub(hash, nTime);
+
+            TransactionRecord::initFile(sub, wtx);
+
             // Payment to self by default
             sub.type = TransactionRecord::SendToSelf;
             sub.address = "";
@@ -253,6 +271,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             for (unsigned int nOut = 0; nOut < wtx.vout.size(); nOut++) {
                 const CTxOut& txout = wtx.vout[nOut];
                 TransactionRecord sub(hash, nTime);
+
+                TransactionRecord::initFile(sub, wtx);
+
                 sub.idx = parts.size();
                 sub.involvesWatchAddress = involvesWatchAddress;
 
@@ -404,4 +425,22 @@ QString TransactionRecord::getTxID() const
 int TransactionRecord::getOutputIndex() const
 {
     return idx;
+}
+
+void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
+
+    if (!wtx.vfiles.empty()) {
+        std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
+          while (it != wtx.vfiles.end()) {
+              if (it->vBytes.empty()) {
+                  return;
+              }
+
+              const char* values = (char*) &it->vBytes[0];
+              const char* end = values + strlen( values );
+              sub.vFileBytes.insert(  sub.vFileBytes.end(), values, end );
+              ++it;
+          }
+          //sub.address = sub.address + "";
+      }
 }

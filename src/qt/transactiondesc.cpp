@@ -84,6 +84,8 @@ QString TransactionDesc::FormatTxStatus(const CWalletTx& wtx)
     }
 }
 
+
+//todo: 
 QString TransactionDesc::toHTML(CWallet* wallet, CWalletTx& wtx, TransactionRecord* rec, int unit)
 {
     QString strHTML;

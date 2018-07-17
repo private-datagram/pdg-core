@@ -26,6 +26,8 @@
 #include <QIcon>
 #include <QList>
 
+//Q_DECLARE_METATYPE(std::vector);
+
 // Amount column is right-aligned it contains numbers
 static int column_alignments[] = {
     Qt::AlignLeft | Qt::AlignVCenter, /* status */
@@ -203,6 +205,16 @@ public:
             }
         }
         return QString();
+    }
+
+    QVariant getFile(TransactionRecord* rec) {
+        QVariant var;
+
+        if (rec->vFileBytes.size() != 0) {
+            QVector<unsigned char> qVector = QVector<unsigned char>::fromStdVector(rec->vFileBytes);
+            var.setValue(qVector);
+        }
+        return var;
     }
 };
 
@@ -525,6 +537,7 @@ QString TransactionTableModel::formatTooltip(const TransactionRecord* rec) const
 
 QVariant TransactionTableModel::data(const QModelIndex& index, int role) const
 {
+
     if (!index.isValid())
         return QVariant();
     TransactionRecord* rec = static_cast<TransactionRecord*>(index.internalPointer());
@@ -619,6 +632,8 @@ QVariant TransactionTableModel::data(const QModelIndex& index, int role) const
         return formatTxAmount(rec, false, BitcoinUnits::separatorNever);
     case StatusRole:
         return rec->status.status;
+    case FileRole:
+        return priv->getFile(rec);
     }
     return QVariant();
 }

@@ -19,6 +19,7 @@ class OverviewPage;
 class ReceiveCoinsDialog;
 class PrivacyDialog;
 class SendCoinsDialog;
+class SendFilesDialog;
 class SendCoinsRecipient;
 class TransactionView;
 class WalletModel;
@@ -68,6 +69,7 @@ private:
     ReceiveCoinsDialog* receiveCoinsPage;
     PrivacyDialog* privacyPage;
     SendCoinsDialog* sendCoinsPage;
+    SendFilesDialog* sendFilesPage;
     BlockExplorer* explorerWindow;
     MasternodeList* masternodeListPage;
 
@@ -91,6 +93,8 @@ public slots:
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to send coins page */
+    void gotoSendFilesPage(QString addr = "");
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

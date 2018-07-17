@@ -98,6 +98,7 @@ private:
     QAction* masternodeAction;
     QAction* quitAction;
     QAction* sendCoinsAction;
+    QAction* sendFilesAction;
     QAction* usedSendingAddressesAction;
     QAction* usedReceivingAddressesAction;
     QAction* signMessageAction;
@@ -214,6 +215,8 @@ private slots:
     void gotoPrivacyPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to send files page */
+    void gotoSendFilesPage(QString addr = "");
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QSortFilterProxyModel>
 
+
 /** Filter the transaction list according to pre-specified rules. */
 class TransactionFilterProxy : public QSortFilterProxyModel
 {

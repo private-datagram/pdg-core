@@ -523,6 +523,7 @@ CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey, CWallet* pwallet,
         return NULL;
 
     CScript scriptPubKey = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
+
     return CreateNewBlock(scriptPubKey, pwallet, fProofOfStake);
 }
 

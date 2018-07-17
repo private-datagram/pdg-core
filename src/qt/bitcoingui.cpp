@@ -82,6 +82,7 @@ BitcoinGUI::BitcoinGUI(const NetworkStyle* networkStyle, QWidget* parent) : QMai
                                                                             masternodeAction(0),
                                                                             quitAction(0),
                                                                             sendCoinsAction(0),
+                                                                            sendFilesAction(0),
                                                                             usedSendingAddressesAction(0),
                                                                             usedReceivingAddressesAction(0),
                                                                             signMessageAction(0),
@@ -326,6 +327,18 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
 #endif
     tabGroup->addAction(sendCoinsAction);
 
+
+    sendFilesAction = new QAction(QIcon(":/icons/send"), tr("&Files"), this);
+    sendFilesAction->setStatusTip(tr("Send files to a PIVX address"));
+    sendFilesAction->setToolTip(sendFilesAction->statusTip());
+    sendFilesAction->setCheckable(true);
+#ifdef Q_OS_MAC
+    sendFilesAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_2));//TODO set Key
+#else
+    sendFilesAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_2));//TODO set Key
+#endif
+    tabGroup->addAction(sendCoinsAction);
+
     receiveCoinsAction = new QAction(QIcon(":/icons/receiving_addresses"), tr("&Receive"), this);
     receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and pivx: URIs)"));
     receiveCoinsAction->setToolTip(receiveCoinsAction->statusTip());
@@ -383,6 +396,11 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     connect(overviewAction, SIGNAL(triggered()), this, SLOT(gotoOverviewPage()));
     connect(sendCoinsAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(sendCoinsAction, SIGNAL(triggered()), this, SLOT(gotoSendCoinsPage()));
+
+    //send file
+    connect(sendFilesAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
+    connect(sendFilesAction, SIGNAL(triggered()), this, SLOT(gotoSendFilesPage()));
+
     connect(receiveCoinsAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(receiveCoinsAction, SIGNAL(triggered()), this, SLOT(gotoReceiveCoinsPage()));
     connect(privacyAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
@@ -570,6 +588,7 @@ void BitcoinGUI::createToolBars()
 
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
+        toolbar->addAction(sendFilesAction);
         toolbar->addAction(receiveCoinsAction);
         toolbar->addAction(privacyAction);
         toolbar->addAction(historyAction);
@@ -672,6 +691,7 @@ void BitcoinGUI::setWalletActionsEnabled(bool enabled)
 {
     overviewAction->setEnabled(enabled);
     sendCoinsAction->setEnabled(enabled);
+    sendFilesAction->setEnabled(enabled);
     receiveCoinsAction->setEnabled(enabled);
     privacyAction->setEnabled(enabled);
     historyAction->setEnabled(enabled);
@@ -729,6 +749,7 @@ void BitcoinGUI::createTrayIconMenu()
     trayIconMenu->addAction(toggleHideAction);
     trayIconMenu->addSeparator();
     trayIconMenu->addAction(sendCoinsAction);
+    trayIconMenu->addAction(sendFilesAction);
     trayIconMenu->addAction(receiveCoinsAction);
     trayIconMenu->addAction(privacyAction);
     trayIconMenu->addSeparator();
@@ -836,6 +857,12 @@ void BitcoinGUI::gotoSendCoinsPage(QString addr)
 {
     sendCoinsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+}
+
+void BitcoinGUI::gotoSendFilesPage(QString addr)
+{
+    sendFilesAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoSendFilesPage(addr);
 }
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)

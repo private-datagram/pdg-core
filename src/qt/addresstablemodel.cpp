@@ -32,10 +32,12 @@ struct AddressTableEntry {
     QString label;
     QString address;
     QString pubcoin;
+    char* file = NULL;
 
     AddressTableEntry() {}
     AddressTableEntry(Type type, const QString &pubcoin):    type(type), pubcoin(pubcoin) {}
     AddressTableEntry(Type type, const QString& label, const QString& address) : type(type), label(label), address(address) {}
+    //AddressTableEntry(Type type, const QString& label, const QString& address, char file) : type(type), label(label), address(address), file(file) {}
 };
 
 struct AddressTableEntryLessThan {
