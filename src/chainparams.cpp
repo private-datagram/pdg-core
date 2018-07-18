@@ -2,6 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -53,10 +54,10 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 // + Contains no strange transactions
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
-    (0, uint256("00000c83cb7e65c9bf899b652c885b90c122401a29a386840c14b5ab79637421"));
+    (0, uint256("00000cca9c8d9573d00764a46855be54b43cc70921355d0c22413c9037c2c011"));
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
-    1528286400, // * UNIX timestamp of last checkpoint block
+    1531844900, // * UNIX timestamp of last checkpoint block
     0,    // * total number of transactions between genesis and last checkpoint
                 //   (the tx=... number in the SetBestChain debug.log lines)
     2000        // * estimated number of transactions per day after checkpoint
@@ -163,12 +164,12 @@ public:
         genesis.hashPrevBlock = 0;
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
         genesis.nVersion = 4;
-        genesis.nTime = 1528286400;
+        genesis.nTime = 1531844900;
         genesis.nBits = 0x1e0ffff0;
-        genesis.nNonce = 538258;
+        genesis.nNonce = 1727950;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("00000c83cb7e65c9bf899b652c885b90c122401a29a386840c14b5ab79637421"));
+        assert(hashGenesisBlock == uint256("00000cca9c8d9573d00764a46855be54b43cc70921355d0c22413c9037c2c011"));
         assert(genesis.hashMerkleRoot == uint256("5f9e3f938b212aecba1e9b4233c3488bf57c1c7034819068f26064370f715f14"));
 
         /*vSeeds.push_back(CDNSSeedData("fuzzbawls.pw", "pivx.seed.fuzzbawls.pw"));     // Primary DNS Seeder from Fuzzbawls

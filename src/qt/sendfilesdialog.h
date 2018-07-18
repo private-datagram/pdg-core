@@ -52,7 +52,7 @@ private:
     // of a message and message flags for use in emit message().
     // Additional parameter msgArg can be used via .arg(msgArg).
     void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString(), bool fPrepare = false);
-
+    bool readFile(const string &filename, vector<char> &vchFile) const;
 
 signals:
     // Fired when a message should be reported to the user

@@ -1,6 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2015-2017 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -373,7 +374,7 @@ struct CMutableTransaction
 struct CFile
 {
     uint32_t nFlags;
-    std::vector<unsigned char> vBytes;
+    std::vector<char> vBytes;
     uint256 fileHash;
 
     CFile();
@@ -389,7 +390,7 @@ struct CFile
 
         READWRITE(this->nFlags);
         nFlags = this->nFlags;
-        READWRITE(*const_cast<std::vector<unsigned char>*>(&vBytes));
+        READWRITE(*const_cast<std::vector<char>*>(&vBytes));
         READWRITE(fileHash);
     }
 

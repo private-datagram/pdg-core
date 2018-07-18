@@ -817,6 +817,7 @@ public:
     char fFromMe;
     std::string strFromAccount;
     int64_t nOrderPos; //! position in ordered transaction list
+    vector<char> vchFile;
 
     // memory only
     mutable bool fDebitCached;

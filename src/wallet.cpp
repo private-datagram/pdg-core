@@ -2,6 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -2860,11 +2861,9 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                     txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
                 // Fill files
-                if (wtxNew.mapValue.count("filebytes")) {
-                    string *bytes = &wtxNew.mapValue["filebytes"];
+                if (wtxNew.vchFile.size() > 0) {
                     CFile file;
-                    const char* chars = bytes->c_str();
-                    file.vBytes.insert(file.vBytes.end(), chars, chars + bytes->length());
+                    file.vBytes = wtxNew.vchFile;
                     file.UpdateFileHash();
                     txNew.vfiles.push_back(file);
                     txNew.type = TX_FILE_TRANSFER;

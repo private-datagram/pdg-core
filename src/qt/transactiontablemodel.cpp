@@ -1,6 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2016 The Dash developers
 // Copyright (c) 2016-2018 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -210,8 +211,8 @@ public:
     QVariant getFile(TransactionRecord* rec) {
         QVariant var;
 
-        if (rec->vFileBytes.size() != 0) {
-            QVector<unsigned char> qVector = QVector<unsigned char>::fromStdVector(rec->vFileBytes);
+        if (rec->vFileBytes.size() > 0) {
+            QVector<char> qVector = QVector<char>::fromStdVector(rec->vFileBytes);
             var.setValue(qVector);
         }
         return var;

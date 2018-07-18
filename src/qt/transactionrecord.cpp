@@ -1,6 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -433,12 +434,10 @@ void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
         std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
           while (it != wtx.vfiles.end()) {
               if (it->vBytes.empty()) {
-                  return;
+                  continue;
               }
 
-              const char* values = (char*) &it->vBytes[0];
-              const char* end = values + strlen( values );
-              sub.vFileBytes.insert(  sub.vFileBytes.end(), values, end );
+              sub.vFileBytes = it->vBytes;
               ++it;
           }
           //sub.address = sub.address + "";

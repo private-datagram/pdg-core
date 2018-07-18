@@ -1,6 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2016 The Dash developers
 // Copyright (c) 2016-2017 The PIVX developers
+// Copyright (c) 2018 The PrivateDatagram developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -127,7 +128,7 @@ public:
     qint64 time;
     Type type;
     std::string address;
-    std::vector<unsigned char> vFileBytes;
+    std::vector<char> vFileBytes;
     CAmount debit;
     CAmount credit;
     /**@}*/

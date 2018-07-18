@@ -90,13 +90,22 @@ void SendFilesDialog::on_uploadFile_clicked()
 
 void SendFilesDialog::on_sendFileToAddressButton_clicked()
 {
-   if (!model || !model->getOptionsModel())
+    if (!model || !model->getOptionsModel())
         return;
 
     QList<SendCoinsRecipient> recipients;
     bool valid = true;
 
     recipient = getValue();
+    if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
+        QMessageBox::critical(this, tr("Send File"),
+                              tr("Error opening file"),
+                              QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+    QFileInfo fileInfo(ui->fileNameField->text());
+    recipient.label = fileInfo.fileName();
+
     if (validate()) {
         recipients.append(recipient);
     } else {
@@ -115,41 +124,43 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
 
     // Format confirmation message
     QStringList formatted;
-    foreach (const SendCoinsRecipient& rcp, recipients) {
-        // generate bold amount string
-        QString amount = "<b>" + BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), rcp.amount);
-        amount.append("</b> ").append(strFunds);
+            foreach (const SendCoinsRecipient &rcp, recipients) {
+            // generate bold amount string
+            QString amount =
+                    "<b>" + BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), rcp.amount);
+            amount.append("</b> ").append(strFunds);
 
-        // generate monospace address string
-        QString address = "<span style='font-family: monospace;'>" + rcp.address;
-        address.append("</span>");
+            // generate monospace address string
+            QString address = "<span style='font-family: monospace;'>" + rcp.address;
+            address.append("</span>");
 
-        QString recipientElement;
+            QString recipientElement;
 
-        if (!rcp.paymentRequest.IsInitialized()) // normal payment
-        {
-            if (rcp.label.length() > 0) // label with address
+            if (!rcp.paymentRequest.IsInitialized()) // normal payment
             {
-                recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.label));
-                recipientElement.append(QString(" (%1)").arg(address));
-            } else // just address
+                if (rcp.label.length() > 0) // label with address
+                {
+                    recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.label));
+                    recipientElement.append(QString(" (%1)").arg(address));
+                } else // just address
+                {
+                    recipientElement = tr("%1 to %2").arg(amount, address);
+                }
+            } else if (!rcp.authenticatedMerchant.isEmpty()) // secure payment request
+            {
+                recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
+            } else // insecure payment request
             {
                 recipientElement = tr("%1 to %2").arg(amount, address);
             }
-        } else if (!rcp.authenticatedMerchant.isEmpty()) // secure payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
-        } else // insecure payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, address);
-        }
 
-        if (CoinControlDialog::coinControl->fSplitBlock) {
-            recipientElement.append(tr(" split into %1 outputs using the UTXO splitter.").arg(CoinControlDialog::coinControl->nSplitBlock));
-        }
+            if (CoinControlDialog::coinControl->fSplitBlock) {
+                recipientElement.append(tr(" split into %1 outputs using the UTXO splitter.").arg(
+                        CoinControlDialog::coinControl->nSplitBlock));
+            }
 
-        formatted.append(recipientElement);
-    }
+            formatted.append(recipientElement);
+        }
 
     fNewRecipientAllowed = false;
 
@@ -228,42 +239,33 @@ SendCoinsRecipient SendFilesDialog::getValue()
     recipient.address = ui->addressField->text();
     recipient.amount = 100000000;
 
-    //.c_str().toStdString()
-//    QFile file(ui->fileNameField->text());
-//    if (!file.open(QIODevice::WriteOnly)) {
-//      QMessageBox::information(this, tr("Unable to open file"),
-//          file.errorString());
-//      return;
-//    }
-
-   // QDataStream out(&file);
-    ifstream file (ui->fileNameField->text().toStdString());
-    if (file.is_open())
-        cout << "Все ОК! Файл открыт!\n\n" << endl;
-    else
-        cout << "Файл не открыт!\n\n" << endl;
-
-    QFileInfo fileInfo(ui->fileNameField->text());
-
-    //transaction label = file name
-    recipient.label = fileInfo.fileName();
-    //recipient.label = "Send File";
-
-    file.seekg( 0, ios::end );
-    size_t len = file.tellg();
-    char *charFile = new char[len];
-    file.seekg(0, ios::beg);
-    file.read(charFile, len);
-    file.close();
-
-    recipient.cFile = charFile;
-
     //todo: ?
     //CFile cFile;
     //cFile.vBytes.insert(cFile.vBytes.end(), charFile, charFile + charFile->length());
     //cFile.UpdateFileHash();
 
     return recipient;
+}
+
+/**
+ * @param filename filename
+ * @param vchFile output value
+ * @return is file read successfully
+ */
+bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchFile) const {
+    ifstream file (filename);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    file.seekg(0, ios_base::end);
+    size_t len = static_cast<size_t>(file.tellg());
+    vchFile.resize(len);
+    file.seekg(0, ios_base::beg);
+    file.read(&vchFile[0], len);
+    file.close();
+
+    return true;
 }
 
 void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee, QStringList formatted)
@@ -350,30 +352,7 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee,
 //todo: обновление модели окна отправки.
 void SendFilesDialog::coinControlUpdateLabels()
 {
-//    if (!model || !model->getOptionsModel() || !model->getOptionsModel()->getCoinControlFeatures())
-//        return;
 
-//    // set pay amounts
-//    CoinControlDialog::payAmounts.clear();
-//    for (int i = 0; i < ui->entries->count(); ++i) {
-//        SendCoinsEntry* entry = qobject_cast<SendCoinsEntry*>(ui->entries->itemAt(i)->widget());
-//        if (entry)
-//            CoinControlDialog::payAmounts.append(entry->getValue().amount);
-//    }
-
-//    if (CoinControlDialog::coinControl->HasSelected()) {
-//        // actual coin control calculation
-//        CoinControlDialog::updateLabels(model, this);
-
-//        // show coin control stats
-//        ui->labelCoinControlAutomaticallySelected->hide();
-//        ui->widgetCoinControl->show();
-//    } else o{
-//        // hide coin control stats
-//        ui->labelCoinControlAutomaticallySelected->show();
-//        ui->widgetCoinControl->hide();
-//        ui->labelCoinControlInsuffFunds->hide();
-//    }
 }
 
 
@@ -472,20 +451,20 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
             tr("All Files (*)"));
 
     if (fileName.isEmpty())
-          return;
-      else {
-            QFile file(fileName);
-            if (!file.open(QIODevice::WriteOnly)) {
-              QMessageBox::information(this, tr("Unable to open file"),
-                  file.errorString());
-              return;
-            }
+        return;
+    else {
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly)) {
+            QMessageBox::information(this, tr("Unable to open file"),
+                                     file.errorString());
+            return;
+        }
 
-            QDataStream out(&file);
-            QVariant blockQVariantFile = index.data(TransactionTableModel::FileRole);
-            QVector<unsigned char> vFile = blockQVariantFile.value< QVector<unsigned char>>();
+        QDataStream out(&file);
+        QVariant blockQVariantFile = index.data(TransactionTableModel::FileRole);
+        QVector<char> vFile = blockQVariantFile.value<QVector<char>>();
 
-            out << vFile;
-            ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
+        out.writeRawData(vFile.data(), vFile.size());
+        ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
     }
 }
