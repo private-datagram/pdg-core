@@ -1963,6 +1963,32 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     return true;
 }
 
+
+bool GetFile(const uint256& hash, char& chars)
+{
+    LOCK(cs_main);
+
+    CDiskTxPos postx;
+    if (pblocktree->ReadTxIndex(hash, postx)) {
+        CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+        if (file.IsNull())
+            return error("%s: OpenBlockFileFile failed", __func__);
+        CBlockHeader header;
+        try {
+            file >> header;
+            fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+            //file >> txOut;
+        } catch (std::exception& e) {
+            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+        }
+
+        return true;
+    }
+
+    // transaction not found in the index, nothing more can be done
+    return false;
+}
+
 /** Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock, bool fAllowSlow)
 {
@@ -4960,11 +4986,11 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
-FILE* OpenDiskFile(const CDiskBlockPos& pos, const char* prefix, bool fReadOnly)
+FILE* OpenDiskFile(const CDiskBlockPos& pos, boost::filesystem::path& path, bool fReadOnly)
 {
     if (pos.IsNull())
         return NULL;
-    boost::filesystem::path path = GetBlockPosFilename(pos, prefix);
+
     boost::filesystem::create_directories(path.parent_path());
     FILE* file = fopen(path.string().c_str(), "rb+");
     if (!file && !fReadOnly)
@@ -4985,18 +5011,41 @@ FILE* OpenDiskFile(const CDiskBlockPos& pos, const char* prefix, bool fReadOnly)
 
 FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly)
 {
-    return OpenDiskFile(pos, "blk", fReadOnly);
+    boost::filesystem::path path = GetBlockPosFilename(pos, "blk");
+    return OpenDiskFile(pos, path, fReadOnly);
 }
 
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly)
 {
-    return OpenDiskFile(pos, "rev", fReadOnly);
+    boost::filesystem::path path = GetBlockPosFilename(pos, "rev");
+    return OpenDiskFile(pos, path, fReadOnly);
 }
+
+
 
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix)
 {
     return GetDataDir() / "blocks" / strprintf("%s%05u.dat", prefix, pos.nFile);
 }
+
+//file region
+FILE* OpenFileFile(const CDiskBlockPos& pos, bool fReadOnly)
+{
+    boost::filesystem::path path = GetFilePosFilename(pos, "blk");
+    return OpenDiskFile(pos, path, fReadOnly);
+}
+
+FILE* OpenUndoFileFile(const CDiskBlockPos& pos, bool fReadOnly)
+{
+    boost::filesystem::path path = GetFilePosFilename(pos, "rev");
+    return OpenDiskFile(pos, path, fReadOnly);
+}
+
+boost::filesystem::path GetFilePosFilename(const CDiskBlockPos& pos, const char* prefix)
+{
+    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, pos.nFile);
+}
+//end region
 
 CBlockIndex* InsertBlockIndex(uint256 hash)
 {
