@@ -299,6 +299,7 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/hmac_sha512.cpp \
   crypto/scrypt.cpp \
   crypto/ripemd160.cpp \
+  crypto/rsa.cpp \
   crypto/aes_helper.c \
   crypto/blake.c \
   crypto/bmw.c \
@@ -321,7 +322,9 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sph_jh.h \
   crypto/sph_keccak.h \
   crypto/sph_skein.h \
-  crypto/sph_types.h
+  crypto/sph_types.h \
+  crypto/aes.h \
+  crypto/rsa.h
 
 # libzerocoin library
 libzerocoin_libbitcoin_zerocin_a_CPPFLAGS = $(AM_CPPFLAGS)
@@ -500,6 +503,7 @@ libbitcoinconsensus_la_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha512.cpp \
   crypto/ripemd160.cpp \
+  crypto/rsa.cpp \
   eccryptoverify.cpp \
   ecwrapper.cpp \
   hash.cpp \
