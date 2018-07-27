@@ -27,6 +27,10 @@
 #include <QIcon>
 #include <QList>
 
+#define IS_TYPE_FILE(x) x == TransactionRecord::SendFilePaymentRequest || x == TransactionRecord::SendFilePaymentConfirm || \
+x == TransactionRecord::SendFileTransfer || x == TransactionRecord::RecvFilePaymentRequest || \
+x == TransactionRecord::RecvFilePaymentConfirm || x == TransactionRecord::RecvFileTransfer
+
 //Q_DECLARE_METATYPE(std::vector);
 
 // Amount column is right-aligned it contains numbers
@@ -382,7 +386,18 @@ QString TransactionTableModel::formatTxType(const TransactionRecord* wtx) const
         return tr("Minted Change as zPIV from zPIV Spend");
     case TransactionRecord::ZerocoinSpend_FromMe:
         return tr("Converted zPIV to PIV");
-
+    case TransactionRecord::RecvFilePaymentRequest:
+        return tr("File payment request");
+    case TransactionRecord::RecvFilePaymentConfirm:
+        return tr("File payment confirmed");
+    case TransactionRecord::RecvFileTransfer:
+        return tr("File received");
+    case TransactionRecord::SendFilePaymentRequest:
+        return tr("Sent file payment request");
+    case TransactionRecord::SendFilePaymentConfirm:
+        return tr("Sent file payment");
+    case TransactionRecord::SendFileTransfer:
+        return tr("File sent");
     default:
         return QString();
     }
@@ -400,10 +415,16 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord* wtx
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::RecvFromOther:
     case TransactionRecord::RecvFromZerocoinSpend:
+    case TransactionRecord::RecvFilePaymentRequest: // TODO: change icons
+    case TransactionRecord::RecvFilePaymentConfirm:
+    case TransactionRecord::RecvFileTransfer:
         return QIcon(":/icons/tx_input");
     case TransactionRecord::SendToAddress:
     case TransactionRecord::SendToOther:
     case TransactionRecord::ZerocoinSpend:
+    case TransactionRecord::SendFilePaymentRequest: // TODO: change icons
+    case TransactionRecord::SendFilePaymentConfirm:
+    case TransactionRecord::SendFileTransfer:
         return QIcon(":/icons/tx_output");
     default:
         return QIcon(":/icons/tx_inout");
@@ -425,6 +446,12 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord* wtx, b
     case TransactionRecord::MNReward:
     case TransactionRecord::RecvWithObfuscation:
     case TransactionRecord::SendToAddress:
+    case TransactionRecord::RecvFilePaymentRequest:
+    case TransactionRecord::RecvFilePaymentConfirm:
+    case TransactionRecord::RecvFileTransfer:
+    case TransactionRecord::SendFilePaymentRequest:
+    case TransactionRecord::SendFilePaymentConfirm:
+    case TransactionRecord::SendFileTransfer:
     case TransactionRecord::Generated:
     case TransactionRecord::StakeMint:
     case TransactionRecord::ZerocoinSpend:
@@ -455,6 +482,12 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord* wtx) const
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::SendToAddress:
     case TransactionRecord::Generated:
+    case TransactionRecord::RecvFilePaymentRequest:
+    case TransactionRecord::RecvFilePaymentConfirm:
+    case TransactionRecord::RecvFileTransfer:
+    case TransactionRecord::SendFilePaymentRequest:
+    case TransactionRecord::SendFilePaymentConfirm:
+    case TransactionRecord::SendFileTransfer:
     case TransactionRecord::MNReward: {
         QString label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(wtx->address));
         if (label.isEmpty())
@@ -530,7 +563,8 @@ QString TransactionTableModel::formatTooltip(const TransactionRecord* rec) const
 {
     QString tooltip = formatTxStatus(rec) + QString("\n") + formatTxType(rec);
     if (rec->type == TransactionRecord::RecvFromOther || rec->type == TransactionRecord::SendToOther ||
-        rec->type == TransactionRecord::SendToAddress || rec->type == TransactionRecord::RecvWithAddress || rec->type == TransactionRecord::MNReward) {
+        rec->type == TransactionRecord::SendToAddress || rec->type == TransactionRecord::RecvWithAddress ||
+        IS_TYPE_FILE(rec->type) || rec->type == TransactionRecord::MNReward) {
         tooltip += QString(" ") + formatTxToAddress(rec, true);
     }
     return tooltip;

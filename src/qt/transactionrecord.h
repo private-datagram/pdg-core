@@ -95,7 +95,13 @@ public:
         ObfuscationCollateralPayment,
         ObfuscationMakeCollaterals,
         ObfuscationCreateDenominations,
-        Obfuscated
+        Obfuscated,
+        SendFilePaymentRequest,
+        SendFilePaymentConfirm,
+        SendFileTransfer,
+        RecvFilePaymentRequest,
+        RecvFilePaymentConfirm,
+        RecvFileTransfer
     };
 
     /** Number of confirmation recommended for accepting a transaction */

@@ -124,43 +124,43 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
 
     // Format confirmation message
     QStringList formatted;
-            foreach (const SendCoinsRecipient &rcp, recipients) {
-            // generate bold amount string
-            QString amount =
-                    "<b>" + BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), rcp.amount);
-            amount.append("</b> ").append(strFunds);
+    foreach (const SendCoinsRecipient &rcp, recipients) {
+        // generate bold amount string
+        QString amount =
+                "<b>" + BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), rcp.amount);
+        amount.append("</b> ").append(strFunds);
 
-            // generate monospace address string
-            QString address = "<span style='font-family: monospace;'>" + rcp.address;
-            address.append("</span>");
+        // generate monospace address string
+        QString address = "<span style='font-family: monospace;'>" + rcp.address;
+        address.append("</span>");
 
-            QString recipientElement;
+        QString recipientElement;
 
-            if (!rcp.paymentRequest.IsInitialized()) // normal payment
+        if (!rcp.paymentRequest.IsInitialized()) // normal payment
+        {
+            if (rcp.label.length() > 0) // label with address
             {
-                if (rcp.label.length() > 0) // label with address
-                {
-                    recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.label));
-                    recipientElement.append(QString(" (%1)").arg(address));
-                } else // just address
-                {
-                    recipientElement = tr("%1 to %2").arg(amount, address);
-                }
-            } else if (!rcp.authenticatedMerchant.isEmpty()) // secure payment request
-            {
-                recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
-            } else // insecure payment request
+                recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.label));
+                recipientElement.append(QString(" (%1)").arg(address));
+            } else // just address
             {
                 recipientElement = tr("%1 to %2").arg(amount, address);
             }
-
-            if (CoinControlDialog::coinControl->fSplitBlock) {
-                recipientElement.append(tr(" split into %1 outputs using the UTXO splitter.").arg(
-                        CoinControlDialog::coinControl->nSplitBlock));
-            }
-
-            formatted.append(recipientElement);
+        } else if (!rcp.authenticatedMerchant.isEmpty()) // secure payment request
+        {
+            recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
+        } else // insecure payment request
+        {
+            recipientElement = tr("%1 to %2").arg(amount, address);
         }
+
+        if (CoinControlDialog::coinControl->fSplitBlock) {
+            recipientElement.append(tr(" split into %1 outputs using the UTXO splitter.").arg(
+                    CoinControlDialog::coinControl->nSplitBlock));
+        }
+
+        formatted.append(recipientElement);
+    }
 
     fNewRecipientAllowed = false;
 
@@ -179,6 +179,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         send(recipients, strFee, formatted);
         return;
     }
+
     // already unlocked or not encrypted at all
     send(recipients, strFee, formatted);
 }
@@ -433,6 +434,9 @@ void SendFilesDialog::initFileHistory()
      filter->setDynamicSortFilter(true);
      filter->setSortRole(Qt::EditRole);
      filter->setShowInactive(false);
+     filter->setTypeFilter(TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentConfirm) |
+                           TransactionFilterProxy::TYPE(TransactionRecord::SendFileTransfer) | TransactionFilterProxy::TYPE(TransactionRecord::TransactionRecord::RecvFilePaymentRequest) |
+                           TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFileTransfer));
      filter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
 
      ui->listTransactions->setModel(filter);

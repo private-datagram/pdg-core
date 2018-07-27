@@ -4490,6 +4490,30 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>затемненный</translation>
     </message>
     <message>
+        <source>File payment request</source>
+        <translation>запрос на оплату файла</translation>
+    </message>
+    <message>
+        <source>File payment confirmed</source>
+        <translation>получена оплата файла</translation>
+    </message>
+    <message>
+        <source>File received</source>
+        <translation>файл получен</translation>
+    </message>
+    <message>
+        <source>Sent file payment request</source>
+        <translation>отправлен запрос на оплату файла</translation>
+    </message>
+    <message>
+        <source>Sent file payment</source>
+        <translation>отправлена оплата файла</translation>
+    </message>
+    <message>
+        <source>File sent</source>
+        <translation>файл отправлен</translation>
+    </message>
+    <message>
         <source>watch-only</source>
         <translation>смотреть только</translation>
     </message>
@@ -4591,6 +4615,14 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Zerocoin Spend to Self</source>
         <translation>Потратить Zerocoin  на себя</translation>
+    </message>
+    <message>
+        <source>File payment</source>
+        <translation>Оплата файлов</translation>
+    </message>
+    <message>
+        <source>File transfer</source>
+        <translation>Передача файлов</translation>
     </message>
     <message>
         <source>Other</source>

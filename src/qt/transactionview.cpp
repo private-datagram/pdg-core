@@ -107,6 +107,8 @@ TransactionView::TransactionView(QWidget* parent) : QWidget(parent), model(0), t
     typeWidget->addItem(tr("Zerocoin Spend"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend));
     typeWidget->addItem(tr("Zerocoin Spend, Change in zPIV"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend_Change_zPiv));
     typeWidget->addItem(tr("Zerocoin Spend to Self"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend_FromMe));
+    typeWidget->addItem(tr("File payment"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm) | TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm));
+    typeWidget->addItem(tr("File transfer"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFileTransfer) | TransactionFilterProxy::TYPE(TransactionRecord::SendFileTransfer));
     typeWidget->addItem(tr("Other"), TransactionFilterProxy::TYPE(TransactionRecord::Other));
     typeWidget->setCurrentIndex(settings.value("transactionType").toInt());
 

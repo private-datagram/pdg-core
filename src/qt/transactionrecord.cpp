@@ -177,7 +177,22 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                 if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address)) {
                     // Received by PIVX Address
-                    sub.type = TransactionRecord::RecvWithAddress;
+                    switch (wtx.type) {
+                        case TX_FILE_PAYMENT_REQUEST:
+                            sub.type = TransactionRecord::RecvFilePaymentRequest;
+                            break;
+                        case TX_FILE_PAYMENT_CONFIRM:
+                            sub.type = TransactionRecord::RecvFilePaymentConfirm;
+                            break;
+                        case TX_FILE_TRANSFER:
+                            sub.type = TransactionRecord::RecvFileTransfer;
+                            break;
+                        case TX_PAYMENT:
+                        default:
+                            sub.type = TransactionRecord::RecvWithAddress;
+                            break;
+
+                    }
                     sub.address = CBitcoinAddress(address).ToString();
                 } else {
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
@@ -291,7 +306,22 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                     if (wtx.IsZerocoinMint())
                         continue;
                     // Sent to PIVX Address
-                    sub.type = TransactionRecord::SendToAddress;
+                    switch (wtx.type) {
+                        case TX_FILE_PAYMENT_REQUEST:
+                            sub.type = TransactionRecord::SendFilePaymentRequest;
+                            break;
+                        case TX_FILE_PAYMENT_CONFIRM:
+                            sub.type = TransactionRecord::SendFilePaymentConfirm;
+                            break;
+                        case TX_FILE_TRANSFER:
+                            sub.type = TransactionRecord::SendFileTransfer;
+                            break;
+                        case TX_PAYMENT:
+                        default:
+                            sub.type = TransactionRecord::SendToAddress;
+                            break;
+
+                    }
                     sub.address = CBitcoinAddress(address).ToString();
                 } else if (txout.IsZerocoinMint()){
                     sub.type = TransactionRecord::ZerocoinMint;
