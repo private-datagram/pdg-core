@@ -15,6 +15,18 @@
 
 #include <list>
 
+enum {
+    TX_PAYMENT = 1,
+    TX_FILE_PAYMENT_REQUEST,
+    TX_FILE_PAYMENT_CONFIRM,
+    TX_FILE_TRANSFER
+};
+
+enum {
+    TX_META_EMPTY = 0,
+    TX_META_FILE = 0
+};
+
 class CTransaction;
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
@@ -192,14 +204,79 @@ public:
     std::string ToString() const;
 };
 
+
 struct CMutableTransaction;
 struct CFile;
 
-enum {
-    TX_PAYMENT = 1,
-    TX_FILE_PAYMENT_REQUEST,
-    TX_FILE_PAYMENT_CONFIRM,
-    TX_FILE_TRANSFER
+class CTransactionMeta {
+protected:
+    uint32_t nFlags; // TODO:
+
+public:
+    CTransactionMeta();
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(this->nFlags);
+        nFlags = this->nFlags;
+    }
+
+    bool IsNull() {
+        return nFlags != TX_META_EMPTY;
+    }
+
+};
+
+class CPaymentRequest: public CTransactionMeta {
+
+public:
+    CPaymentRequest();
+
+    std::vector<char> vfMessage;
+    CAmount nPrice;
+    // TODO: don't forget about hash
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
+
+        READWRITE(*const_cast<std::vector<char>*>(&vfMessage));
+        READWRITE(nPrice);
+    }
+
+};
+
+class CPaymentConfirm: public CTransactionMeta {
+
+public:
+    CPaymentConfirm();
+
+    std::vector<char> vfPublicKey;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
+
+        READWRITE(*const_cast<std::vector<char>*>(&vfPublicKey));
+    }
+
+};
+
+class CFileMeta: public CTransactionMeta {
+public:
+    CFileMeta();
+
+    std::vector<char> vfEncodedMeta;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
+
+        READWRITE(*const_cast<std::vector<char>*>(&vfEncodedMeta));
+    }
+
 };
 
 /** The basic transaction that is broadcasted on the network and contained in
@@ -221,9 +298,10 @@ public:
     // and bypass the constness. This is safe, as they update the entire
     // structure, including the hash.
     const int32_t nVersion;
-    const int type;
+    const int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
+    CTransactionMeta meta;
     std::vector<CFile> vfiles;
     const uint32_t nLockTime;
     //const unsigned int nTime;
@@ -247,9 +325,13 @@ public:
 
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
+
+        READWRITE(*const_cast<CTransactionMeta*>(&meta));
+
         if (type == TX_FILE_TRANSFER) {
             READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
         }
+
         READWRITE(*const_cast<uint32_t*>(&nLockTime));
         if (ser_action.ForRead())
             UpdateHash();
@@ -326,9 +408,10 @@ public:
 struct CMutableTransaction
 {
     int32_t nVersion;
-    int type;
+    int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
+    CTransactionMeta meta;
     std::vector<CFile> vfiles;
     uint32_t nLockTime;
 
@@ -346,9 +429,13 @@ struct CMutableTransaction
 
         READWRITE(vin);
         READWRITE(vout);
+
+        READWRITE(*const_cast<CTransactionMeta*>(&meta));
+
         if (type == TX_FILE_TRANSFER) {
             READWRITE(vfiles);
         }
+
         READWRITE(nLockTime);
     }
 
@@ -400,6 +487,13 @@ struct CFile
 
     std::string ToString() const;
 
+};
+
+struct CEncodedMeta {
+    uint256 fileHash;
+    std::vector<char> vfFileKey;
+    std::vector<char> vfFilename;
+    uint64_t nFileSize;
 };
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H
