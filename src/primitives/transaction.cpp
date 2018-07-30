@@ -302,3 +302,7 @@ CPaymentRequest::CPaymentRequest() {
 CFileMeta::CFileMeta() {
     nFlags = TX_META_FILE;
 }
+
+CEncodedMeta::CEncodedMeta(): fileHash(0), vfFilename(), vfFileKey(), nFileSize(0)  {}
+
+CEncodedMeta::CEncodedMeta(const CEncodedMeta& meta): fileHash(meta.fileHash), vfFilename(meta.vfFilename), vfFileKey(meta.vfFileKey), nFileSize(meta.nFileSize)  {}

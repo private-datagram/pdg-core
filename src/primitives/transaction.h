@@ -229,6 +229,9 @@ public:
 
 };
 
+/**
+ * Meta information about payment request
+ */
 class CPaymentRequest: public CTransactionMeta {
 
 public:
@@ -236,7 +239,7 @@ public:
 
     std::vector<char> vfMessage;
     CAmount nPrice;
-    // TODO: don't forget about hash
+    // TODO: don't forget about hash, think about security
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
@@ -248,6 +251,9 @@ public:
 
 };
 
+/**
+ * Meta information about payment confirm
+ */
 class CPaymentConfirm: public CTransactionMeta {
 
 public:
@@ -264,10 +270,14 @@ public:
 
 };
 
+/**
+ * Meta information in transaction with file transfering
+ */
 class CFileMeta: public CTransactionMeta {
 public:
     CFileMeta();
 
+    /** Encoded bytes of struct CEncodedMeta */
     std::vector<char> vfEncodedMeta;
 
     template <typename Stream, typename Operation>
@@ -461,7 +471,9 @@ struct CMutableTransaction
 struct CFile
 {
     uint32_t nFlags;
+    // Encrypted file bytes
     std::vector<char> vBytes;
+    // Encrypted file hash
     uint256 fileHash;
 
     CFile();
@@ -490,10 +502,28 @@ struct CFile
 };
 
 struct CEncodedMeta {
+
+    // Source (decrypted) file hash
     uint256 fileHash;
-    std::vector<char> vfFileKey;
     std::vector<char> vfFilename;
+    // The AES key with which the file was encrypted
+    std::vector<char> vfFileKey;
     uint64_t nFileSize;
+
+    CEncodedMeta();
+    CEncodedMeta(const CEncodedMeta& meta);
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(fileHash);
+        READWRITE(*const_cast<std::vector<char>*>(&vfFilename));
+        READWRITE(*const_cast<std::vector<char>*>(&vfFileKey));
+        READWRITE(nFileSize);
+
+    }
+
 };
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H
