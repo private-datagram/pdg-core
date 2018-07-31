@@ -69,6 +69,26 @@ public:
     bool LoadBlockIndexGuts();
 };
 
+/** Access to the block database (blocks/index/) */
+class CBlockFileTreeDB:public CLevelDBWrapper
+{
+public:
+    CBlockFileTreeDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+
+private:
+    CBlockFileTreeDB(const CBlockFileTreeDB&);
+    void operator=(const CBlockFileTreeDB&);
+
+public:
+    bool ReadTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+//    bool ReadTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+    bool WriteTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+
+    bool ReadTxFileIndex(const uint256& txid, CFile& file);
+    bool WriteTxFileIndex(const uint256 &txid, CFile& file);
+//    bool WriteTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+};
+
 class CZerocoinDB : public CLevelDBWrapper
 {
 public:

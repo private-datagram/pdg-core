@@ -46,6 +46,7 @@
 
 class CBlockIndex;
 class CBlockTreeDB;
+class CBlockFileTreeDB;
 class CZerocoinDB;
 class CSporkDB;
 class CBloomFilter;
@@ -81,6 +82,12 @@ static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 100;
 static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 /** The pre-allocation chunk size for blk?????.dat files (since 0.8) */
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
+
+/** The maximum size for file block of a blk?????.dat file (since 0.8) */
+static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x10000000; // 256 MiB
+/** The pre-allocation chunk size for file block blk?????.dat files (since 0.8) */
+static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
+
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
@@ -199,8 +206,14 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes = 0);
 FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 /** Open an undo file (rev?????.dat) */
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
+
+bool FindFileBlockPos(CValidationState& state, CDiskBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
+
+/** Open a data file (blk?????.dat) */
+FILE* OpenFileBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 /** File to a filesystem path */
 boost::filesystem::path GetFilePosFilename(const CDiskBlockPos& pos, const char* prefix);
+
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
 /** Import blocks from an external file */
@@ -494,6 +507,55 @@ bool TestBlockValidity(CValidationState& state, const CBlock& block, CBlockIndex
 bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** pindex, CDiskBlockPos* dbp = NULL, bool fAlreadyCheckedBlock = false);
 bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex** ppindex = NULL);
 
+class CFileBlockFileInfo
+{
+public:
+    unsigned int nBlocks;      //! number of blocks stored in file
+    unsigned int nSize;        //! number of used bytes of block file
+//    unsigned int nUndoSize;    //! number of used bytes in the undo file
+    uint64_t nTimeFirst;       //! earliest time of block in file
+    uint64_t nTimeLast;        //! latest time of block in file
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(nBlocks));
+        READWRITE(VARINT(nSize));
+//        READWRITE(VARINT(nUndoSize));
+        READWRITE(VARINT(nTimeFirst));
+        READWRITE(VARINT(nTimeLast));
+    }
+
+    void SetNull()
+    {
+        nBlocks = 0;
+        nSize = 0;
+//        nUndoSize = 0;
+        nTimeFirst = 0;
+        nTimeLast = 0;
+    }
+
+    CFileBlockFileInfo()
+    {
+        SetNull();
+    }
+
+    //std::string ToString() const;
+
+    /** update statistics (does not update nSize) */
+    void AddBlock(uint64_t nTimeIn)
+    {
+        if (nBlocks == 0 || nTimeFirst > nTimeIn)
+            nTimeFirst = nTimeIn;
+
+        nBlocks++;
+
+        if (nTimeIn > nTimeLast)
+            nTimeLast = nTimeIn;
+    }
+};
 
 class CBlockFileInfo
 {
@@ -652,6 +714,9 @@ extern CCoinsViewCache* pcoinsTip;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB* pblocktree;
+
+/** Global variable that points to the active block file tree (protected by cs_main) */
+extern CBlockFileTreeDB* pblockfiletree;
 
 /** Global variable that points to the zerocoin database (protected by cs_main) */
 extern CZerocoinDB* zerocoinDB;

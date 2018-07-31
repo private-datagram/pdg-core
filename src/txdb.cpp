@@ -74,6 +74,36 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)
     return db.WriteBatch(batch);
 }
 
+CBlockFileTreeDB::CBlockFileTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "files" / "index", nCacheSize, fMemory, fWipe)
+{
+}
+
+bool CBlockFileTreeDB::ReadTxFileIndex(const uint256 &txid, CDiskTxPos& pos) {
+    return Read(make_pair('d', txid), pos);
+}
+
+//bool CBlockFileTreeDB::WriteTxFileIndex(const uint256 &txid, CDiskTxPos &pos) {
+bool CBlockFileTreeDB::WriteTxFileIndex(const uint256 &txid, CDiskTxPos& pos) {
+    return Write(make_pair('d', txid), pos);
+}
+
+bool CBlockFileTreeDB::ReadTxFileIndex(const uint256 &txid, CFile& file) {
+    return Read(make_pair('d', txid), file);
+}
+
+
+bool CBlockFileTreeDB::WriteTxFileIndex(const uint256 &txid, CFile& file) {
+    return Write(make_pair('d', txid), file);
+}
+/*
+bool CBlockFileTreeDB::ReadFile(const CBigNum &bn, uint256 &txHash) {
+    return false;
+}
+
+bool CBlockFileTreeDB::ReadFile(const uint256 &hash, uint256 &hashTx) {
+    return false;
+}*/
+
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)
 {
 }

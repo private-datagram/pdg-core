@@ -237,6 +237,8 @@ void PrepareShutdown()
         pcoinsdbview = NULL;
         delete pblocktree;
         pblocktree = NULL;
+        delete pblockfiletree;
+        pblockfiletree = NULL;
         delete zerocoinDB;
         zerocoinDB = NULL;
         delete pSporkDB;
@@ -1386,12 +1388,16 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pcoinsdbview;
                 delete pcoinscatcher;
                 delete pblocktree;
+                delete pblockfiletree;
                 delete zerocoinDB;
                 delete pSporkDB;
 
                 //PIVX specific: zerocoin and spork DB's
                 zerocoinDB = new CZerocoinDB(0, false, fReindex);
                 pSporkDB = new CSporkDB(0, false, false);
+
+                //PDG specific: file DB's
+                pblockfiletree = new CBlockFileTreeDB(0, false, false);
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
