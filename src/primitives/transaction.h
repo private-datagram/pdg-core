@@ -12,6 +12,7 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
+#include "wrappers.h"
 
 #include <list>
 
@@ -24,7 +25,7 @@ enum {
 
 enum {
     TX_META_EMPTY = 0,
-    TX_META_FILE = 0
+    TX_META_FILE = 1
 };
 
 class CTransaction;
@@ -206,21 +207,23 @@ public:
 
 
 struct CMutableTransaction;
+class CFileMeta;
 struct CFile;
 
 class CTransactionMeta {
 protected:
-    uint32_t nFlags; // TODO:
+    uint32_t nFlags; // TODO: why?
 
 public:
     CTransactionMeta();
+
+    virtual ~CTransactionMeta() = default;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(this->nFlags);
-        nFlags = this->nFlags;
+        READWRITE(nFlags);
     }
 
     bool IsNull() {
@@ -241,6 +244,8 @@ public:
     CAmount nPrice;
     // TODO: don't forget about hash, think about security
 
+    ADD_SERIALIZE_METHODS;
+
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
@@ -259,7 +264,12 @@ class CPaymentConfirm: public CTransactionMeta {
 public:
     CPaymentConfirm();
 
+    // Payment request transaction hash
+    uint256 requestTxid;
+    // The RSA public key of receiver for file encryption
     std::vector<char> vfPublicKey;
+
+    ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
@@ -280,6 +290,8 @@ public:
     /** Encoded bytes of struct CEncodedMeta */
     std::vector<char> vfEncodedMeta;
 
+    ADD_SERIALIZE_METHODS;
+
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
@@ -288,6 +300,7 @@ public:
     }
 
 };
+
 
 /** The basic transaction that is broadcasted on the network and contained in
  * blocks.  A transaction can contain multiple inputs and outputs.
@@ -311,7 +324,7 @@ public:
     const int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
-    CTransactionMeta meta;
+    PtrWrapper<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
     const uint32_t nLockTime;
     //const unsigned int nTime;
@@ -336,9 +349,12 @@ public:
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
 
-        READWRITE(*const_cast<CTransactionMeta*>(&meta));
-
-        if (type == TX_FILE_TRANSFER) {
+        if (type == TX_FILE_PAYMENT_REQUEST) {
+            READWRITE(*const_cast<CPaymentRequest*>(&meta.getOrRecreate<CPaymentRequest>()));
+        } else if (type == TX_FILE_PAYMENT_CONFIRM) {
+            READWRITE(*const_cast<CPaymentConfirm*>(&meta.getOrRecreate<CPaymentConfirm>()));
+        } else if (type == TX_FILE_TRANSFER) {
+            READWRITE(*const_cast<CFileMeta*>(&meta.getOrRecreate<CFileMeta>()));
             READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
         }
 
@@ -421,7 +437,7 @@ struct CMutableTransaction
     int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
-    CTransactionMeta meta;
+    PtrWrapper<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
     uint32_t nLockTime;
 
@@ -440,10 +456,13 @@ struct CMutableTransaction
         READWRITE(vin);
         READWRITE(vout);
 
-        READWRITE(*const_cast<CTransactionMeta*>(&meta));
-
-        if (type == TX_FILE_TRANSFER) {
-            READWRITE(vfiles);
+        if (type == TX_FILE_PAYMENT_REQUEST) {
+            READWRITE(*const_cast<CPaymentRequest*>(&meta.getOrRecreate<CPaymentRequest>()));
+        } else if (type == TX_FILE_PAYMENT_CONFIRM) {
+            READWRITE(*const_cast<CPaymentConfirm*>(&meta.getOrRecreate<CPaymentConfirm>()));
+        } else if (type == TX_FILE_TRANSFER) {
+            READWRITE(*const_cast<CFileMeta*>(&meta.getOrRecreate<CFileMeta>()));
+            READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
         }
 
         READWRITE(nLockTime);
@@ -482,13 +501,13 @@ struct CFile
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        // TODO: is nVersion write needed?
         // Update file hash before write
         if (!ser_action.ForRead()) {
             UpdateFileHash();
         }
 
-        READWRITE(this->nFlags);
-        nFlags = this->nFlags;
+        READWRITE(nFlags);
         READWRITE(*const_cast<std::vector<char>*>(&vBytes));
         READWRITE(fileHash);
     }
@@ -517,11 +536,11 @@ struct CEncodedMeta {
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        // TODO: is nVersion write needed?
         READWRITE(fileHash);
         READWRITE(*const_cast<std::vector<char>*>(&vfFilename));
         READWRITE(*const_cast<std::vector<char>*>(&vfFileKey));
         READWRITE(nFileSize);
-
     }
 
 };

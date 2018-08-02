@@ -9,96 +9,350 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1091</width>
-    <height>490</height>
+    <width>1072</width>
+    <height>628</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
-  <widget class="QPushButton" name="uploadFile">
-   <property name="geometry">
-    <rect>
-     <x>340</x>
-     <y>30</y>
-     <width>131</width>
-     <height>31</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Открыть</string>
-   </property>
-  </widget>
-  <widget class="QLineEdit" name="fileNameField">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>30</y>
-     <width>301</width>
-     <height>25</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QLabel" name="fileNameLabel">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>10</y>
-     <width>67</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Файл:</string>
-   </property>
-  </widget>
-  <widget class="QLineEdit" name="addressField">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>110</y>
-     <width>301</width>
-     <height>25</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QLabel" name="addressLabel">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>90</y>
-     <width>361</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Адрес:</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="sendFileToAddressButton">
-   <property name="geometry">
-    <rect>
-     <x>340</x>
-     <y>110</y>
-     <width>131</width>
-     <height>31</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Отправить</string>
-   </property>
-  </widget>
-  <widget class="QListView" name="listTransactions">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>160</y>
-     <width>651</width>
-     <height>311</height>
-    </rect>
-   </property>
-  </widget>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QWidget" name="widget" native="true">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>65</height>
+        </size>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_Header" stretch="1,0,1">
+          <property name="spacing">
+           <number>6</number>
+          </property>
+          <property name="sizeConstraint">
+           <enum>QLayout::SetDefaultConstraint</enum>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="labelOverviewHeaderLeft">
+            <property name="minimumSize">
+             <size>
+              <width>464</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>20</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>FILES</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_Header">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Expanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelOverviewHeaderRight">
+            <property name="minimumSize">
+             <size>
+              <width>464</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>14</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>270</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>270</height>
+        </size>
+       </property>
+       <property name="title">
+        <string>Send file</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignJustify|Qt::AlignTop</set>
+       </property>
+       <property name="flat">
+        <bool>false</bool>
+       </property>
+       <widget class="QPushButton" name="sendFileToAddressButton">
+        <property name="geometry">
+         <rect>
+          <x>360</x>
+          <y>224</y>
+          <width>131</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Отправить</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="addressField">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>116</y>
+          <width>301</width>
+          <height>25</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="uploadFile">
+        <property name="geometry">
+         <rect>
+          <x>360</x>
+          <y>54</y>
+          <width>131</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Select file</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="addressLabel">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>96</y>
+          <width>291</width>
+          <height>17</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Address:</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="fileNameField">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>60</y>
+          <width>301</width>
+          <height>25</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="fileNameLabel">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>40</y>
+          <width>291</width>
+          <height>17</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Upload file:</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="priceLabel">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>150</y>
+          <width>67</width>
+          <height>17</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Price:</string>
+        </property>
+       </widget>
+       <widget class="BitcoinAmountField" name="priceField">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>170</y>
+          <width>301</width>
+          <height>31</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="descriptionField">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>230</y>
+          <width>301</width>
+          <height>25</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="descriptionLabel">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>210</y>
+          <width>291</width>
+          <height>17</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Description (viewed publicly):</string>
+        </property>
+       </widget>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBox_2">
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="title">
+        <string>Received files</string>
+       </property>
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="0">
+         <widget class="QListView" name="listTransactions">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="acceptDrops">
+           <bool>false</bool>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="movement">
+           <enum>QListView::Static</enum>
+          </property>
+          <property name="resizeMode">
+           <enum>QListView::Adjust</enum>
+          </property>
+          <property name="layoutMode">
+           <enum>QListView::SinglePass</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>BitcoinAmountField</class>
+   <extends>QLineEdit</extends>
+   <header>bitcoinamountfield.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

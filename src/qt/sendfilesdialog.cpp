@@ -103,6 +103,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
                               QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
+
     QFileInfo fileInfo(ui->fileNameField->text());
     recipient.label = fileInfo.fileName();
 
@@ -246,27 +247,6 @@ SendCoinsRecipient SendFilesDialog::getValue()
     //cFile.UpdateFileHash();
 
     return recipient;
-}
-
-/**
- * @param filename filename
- * @param vchFile output value
- * @return is file read successfully
- */
-bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchFile) const {
-    ifstream file (filename);
-    if (!file.is_open()) {
-        return false;
-    }
-
-    file.seekg(0, ios_base::end);
-    size_t len = static_cast<size_t>(file.tellg());
-    vchFile.resize(len);
-    file.seekg(0, ios_base::beg);
-    file.read(&vchFile[0], len);
-    file.close();
-
-    return true;
 }
 
 void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee, QStringList formatted)
@@ -471,4 +451,26 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
         out.writeRawData(vFile.data(), vFile.size());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
     }
+}
+
+
+/**
+ * @param filename filename
+ * @param vchFile output value
+ * @return is file read successfully
+ */
+bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchFile) const {
+    ifstream file (filename);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    file.seekg(0, ios_base::end);
+    size_t len = static_cast<size_t>(file.tellg());
+    vchFile.resize(len);
+    file.seekg(0, ios_base::beg);
+    file.read(&vchFile[0], len);
+    file.close();
+
+    return true;
 }

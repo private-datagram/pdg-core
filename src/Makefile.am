@@ -194,6 +194,7 @@ BITCOIN_CORE_H = \
   wallet.h \
   wallet_ismine.h \
   walletdb.h \
+  wrappers.h \
   zpivtracker.h \
   zpivwallet.h \
   zmq/zmqabstractnotifier.h \
