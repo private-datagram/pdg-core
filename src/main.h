@@ -84,7 +84,8 @@ static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
 
 /** The maximum size for file block of a blk?????.dat file (since 0.8) */
-static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x10000000; // 256 MiB
+//static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x10000000; // 256 MiB
+static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x8000000; // 256 MiB
 /** The pre-allocation chunk size for file block blk?????.dat files (since 0.8) */
 static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
 
@@ -207,12 +208,13 @@ FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 /** Open an undo file (rev?????.dat) */
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 
-bool FindFileBlockPos(CValidationState& state, CDiskBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
+bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
+bool  UpdateFileBlockPosData(CDiskFileBlockPos& pos);
 
 /** Open a data file (blk?????.dat) */
-FILE* OpenFileBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
+FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false);
 /** File to a filesystem path */
-boost::filesystem::path GetFilePosFilename(const CDiskBlockPos& pos, const char* prefix);
+boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const char* prefix);
 
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
@@ -470,6 +472,9 @@ public:
     ScriptError GetScriptError() const { return error; }
 };
 
+/** File region */
+bool WriteFileBlockToDisk(std::vector<char>& vBytes, CDiskFileBlockPos& pos);
+bool ReadFileBlockFromDisk(std::vector<char>& vBytes, const CDiskFileBlockPos& pos);
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
@@ -510,31 +515,31 @@ bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBloc
 class CFileBlockFileInfo
 {
 public:
-    unsigned int nBlocks;      //! number of blocks stored in file
-    unsigned int nSize;        //! number of used bytes of block file
+    unsigned int numberBytesSize;        //! number of used bytes of block file
+    unsigned int numberFiles;      //! number of files stored in file
 //    unsigned int nUndoSize;    //! number of used bytes in the undo file
-    uint64_t nTimeFirst;       //! earliest time of block in file
-    uint64_t nTimeLast;        //! latest time of block in file
+    uint64_t firstRecordTime;       //! earliest time of block in file
+    uint64_t lastRecordTime;        //! latest time of block in file
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
-        READWRITE(VARINT(nBlocks));
-        READWRITE(VARINT(nSize));
+        READWRITE(VARINT(numberFiles));
+        READWRITE(VARINT(numberBytesSize));
 //        READWRITE(VARINT(nUndoSize));
-        READWRITE(VARINT(nTimeFirst));
-        READWRITE(VARINT(nTimeLast));
+        READWRITE(VARINT(firstRecordTime));
+        READWRITE(VARINT(lastRecordTime));
     }
 
     void SetNull()
     {
-        nBlocks = 0;
-        nSize = 0;
+        numberFiles = 0;
+        numberBytesSize = 0;
 //        nUndoSize = 0;
-        nTimeFirst = 0;
-        nTimeLast = 0;
+        firstRecordTime = 0;
+        lastRecordTime = 0;
     }
 
     CFileBlockFileInfo()
@@ -547,13 +552,13 @@ public:
     /** update statistics (does not update nSize) */
     void AddBlock(uint64_t nTimeIn)
     {
-        if (nBlocks == 0 || nTimeFirst > nTimeIn)
-            nTimeFirst = nTimeIn;
+        if (numberFiles == 0 || firstRecordTime > nTimeIn)
+            firstRecordTime = nTimeIn;
 
-        nBlocks++;
+        numberFiles++;
 
-        if (nTimeIn > nTimeLast)
-            nTimeLast = nTimeIn;
+        if (nTimeIn > lastRecordTime)
+            lastRecordTime = nTimeIn;
     }
 };
 

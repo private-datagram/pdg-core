@@ -2863,18 +2863,33 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
 
                 // Fill files
                 if (wtxNew.vchFile.size() > 0) {
-                    CFile file;
-                    file.vBytes = wtxNew.vchFile;
-                    file.UpdateFileHash();
-                    txNew.vfiles.push_back(file);
-                    txNew.type = TX_FILE_TRANSFER;
+                        CFile file;
+                        file.vBytes = wtxNew.vchFile;
+                        file.UpdateFileHash();
+                        txNew.vfiles.push_back(file);
+                        txNew.type = TX_FILE_TRANSFER;
 
-                    unsigned int nBlockSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-                    CDiskBlockPos blockPos;
-                    CValidationState state;
-                    if (!FindFileBlockPos(state, blockPos, nBlockSize + 8, 0))
-                        return error("LoadBlockIndex() : FindBlockPos failed");
+                        unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+                        CDiskFileBlockPos filePos;
+                        CValidationState state;
+                        if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                            return error("LoadBlockIndex() : FindBlockPos failed");
 
+                        pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+
+                        if (!WriteFileBlockToDisk(file.vBytes, filePos))
+                            return state.Abort("Failed to write file");
+
+                        UpdateFileBlockPosData(filePos);
+
+                        CDiskFileBlockPos blockPos2;
+                        pblockfiletree->ReadTxFileIndex(file.CalcFileHash(), blockPos2);
+
+                        std::vector<char> vBytes;
+                        if (!ReadFileBlockFromDisk(vBytes, filePos))
+                            return state.Abort("Failed to read file");
+
+                        int nIn2 = 0;
                 }
 
                 // Sign

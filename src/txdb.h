@@ -80,9 +80,9 @@ private:
     void operator=(const CBlockFileTreeDB&);
 
 public:
-    bool ReadTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+    bool ReadTxFileIndex(const uint256& txid, CDiskFileBlockPos& pos);
 //    bool ReadTxFileIndex(const uint256& txid, CDiskTxPos& pos);
-    bool WriteTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+    bool WriteTxFileIndex(const uint256& txid, CDiskFileBlockPos& pos);
 
     bool ReadTxFileIndex(const uint256& txid, CFile& file);
     bool WriteTxFileIndex(const uint256 &txid, CFile& file);

@@ -61,6 +61,51 @@ struct CDiskBlockPos {
     bool IsNull() const { return (nFile == -1); }
 };
 
+struct CDiskFileBlockPos {
+    int numberDiskFile;
+    unsigned int numberPosition;
+    unsigned int fileSize;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(numberDiskFile));
+        READWRITE(VARINT(numberPosition));
+        READWRITE(VARINT(fileSize));
+    }
+
+    CDiskFileBlockPos()
+    {
+        SetNull();
+    }
+
+    CDiskFileBlockPos(int nFileIn, unsigned int nPosIn, unsigned int fileSizeIn)
+    {
+        numberDiskFile = nFileIn;
+        numberPosition = nPosIn;
+        fileSize = fileSizeIn;
+    }
+
+    friend bool operator==(const CDiskFileBlockPos& a, const CDiskFileBlockPos& b)
+    {
+        return (a.numberDiskFile == b.numberDiskFile && a.numberPosition == b.numberPosition && a.fileSize == b.fileSize);
+    }
+
+    friend bool operator!=(const CDiskFileBlockPos& a, const CDiskFileBlockPos& b)
+    {
+        return !(a == b);
+    }
+
+    void SetNull()
+    {
+        numberDiskFile = -1;
+        numberPosition = 0;
+    }
+    bool IsNull() const { return (numberDiskFile == -1); }
+};
+
 enum BlockStatus {
     //! Unused.
     BLOCK_VALID_UNKNOWN = 0,

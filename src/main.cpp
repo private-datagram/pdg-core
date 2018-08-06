@@ -156,7 +156,7 @@ int nLastBlockFile = 0;
 // FileBlock meta
 CCriticalSection cs_LastFileBlockFile;
 std::vector<CFileBlockFileInfo> vinfoFileBlockFile;
-int nLastFileBlockFile = 0;
+int nLastFileDiskFile = 0;
 
 /**
      * Every received block is assigned a unique and increasing identifier, so we
@@ -1978,7 +1978,7 @@ bool GetFile(const uint256& hash, char& chars)
 //    pblockfiletree->ReadTxFileIndex(uint256("duadatdadah"), postx2);
     LOCK(cs_main);
 
-    CDiskTxPos postx;
+    CDiskFileBlockPos postx;
     if (pblockfiletree->ReadTxFileIndex(hash, postx)) {
         CAutoFile file(OpenFileBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
         if (file.IsNull())
@@ -1986,7 +1986,7 @@ bool GetFile(const uint256& hash, char& chars)
         CBlockHeader header;
         try {
             file >> header;
-            fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+            //fseek(file.Get(), postx.offset, SEEK_CUR);
             //file >> txOut;
         } catch (std::exception& e) {
             return error("%s : Deserialize or I/O error - %s", __func__, e.what());
@@ -2064,6 +2064,59 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
     return false;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//
+// File region
+//
+bool WriteFileBlockToDisk(std::vector<char>& vBytes, CDiskFileBlockPos& pos)
+{
+    // Open history file to append
+    CAutoFile fileout(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    if (fileout.IsNull())
+        return error("WriteBlockToDisk : OpenBlockFile failed");
+
+    // Write index header
+    unsigned int nSize = fileout.GetSerializeSize(vBytes);
+    fileout << FLATDATA(Params().MessageStart()) << nSize;
+
+    // Write block
+    long fileOutPos = ftell(fileout.Get());
+    if (fileOutPos < 0)
+        return error("WriteBlockToDisk : ftell failed");
+    pos.numberPosition = (unsigned int)fileOutPos;
+    fileout << vBytes;
+
+    return true;
+}
+
+bool ReadFileBlockFromDisk(std::vector<char>& vBytes, const CDiskFileBlockPos& pos)
+{
+    // Open history file to read
+    CAutoFile filein(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    if (filein.IsNull())
+        return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
+
+    // Read block
+    try {
+        fseek(filein.Get(), pos.numberPosition, SEEK_CUR);
+
+        char * buffer = (char*) malloc(sizeof(char) * pos.fileSize);
+        if (buffer == NULL)
+            return error("ReadFileBlockFromDisk : buffer failed");
+
+        size_t result = fread(buffer, 1, pos.fileSize, filein.Get());
+        if (result != pos.fileSize)
+            return error("ReadFileBlockFromDisk : read failed");
+        //        filein >> vBytes;
+        //todo: ????
+//        CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
+        std::copy(buffer,buffer+pos.fileSize,std::back_inserter(vBytes));
+    } catch (std::exception& e) {
+        return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+    }
+
+    return true;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2936,12 +2989,12 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 void static FlushFileBlockFile(bool fFinalize = false) {
     LOCK(cs_LastFileBlockFile);
 
-    CDiskBlockPos posOld(nLastFileBlockFile, 0);
+    CDiskBlockPos posOld(nLastFileDiskFile, 0);
 
     FILE* fileOld = OpenBlockFile(posOld);
     if (fileOld) {
         if (fFinalize)
-            TruncateFile(fileOld, vinfoFileBlockFile[nLastFileBlockFile].nSize);
+            TruncateFile(fileOld, vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize);
         FileCommit(fileOld);
         fclose(fileOld);
     }
@@ -4277,40 +4330,44 @@ bool ReceivedBlockTransactions(const CBlock& block, CValidationState& state, CBl
     return true;
 }
 
-bool FindFileBlockPos(CValidationState& state, CDiskBlockPos& pos,  unsigned int nAddSize, uint64_t nTime)
+bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime)
 {
     LOCK(cs_LastFileBlockFile);
 
-    pos.nFile = nLastFileBlockFile;
-    if (vinfoFileBlockFile.size() <= pos.nFile) {
-        vinfoFileBlockFile.resize(pos.nFile + 1);
+    pos.numberDiskFile = nLastFileDiskFile;
+
+    if (vinfoFileBlockFile.size() <= pos.numberDiskFile) {
+        vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
     }
 
-    while (vinfoFileBlockFile[pos.nFile].nSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
+    //Flush file after filled
+    while (vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
         // LogPrintf("Leaving block file %i: %s\n", nFile, vinfoFileBlockFile[nFile].ToString());
         FlushFileBlockFile(true);
-        pos.nFile++;
-        if (vinfoFileBlockFile.size() <= pos.nFile) {
-            vinfoFileBlockFile.resize(pos.nFile + 1);
+        pos.numberDiskFile++;
+        if (vinfoFileBlockFile.size() <= pos.numberDiskFile) {
+            vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
         }
     }
 
-    pos.nPos = vinfoFileBlockFile[nLastFileBlockFile].nSize;
-
     //update meta data
-    nLastBlockFile = pos.nPos;
-    vinfoFileBlockFile[pos.nPos].nSize += nAddSize;
-    vinfoFileBlockFile[pos.nPos].AddBlock(nTime);
+    nLastFileDiskFile = pos.numberDiskFile;
 
-    unsigned int nOldChunks = (pos.nPos + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
-    unsigned int nNewChunks = (vinfoFileBlockFile[pos.nPos].nSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    pos.numberPosition = vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize;
+    pos.fileSize = nAddSize;
+
+    vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize += nAddSize;
+    vinfoFileBlockFile[nLastFileDiskFile].AddBlock(nTime);
+
+    unsigned int nOldChunks = (pos.numberPosition + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    unsigned int nNewChunks = (vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
 
     if (nNewChunks > nOldChunks) {
-        if (CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.nPos)) {
+        if (CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition)) {
             FILE* file = OpenFileBlockFile(pos);
             if (file) {
-                LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.nFile);
-                AllocateFileRange(file, pos.nPos, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.nPos);
+                LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.numberPosition);
+                AllocateFileRange(file, pos.numberPosition, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition);
                 fclose(file);
             }
         } else
@@ -4318,6 +4375,16 @@ bool FindFileBlockPos(CValidationState& state, CDiskBlockPos& pos,  unsigned int
     }
 
     return true;
+}
+
+bool UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
+    unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
+    unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
+
+    unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize);
+
+    vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize = maxValue;
+    nLastFileDiskFile = pos.numberDiskFile;
 }
 
 bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, uint64_t nTime, bool fKnown = false)
@@ -5053,11 +5120,8 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
-FILE* OpenDiskFile(const CDiskBlockPos& pos, boost::filesystem::path& path, bool fReadOnly)
+FILE* OpenDiskFile(unsigned int nPos, boost::filesystem::path& path, bool fReadOnly)
 {
-    if (pos.IsNull())
-        return NULL;
-
     boost::filesystem::create_directories(path.parent_path());
     FILE* file = fopen(path.string().c_str(), "rb+");
     if (!file && !fReadOnly)
@@ -5066,9 +5130,9 @@ FILE* OpenDiskFile(const CDiskBlockPos& pos, boost::filesystem::path& path, bool
         LogPrintf("Unable to open file %s\n", path.string());
         return NULL;
     }
-    if (pos.nPos) {
-        if (fseek(file, pos.nPos, SEEK_SET)) {
-            LogPrintf("Unable to seek to position %u of %s\n", pos.nPos, path.string());
+    if (nPos) {
+        if (fseek(file, nPos, SEEK_SET)) {
+            LogPrintf("Unable to seek to position %u of %s\n", nPos, path.string());
             fclose(file);
             return NULL;
         }
@@ -5079,13 +5143,21 @@ FILE* OpenDiskFile(const CDiskBlockPos& pos, boost::filesystem::path& path, bool
 FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly)
 {
     boost::filesystem::path path = GetBlockPosFilename(pos, "blk");
-    return OpenDiskFile(pos, path, fReadOnly);
+
+    if (pos.IsNull())
+        return NULL;
+
+    return OpenDiskFile(pos.nPos, path, fReadOnly);
 }
 
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly)
 {
     boost::filesystem::path path = GetBlockPosFilename(pos, "rev");
-    return OpenDiskFile(pos, path, fReadOnly);
+
+    if (pos.IsNull())
+        return NULL;
+
+    return OpenDiskFile(pos.nPos, path, fReadOnly);
 }
 
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix)
@@ -5094,15 +5166,19 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char
 }
 
 //file region
-FILE* OpenFileBlockFile(const CDiskBlockPos& pos, bool fReadOnly)
+FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly)
 {
     boost::filesystem::path path = GetFilePosFilename(pos, "blk");
-    return OpenDiskFile(pos, path, fReadOnly);
+
+    if (pos.IsNull())
+        return NULL;
+
+    return OpenDiskFile(pos.numberPosition, path, fReadOnly);
 }
 
-boost::filesystem::path GetFilePosFilename(const CDiskBlockPos& pos, const char* prefix)
+boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const char* prefix)
 {
-    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, pos.nFile);
+    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, pos.numberDiskFile);
 }
 //end region
 
@@ -5380,6 +5456,10 @@ bool InitBlockIndex()
     return true;
 }
 
+bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
+{
+
+}
 
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp)
 {
