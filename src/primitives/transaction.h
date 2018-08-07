@@ -12,7 +12,7 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
-#include "wrappers.h"
+#include "containers.h"
 
 #include <list>
 
@@ -230,6 +230,12 @@ public:
         return nFlags != TX_META_EMPTY;
     }
 
+    virtual CTransactionMeta* clone() const {
+        CTransactionMeta* clone = new CTransactionMeta();
+        *clone = *this;
+        return clone;
+    }
+
 };
 
 /**
@@ -254,6 +260,12 @@ public:
         READWRITE(nPrice);
     }
 
+    CTransactionMeta* clone() const override {
+        CPaymentRequest* clone = new CPaymentRequest();
+        *clone = *this;
+        return clone;
+    }
+
 };
 
 /**
@@ -275,7 +287,14 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
+        READWRITE(requestTxid);
         READWRITE(*const_cast<std::vector<char>*>(&vfPublicKey));
+    }
+
+    CPaymentConfirm* clone() const override {
+        CPaymentConfirm* clone = new CPaymentConfirm();
+        *clone = *this;
+        return clone;
     }
 
 };
@@ -287,7 +306,9 @@ class CFileMeta: public CTransactionMeta {
 public:
     CFileMeta();
 
-    /** Encoded bytes of struct CEncodedMeta */
+    // Payment confirm transaction hash
+    uint256 confirmTxid;
+    // Encoded bytes of struct CEncodedMeta
     std::vector<char> vfEncodedMeta;
 
     ADD_SERIALIZE_METHODS;
@@ -296,7 +317,14 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
+        READWRITE(confirmTxid);
         READWRITE(*const_cast<std::vector<char>*>(&vfEncodedMeta));
+    }
+
+    CFileMeta* clone() const override {
+        CFileMeta* clone = new CFileMeta();
+        *clone = *this;
+        return clone;
     }
 
 };
@@ -324,7 +352,7 @@ public:
     const int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
-    PtrWrapper<CTransactionMeta> meta;
+    PtrContainer<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
     const uint32_t nLockTime;
     //const unsigned int nTime;
@@ -437,7 +465,7 @@ struct CMutableTransaction
     int32_t type;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
-    PtrWrapper<CTransactionMeta> meta;
+    PtrContainer<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
     uint32_t nLockTime;
 

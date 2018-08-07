@@ -97,6 +97,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     bool valid = true;
 
     recipient = getValue();
+    // TODO: refactor
     if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
         QMessageBox::critical(this, tr("Send File"),
                               tr("Error opening file"),
@@ -104,8 +105,17 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         return;
     }
 
-    QFileInfo fileInfo(ui->fileNameField->text());
-    recipient.label = fileInfo.fileName();
+    CPaymentRequest meta;
+
+    std::string descriptionMessage = ui->descriptionField->text().toStdString();
+    meta.vfMessage.reserve(descriptionMessage.length());
+    meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
+    meta.nPrice = ui->priceField->value();
+
+
+    /*QFileInfo fileInfo(ui->fileNameField->text());
+    recipient.filename = fileInfo.fileName();*/
+
 
     if (validate()) {
         recipients.append(recipient);
@@ -164,6 +174,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     }
 
     fNewRecipientAllowed = false;
+    PtrContainer<CTransactionMeta> ptrMeta(meta);
 
     // request unlock only if was locked or unlocked for mixing:
     // this way we let users unlock by walletpassphrase or by menu
@@ -177,12 +188,12 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
             fNewRecipientAllowed = true;
             return;
         }
-        send(recipients, strFee, formatted);
+        send(recipients, ptrMeta, strFee, formatted);
         return;
     }
 
     // already unlocked or not encrypted at all
-    send(recipients, strFee, formatted);
+    send(recipients, ptrMeta, strFee, formatted);
 }
 
 bool SendFilesDialog::validate()
@@ -239,7 +250,7 @@ SendCoinsRecipient SendFilesDialog::getValue()
 
     // Normal payment
     recipient.address = ui->addressField->text();
-    recipient.amount = 100000000;
+    recipient.amount = 1 * CENT;
 
     //todo: ?
     //CFile cFile;
@@ -249,10 +260,17 @@ SendCoinsRecipient SendFilesDialog::getValue()
     return recipient;
 }
 
-void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee, QStringList formatted)
+// Coin Control: update labels
+//todo: обновление модели окна отправки.
+void SendFilesDialog::coinControlUpdateLabels()
+{
+
+}
+
+void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContainer<CTransactionMeta>& meta, QString strFee, QStringList formatted)
 {
     // prepare transaction for getting txFee earlier
-    WalletModelTransaction currentTransaction(recipients);
+    WalletModelTransaction currentTransaction(recipients, meta);
     WalletModel::SendCoinsReturn prepareStatus;
     if (model->getOptionsModel()->getCoinControlFeatures()) // coin control enabled
         prepareStatus = model->prepareTransaction(currentTransaction, CoinControlDialog::coinControl);
@@ -292,8 +310,8 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee,
 
     // Show total amount + all alternative units
     questionString.append(tr("Total Amount = <b>%1</b><br />= %2")
-                              .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount))
-                              .arg(alternativeUnits.join("<br />= ")));
+                                  .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount))
+                                  .arg(alternativeUnits.join("<br />= ")));
 
     // Limit number of displayed entries
     int messageEntries = formatted.size();
@@ -311,9 +329,9 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee,
 
     // Display message box
     QMessageBox::StandardButton retval = QMessageBox::question(this, tr("Confirm send coins"),
-        questionString.arg(formatted.join("<br />")),
-        QMessageBox::Yes | QMessageBox::Cancel,
-        QMessageBox::Cancel);
+                                                               questionString.arg(formatted.join("<br />")),
+                                                               QMessageBox::Yes | QMessageBox::Cancel,
+                                                               QMessageBox::Cancel);
 
     if (retval != QMessageBox::Yes) {
         fNewRecipientAllowed = true;
@@ -324,16 +342,12 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, QString strFee,
     WalletModel::SendCoinsReturn sendStatus = model->sendCoins(currentTransaction);
 
     if (sendStatus.status == WalletModel::OK) {
-          accept();
+        acceptTransaction(recipients[0], currentTransaction);
+
+        accept();
     }
+
     fNewRecipientAllowed = true;
-}
-
-// Coin Control: update labels
-//todo: обновление модели окна отправки.
-void SendFilesDialog::coinControlUpdateLabels()
-{
-
 }
 
 
@@ -414,9 +428,7 @@ void SendFilesDialog::initFileHistory()
      filter->setDynamicSortFilter(true);
      filter->setSortRole(Qt::EditRole);
      filter->setShowInactive(false);
-     filter->setTypeFilter(TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentConfirm) |
-                           TransactionFilterProxy::TYPE(TransactionRecord::SendFileTransfer) | TransactionFilterProxy::TYPE(TransactionRecord::TransactionRecord::RecvFilePaymentRequest) |
-                           TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFileTransfer));
+     filter->setTypeFilter(TransactionFilterProxy::TYPE(TransactionRecord::RecvFileTransfer));
      filter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
 
      ui->listTransactions->setModel(filter);
@@ -456,10 +468,10 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
 
 /**
  * @param filename filename
- * @param vchFile output value
+ * @param vchoutFile output value
  * @return is file read successfully
  */
-bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchFile) const {
+bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchoutFile) const {
     ifstream file (filename);
     if (!file.is_open()) {
         return false;
@@ -467,10 +479,21 @@ bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchFil
 
     file.seekg(0, ios_base::end);
     size_t len = static_cast<size_t>(file.tellg());
-    vchFile.resize(len);
+    vchoutFile.resize(len);
     file.seekg(0, ios_base::beg);
-    file.read(&vchFile[0], len);
+    file.read(&vchoutFile[0], len);
     file.close();
 
     return true;
+}
+
+bool SendFilesDialog::acceptTransaction(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const {
+    CWalletFileTx wftx;
+    wftx.filename = recipient.filename.toStdString();
+    wftx.vchBytes = recipient.vchFile;
+    CTransaction *tx = (CTransaction *) currentTransaction.getTransaction();
+    wftx.paymentRequestTxid = SerializeHash(*tx); // TODO: check twice
+
+    CWalletDB walletdb(pwalletMain->strWalletFile);
+    return walletdb.WriteWalletFileTx(wftx);
 }

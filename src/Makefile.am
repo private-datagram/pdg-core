@@ -115,6 +115,7 @@ BITCOIN_CORE_H = \
   compat.h \
   compat/sanity.h \
   compressor.h \
+  containers.h \
   primitives/block.h \
   primitives/deterministicmint.h \
   primitives/transaction.h \
@@ -194,7 +195,6 @@ BITCOIN_CORE_H = \
   wallet.h \
   wallet_ismine.h \
   walletdb.h \
-  wrappers.h \
   zpivtracker.h \
   zpivwallet.h \
   zmq/zmqabstractnotifier.h \

@@ -330,9 +330,18 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         CWalletTx* newTx = transaction.getTransaction();
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
-        if(recipients[0].vchFile.size() > 0) {
-            newTx->vchFile = recipients[0].vchFile;
+        PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
+        if (meta->IsInstanceOf<CPaymentRequest>()) {
+            newTx->type = TX_FILE_PAYMENT_REQUEST;
+        } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
+            newTx->type = TX_FILE_PAYMENT_CONFIRM;
+        } else if (meta->IsInstanceOf<CFileMeta>()) {
+            newTx->type = TX_FILE_TRANSFER;
+            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+        } else {
+            newTx->type = TX_PAYMENT;
         }
+        newTx->meta = *meta;
 
         if (recipients[0].useSwiftTX && total > GetSporkValue(SPORK_5_MAX_VALUE) * COIN) {
             emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PIV.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),

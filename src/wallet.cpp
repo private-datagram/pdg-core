@@ -2860,13 +2860,16 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
                     txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
+                // Fill meta
+                txNew.type = wtxNew.type;
+                txNew.meta = wtxNew.meta;
+
                 // Fill files
-                if (wtxNew.vchFile.size() > 0) {
+                if (txNew.type == TX_FILE_TRANSFER) {
                     CFile file;
                     file.vBytes = wtxNew.vchFile;
                     file.UpdateFileHash();
                     txNew.vfiles.push_back(file);
-                    txNew.type = TX_FILE_TRANSFER;
                 }
 
                 // Sign
@@ -5344,3 +5347,8 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
     zpivTracker->Add(dMint, true);
     return true;
 }
+
+
+CWalletFileTx::CWalletFileTx(): paymentRequestTxid(), vchBytes(), filename() {}
+
+CWalletFileTx::CWalletFileTx(const CWalletFileTx& request): paymentRequestTxid(request.paymentRequestTxid), vchBytes(request.vchBytes), filename(request.filename) {}

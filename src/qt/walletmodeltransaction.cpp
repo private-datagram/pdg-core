@@ -10,7 +10,17 @@
 WalletModelTransaction::WalletModelTransaction(const QList<SendCoinsRecipient>& recipients) : recipients(recipients),
                                                                                               walletTransaction(0),
                                                                                               keyChange(0),
-                                                                                              fee(0)
+                                                                                              fee(0),
+                                                                                              meta()
+{
+    walletTransaction = new CWalletTx();
+}
+
+WalletModelTransaction::WalletModelTransaction(const QList<SendCoinsRecipient>& recipients, const PtrContainer<CTransactionMeta>& meta) : recipients(recipients),
+                                                                                                                  walletTransaction(0),
+                                                                                                                  keyChange(0),
+                                                                                                                  fee(0),
+                                                                                                                  meta(meta)
 {
     walletTransaction = new CWalletTx();
 }
@@ -63,4 +73,10 @@ void WalletModelTransaction::newPossibleKeyChange(CWallet* wallet)
 CReserveKey* WalletModelTransaction::getPossibleKeyChange()
 {
     return keyChange;
+}
+
+
+PtrContainer<CTransactionMeta>& WalletModelTransaction::getMeta()
+{
+    return meta;
 }

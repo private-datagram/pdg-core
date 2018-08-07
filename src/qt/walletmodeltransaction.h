@@ -20,6 +20,7 @@ class WalletModelTransaction
 {
 public:
     explicit WalletModelTransaction(const QList<SendCoinsRecipient>& recipients);
+    explicit WalletModelTransaction(const QList<SendCoinsRecipient>& recipients, const PtrContainer<CTransactionMeta>& meta);
     ~WalletModelTransaction();
 
     QList<SendCoinsRecipient> getRecipients();
@@ -35,11 +36,15 @@ public:
     void newPossibleKeyChange(CWallet* wallet);
     CReserveKey* getPossibleKeyChange();
 
+
+    PtrContainer<CTransactionMeta>& getMeta();
+
 private:
     const QList<SendCoinsRecipient> recipients;
     CWalletTx* walletTransaction;
     CReserveKey* keyChange;
     CAmount fee;
+    PtrContainer<CTransactionMeta> meta;
 };
 
 #endif // BITCOIN_QT_WALLETMODELTRANSACTION_H

@@ -169,7 +169,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             if (mine) {
                 TransactionRecord sub(hash, nTime);
 
-               TransactionRecord::initFile(sub, wtx);
+                TransactionRecord::initFile(sub, wtx); // TODO: refactor
 
                 CTxDestination address;
                 sub.idx = parts.size(); // sequence number
