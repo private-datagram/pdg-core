@@ -33,6 +33,7 @@ class CWalletTx;
 class CDeterministicMint;
 class CZerocoinMint;
 class CZerocoinSpend;
+class CWalletFileTx;
 class uint160;
 class uint256;
 
@@ -185,6 +186,10 @@ public:
     bool ReadZPIVCount(uint32_t& nCount);
     std::map<uint256, std::vector<pair<uint256, uint32_t> > > MapMintPool();
     bool WriteMintPoolPair(const uint256& hashMasterSeed, const uint256& hashPubcoin, const uint32_t& nCount);
+
+    bool WriteWalletFileTx(const CWalletFileTx& fileTx);
+    bool ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFileTx& outWalletFileTx);
+    bool EraseWalletFileTx(const uint256& hashPaymentRequestTx);
 
 
 private:

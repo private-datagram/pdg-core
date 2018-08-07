@@ -61,6 +61,7 @@ public:
     QString message;
     // file bytes, memory only
     vector<char> vchFile;
+    QString filename;
 
     // If from a payment request, paymentRequest.IsInitialized() will be true
     PaymentRequestPlus paymentRequest;

@@ -817,6 +817,9 @@ public:
     char fFromMe;
     std::string strFromAccount;
     int64_t nOrderPos; //! position in ordered transaction list
+
+    int32_t type;
+    PtrContainer<CTransactionMeta> meta;
     vector<char> vchFile;
 
     // memory only
@@ -940,6 +943,10 @@ public:
             ReadOrderPos(nOrderPos, mapValue);
 
             nTimeSmart = mapValue.count("timesmart") ? (unsigned int)atoi64(mapValue["timesmart"]) : 0;
+
+            // TODO: refactor
+            type = ((CMerkleTx*)this)->type;
+            meta = ((CMerkleTx*)this)->meta;
         }
 
         mapValue.erase("fromaccount");
@@ -1220,6 +1227,26 @@ public:
 
 private:
     std::vector<char> _ssExtra;
+};
+
+class CWalletFileTx {
+public:
+    uint256 paymentRequestTxid;
+    vector<char> vchBytes;
+    std::string filename;
+
+    CWalletFileTx();
+    CWalletFileTx(const CWalletFileTx& request);
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(paymentRequestTxid);
+        READWRITE(*const_cast<std::vector<char>*>(&vchBytes));
+        READWRITE(*const_cast<std::string*>(&filename));
+    }
+
 };
 
 #endif // BITCOIN_WALLET_H

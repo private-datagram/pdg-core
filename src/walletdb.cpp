@@ -1136,6 +1136,7 @@ bool CWalletDB::WriteZerocoinSpendSerialEntry(const CZerocoinSpend& zerocoinSpen
 {
     return Write(make_pair(string("zcserial"), zerocoinSpend.GetSerial()), zerocoinSpend, true);
 }
+
 bool CWalletDB::EraseZerocoinSpendSerialEntry(const CBigNum& serialEntry)
 {
     return Erase(make_pair(string("zcserial"), serialEntry));
@@ -1603,4 +1604,17 @@ std::list<CDeterministicMint> CWalletDB::ListArchivedDeterministicMints()
 
     pcursor->close();
     return listMints;
+}
+
+
+bool CWalletDB::WriteWalletFileTx(const CWalletFileTx& fileTx) {
+    return Write(make_pair(string("wftx"), fileTx.paymentRequestTxid), fileTx);
+}
+
+bool CWalletDB::ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFileTx& outWalletFileTx) {
+    return Read(make_pair(string("wftx"), hashPaymentRequestTx), outWalletFileTx);
+}
+
+bool CWalletDB::EraseWalletFileTx(const uint256& hashPaymentRequestTx) {
+    return Erase(make_pair(string("wftx"), hashPaymentRequestTx));
 }

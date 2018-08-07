@@ -91,8 +91,8 @@ std::string CTxOut::ToString() const
     return strprintf("CTxOut(nValue=%d.%08d, scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30));
 }
 
-CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), nLockTime(0) {}
-CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {}
+CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), meta(), nLockTime(0) {}
+CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {}
 
 uint256 CMutableTransaction::GetHash() const
 {
@@ -120,9 +120,9 @@ void CTransaction::UpdateHash() const
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
 }
 
-CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), vfiles(), nLockTime(0) { }
+CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), meta(), vfiles(), nLockTime(0) { }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {
+CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {
     UpdateHash();
 }
 
@@ -131,6 +131,7 @@ CTransaction& CTransaction::operator=(const CTransaction &tx) {
     *const_cast<int*>(&type) = tx.type;
     *const_cast<std::vector<CTxIn>*>(&vin) = tx.vin;
     *const_cast<std::vector<CTxOut>*>(&vout) = tx.vout;
+    *const_cast<PtrContainer<CTransactionMeta>*>(&meta) = tx.meta;
     *const_cast<std::vector<CFile>*>(&vfiles) = tx.vfiles;
     *const_cast<unsigned int*>(&nLockTime) = tx.nLockTime;
     *const_cast<uint256*>(&hash) = tx.hash;
@@ -292,3 +293,20 @@ std::string CFile::ToString() const
     return str;
 }
 
+CTransactionMeta::CTransactionMeta(): nFlags(TX_META_EMPTY) {}
+
+CPaymentRequest::CPaymentRequest(): vfMessage(), nPrice() {
+    nFlags = TX_META_FILE;
+}
+
+CPaymentConfirm::CPaymentConfirm(): requestTxid(), vfPublicKey() {
+    nFlags = TX_META_FILE;
+}
+
+CFileMeta::CFileMeta() {
+    nFlags = TX_META_FILE;
+}
+
+CEncodedMeta::CEncodedMeta(): fileHash(0), vfFilename(), vfFileKey(), nFileSize(0)  {}
+
+CEncodedMeta::CEncodedMeta(const CEncodedMeta& meta): fileHash(meta.fileHash), vfFilename(meta.vfFilename), vfFileKey(meta.vfFileKey), nFileSize(meta.nFileSize)  {}

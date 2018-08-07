@@ -2861,35 +2861,38 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
                     txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
+                // Fill meta
+                txNew.type = wtxNew.type;
+                txNew.meta = wtxNew.meta;
+
                 // Fill files
-                if (wtxNew.vchFile.size() > 0) {
-                        CFile file;
-                        file.vBytes = wtxNew.vchFile;
-                        file.UpdateFileHash();
-                        txNew.vfiles.push_back(file);
-                        txNew.type = TX_FILE_TRANSFER;
+                if (txNew.type == TX_FILE_TRANSFER) {
+                    CFile file;
+                    file.vBytes = wtxNew.vchFile;
+                    file.UpdateFileHash();
+                    txNew.vfiles.push_back(file);
 
-                        unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-                        CDiskFileBlockPos filePos;
-                        CValidationState state;
-                        if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                            return error("LoadBlockIndex() : FindBlockPos failed");
+                    unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+                    CDiskFileBlockPos filePos;
+                    CValidationState state;
+                    if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                        return error("LoadBlockIndex() : FindBlockPos failed");
 
-                        pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+                    pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
 
-                        if (!WriteFileBlockToDisk(file.vBytes, filePos))
-                            return state.Abort("Failed to write file");
+                    if (!WriteFileBlockToDisk(file.vBytes, filePos))
+                        return state.Abort("Failed to write file");
 
-                        UpdateFileBlockPosData(filePos);
+                    UpdateFileBlockPosData(filePos);
 
-                        CDiskFileBlockPos blockPos2;
-                        pblockfiletree->ReadTxFileIndex(file.CalcFileHash(), blockPos2);
+                    CDiskFileBlockPos blockPos2;
+                    pblockfiletree->ReadTxFileIndex(file.CalcFileHash(), blockPos2);
 
-                        std::vector<char> vBytes;
-                        if (!ReadFileBlockFromDisk(vBytes, filePos))
-                            return state.Abort("Failed to read file");
+                    std::vector<char> vBytes;
+                    if (!ReadFileBlockFromDisk(vBytes, filePos))
+                        return state.Abort("Failed to read file");
 
-                        int nIn2 = 0;
+                    int nIn2 = 0;
                 }
 
                 // Sign
@@ -5367,3 +5370,8 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
     zpivTracker->Add(dMint, true);
     return true;
 }
+
+
+CWalletFileTx::CWalletFileTx(): paymentRequestTxid(), vchBytes(), filename() {}
+
+CWalletFileTx::CWalletFileTx(const CWalletFileTx& request): paymentRequestTxid(request.paymentRequestTxid), vchBytes(request.vchBytes), filename(request.filename) {}
