@@ -334,20 +334,21 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     sendFilesAction->setToolTip(sendFilesAction->statusTip());
     sendFilesAction->setCheckable(true);
 #ifdef Q_OS_MAC
-    sendFilesAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_2));//TODO set Key
+    sendFilesAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_3));//TODO set Key
 #else
-    sendFilesAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_2));//TODO set Key
+    sendFilesAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_3));//TODO set Key
 #endif
-    tabGroup->addAction(sendCoinsAction);
+    tabGroup->addAction(sendFilesAction);
+
 
     receiveCoinsAction = new QAction(QIcon(":/icons/receiving_addresses"), tr("&Receive"), this);
     receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and pivx: URIs)"));
     receiveCoinsAction->setToolTip(receiveCoinsAction->statusTip());
     receiveCoinsAction->setCheckable(true);
 #ifdef Q_OS_MAC
-    receiveCoinsAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_3));
+    receiveCoinsAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_4));
 #else
-    receiveCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_3));
+    receiveCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_4));
 #endif
     tabGroup->addAction(receiveCoinsAction);
 
@@ -356,9 +357,9 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     historyAction->setToolTip(historyAction->statusTip());
     historyAction->setCheckable(true);
 #ifdef Q_OS_MAC
-    historyAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_4));
+    historyAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_5));
 #else
-    historyAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_4));
+    historyAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_5));
 #endif
     tabGroup->addAction(historyAction);
 
@@ -367,9 +368,9 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     privacyAction->setToolTip(privacyAction->statusTip());
     privacyAction->setCheckable(true);
 #ifdef Q_OS_MAC
-    privacyAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_5));
+    privacyAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_6));
 #else
-    privacyAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_5));
+    privacyAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_6));
 #endif
     tabGroup->addAction(privacyAction);
 
@@ -382,9 +383,9 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
         masternodeAction->setToolTip(masternodeAction->statusTip());
         masternodeAction->setCheckable(true);
 #ifdef Q_OS_MAC
-        masternodeAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_6));
+        masternodeAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_7));
 #else
-        masternodeAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_6));
+        masternodeAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_7));
 #endif
         tabGroup->addAction(masternodeAction);
         connect(masternodeAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));

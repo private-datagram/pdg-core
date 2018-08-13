@@ -251,11 +251,7 @@ SendCoinsRecipient SendFilesDialog::getValue()
     // Normal payment
     recipient.address = ui->addressField->text();
     recipient.amount = 1 * CENT;
-
-    //todo: ?
-    //CFile cFile;
-    //cFile.vBytes.insert(cFile.vBytes.end(), charFile, charFile + charFile->length());
-    //cFile.UpdateFileHash();
+    recipient.useSwiftTX = false;
 
     return recipient;
 }
