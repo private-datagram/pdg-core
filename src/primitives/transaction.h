@@ -213,6 +213,7 @@ struct CFile;
 class CTransactionMeta {
 protected:
     uint32_t nFlags; // TODO: why?
+    CTransactionMeta(uint32_t nFlags);
 
 public:
     CTransactionMeta();
@@ -275,6 +276,7 @@ class CPaymentConfirm: public CTransactionMeta {
 
 public:
     CPaymentConfirm();
+    CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey);
 
     // Payment request transaction hash
     uint256 requestTxid;

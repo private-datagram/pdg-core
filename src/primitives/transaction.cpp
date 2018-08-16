@@ -293,18 +293,20 @@ std::string CFile::ToString() const
     return str;
 }
 
+CTransactionMeta::CTransactionMeta(uint32_t nFlags): nFlags(nFlags) {}
+
 CTransactionMeta::CTransactionMeta(): nFlags(TX_META_EMPTY) {}
 
-CPaymentRequest::CPaymentRequest(): vfMessage(), nPrice() {
-    nFlags = TX_META_FILE;
+CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), vfMessage(), nPrice() {
 }
 
-CPaymentConfirm::CPaymentConfirm(): requestTxid(), vfPublicKey() {
-    nFlags = TX_META_FILE;
+CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), vfPublicKey() {
 }
 
-CFileMeta::CFileMeta() {
-    nFlags = TX_META_FILE;
+CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), requestTxid(requestTxid), vfPublicKey(vfPublicKey) {
+}
+
+CFileMeta::CFileMeta(): CTransactionMeta(TX_META_FILE) {
 }
 
 CEncodedMeta::CEncodedMeta(): fileHash(0), vfFilename(), vfFileKey(), nFileSize(0)  {}

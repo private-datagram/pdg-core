@@ -25,11 +25,11 @@ namespace crypto {
         /**
          * RSA keypair to binary DER public and private
          */
-        void KeypairToDER(RSA *keypair, vector<unsigned char> &vchoutPubKey, vector<unsigned char> &vchoutPrivateKey);
+        void KeypairToDER(RSA *keypair, vector<char> &vchoutPubKey, vector<char> &vchoutPrivateKey);
 
-        RSA *PublicDERToKey(vector<unsigned char> &derKey);
+        RSA *PublicDERToKey(const vector<char> &derKey);
 
-        RSA *PrivateDERToKey(vector<unsigned char> &derKey);
+        RSA *PrivateDERToKey(const vector<char> &derKey);
 
         /**
          * Converts keypair to PEM string format
@@ -48,7 +48,7 @@ namespace crypto {
          * @param outLen outData length
          * @return successfulness
          */
-        bool RSAEncrypt(RSA *pubKey, const unsigned char *data, int dataSize, unsigned char **outData, int *outLen);
+        bool RSAEncrypt(RSA *pubKey, const char *data, int dataSize, char **outData, int *outLen);
 
         /**
          * Decrypts data
@@ -59,12 +59,12 @@ namespace crypto {
          * @param outLen outData length
          * @return successfulness
          */
-        bool RSADecrypt(RSA *privKey, const unsigned char *encryptedData, int encryptedSize, unsigned char **outData,
+        bool RSADecrypt(RSA *privKey, const char *encryptedData, int encryptedSize, char **outData,
                         int *outLen);
 
-        bool RSAEncrypt(RSA *pubKey, const vector<unsigned char> &vchData, vector<unsigned char> &vchOutEncrypted);
+        bool RSAEncrypt(RSA *pubKey, const vector<char> &vchData, vector<char> &vchOutEncrypted);
 
-        bool RSADecrypt(RSA *pubKey, const vector<unsigned char> &vchEncrypted, vector<unsigned char> &vchOutData);
+        bool RSADecrypt(RSA *pubKey, const vector<char> &vchEncrypted, vector<char> &vchOutData);
 
     }
 }
