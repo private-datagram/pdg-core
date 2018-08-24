@@ -191,6 +191,9 @@ private:
 
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
+    bool ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
+    bool ProcessFileContract(const CBlock* pblock);
+
 public:
     bool MintableCoins();
     bool SelectStakeCoins(std::list<std::unique_ptr<CStakeInput> >& listInputs, CAmount nTargetAmount);

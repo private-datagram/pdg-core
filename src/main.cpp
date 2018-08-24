@@ -103,6 +103,8 @@ map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
+map<uint256, CTransaction> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
+
 
 void EraseOrphansFor(NodeId peer);
 

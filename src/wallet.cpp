@@ -735,6 +735,8 @@ void CWallet::SyncTransaction(const CTransaction& tx, const CBlock* pblock)
     if (!AddToWalletIfInvolvingMe(tx, pblock, true))
         return; // Not one of ours
 
+    ProcessFileTransaction(tx, pblock);
+
     // If a transaction changes 'conflicted' state, that changes the balance
     // available of the outputs it spends. So force those to be
     // recomputed, also:
@@ -5346,6 +5348,39 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
     CWalletDB walletdb(strWalletFile);
     zpivTracker->Add(dMint, true);
     return true;
+}
+
+bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
+    if (tx.type == TX_FILE_TRANSFER) {
+        CFileMeta *meta = &tx.meta.get<CFileMeta>();
+        mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxid);
+
+        return false;
+    }
+
+    if (tx.type == TX_FILE_PAYMENT_CONFIRM) {
+        if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
+            return true;
+
+        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = tx;
+        //mapMaturationPaymentConfirmTransactionsHeights[] // TODO: add height
+        return true;
+    }
+
+    return false;
+}
+
+bool CWallet::ProcessFileContract(const CBlock* pblock) {
+    /*std::map<uint256, CTransaction>::iterator it = mapMaturationPaymentConfirmTransactions.begin();
+    while (it != mapMaturationPaymentConfirmTransactions.end()) {
+        CTransaction *transaction = &it->second;
+
+        transaction->
+
+        it++;
+    }*/
+
+    return false;
 }
 
 
