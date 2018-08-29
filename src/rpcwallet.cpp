@@ -67,6 +67,18 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
         conflicts.push_back(conflict.GetHex());
     entry.push_back(Pair("walletconflicts", conflicts));
 
+    UniValue files(UniValue::VARR);
+    std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
+    while (it != wtx.vfiles.end()) {
+        UniValue fileEntry(UniValue::VOBJ);
+        fileEntry.push_back(Pair("hash", it->fileHash.ToString()));
+        files.push_back(fileEntry);
+
+        ++it;
+    }
+
+    entry.push_back(Pair("files", files));
+
     // TODO: add files info
     /*// files
     UniValue files(UniValue::VARR);
@@ -1656,6 +1668,11 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
             "    }\n"
             "    ,...\n"
             "  ],\n"
+            "  \"file\" : \"file\",  (string) File data involved in the transaction\n"
+            "    {\n"
+            "      \"hash\" : \"filehash\",    (string) The file hash involved in the transaction'\n"
+            "    }\n"
+            "  ,\n"
             "  \"hex\" : \"data\"         (string) Raw data for transaction\n"
             "}\n"
 

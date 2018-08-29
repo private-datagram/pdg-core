@@ -103,6 +103,7 @@ map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
+std::vector<uint256> vFileIndex;
 
 void EraseOrphansFor(NodeId peer);
 
@@ -486,6 +487,16 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
             }
         }
     }
+}
+
+void removeFileLocatorHash(uint256& hash)
+{
+    vFileIndex.erase(std::remove(std::begin(vFileIndex), std::end(vFileIndex), hash), std::end(vFileIndex));
+}
+
+bool isHashInLocator(uint256& hash)
+{
+    return find(vFileIndex.begin(), vFileIndex.end(), hash) != vFileIndex.end();
 }
 
 } // anon namespace
@@ -2068,7 +2079,7 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 //
 // File region
 //
-bool WriteFileBlockToDisk(std::vector<char>& vBytes, CDiskFileBlockPos& pos)
+bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
 {
     // Open history file to append
     CAutoFile fileout(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
@@ -2076,41 +2087,30 @@ bool WriteFileBlockToDisk(std::vector<char>& vBytes, CDiskFileBlockPos& pos)
         return error("WriteBlockToDisk : OpenBlockFile failed");
 
     // Write index header
-    unsigned int nSize = fileout.GetSerializeSize(vBytes);
+    unsigned int nSize = fileout.GetSerializeSize(file);
     fileout << FLATDATA(Params().MessageStart()) << nSize;
 
     // Write block
     long fileOutPos = ftell(fileout.Get());
     if (fileOutPos < 0)
-        return error("WriteBlockToDisk : ftell failed");
+        return error("WriteCFileToDisk : ftell failed");
     pos.numberPosition = (unsigned int)fileOutPos;
-    fileout << vBytes;
+    fileout << file;
 
     return true;
 }
 
-bool ReadFileBlockFromDisk(std::vector<char>& vBytes, const CDiskFileBlockPos& pos)
+bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
 {
     // Open history file to read
     CAutoFile filein(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
         return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
 
-    // Read block
+    // Read file
+
     try {
-        fseek(filein.Get(), pos.numberPosition, SEEK_CUR);
-
-        char * buffer = (char*) malloc(sizeof(char) * pos.fileSize);
-        if (buffer == NULL)
-            return error("ReadFileBlockFromDisk : buffer failed");
-
-        size_t result = fread(buffer, 1, pos.fileSize, filein.Get());
-        if (result != pos.fileSize)
-            return error("ReadFileBlockFromDisk : read failed");
-        //        filein >> vBytes;
-        //todo: ????
-//        CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
-        std::copy(buffer,buffer+pos.fileSize,std::back_inserter(vBytes));
+        filein >> file;
     } catch (std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -3639,7 +3639,11 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 return state.Error("out of disk space");
             // First make sure all block and undo data is flushed to disk.
             FlushBlockFile();
+            FlushFileBlockFile();
+
             // Then update all block file information (which may refer to block and undo files).
+
+            //transactions block
             bool fileschanged = false;
             for (set<int>::iterator it = setDirtyFileInfo.begin(); it != setDirtyFileInfo.end();) {
                 if (!pblocktree->WriteBlockFileInfo(*it, vinfoBlockFile[*it])) {
@@ -3658,6 +3662,22 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 setDirtyBlockIndex.erase(it++);
             }
             pblocktree->Sync();
+
+            //file block
+            bool fileBlockFileChanged = false ;
+            for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
+                if(!pblockfiletree->WriteFileBlockFileInfo(it - vinfoFileBlockFile.begin(), vinfoFileBlockFile[it - vinfoFileBlockFile.begin()])) {
+                    return state.Abort("Failed to write to fileBlock index");
+                }
+                bool fileBlockFileChanged = true ;
+                ++it;
+            }
+            if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
+                return state.Abort("Failed to write to file block index");
+            }
+            pblockfiletree->Sync();
+
+
             // Finally flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
                 return state.Abort("Failed to write to coin database");
@@ -4871,6 +4891,27 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
         }
     }
 
+  /*  for (const CTransaction& tx : block.vtx) {
+        if (tx.type == TX_FILE_TRANSFER) {
+            std::vector<CFile>::const_iterator it = tx.vfiles.begin();
+            while (it != tx.vfiles.end()) { 
+                UniValue fileEntry(UniValue::VOBJ);
+                uint256 fileHash = it->fileHash;
+
+                CDiskFileBlockPos blockPos;
+                pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
+
+                CFile fileFromDb;
+                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
+                    return state.Abort("Failed to read file");
+
+                int nIn2 = 0;
+
+                ++it;
+            }
+        }
+    }*/
+
     if (block.GetHash() != Params().HashGenesisBlock() && !CheckWork(block, pindexPrev))
         return false;
 
@@ -5001,6 +5042,8 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
     int nMints = 0;
     int nSpends = 0;
     for (const CTransaction tx : pblock->vtx) {
+
+        //process zerocoin
         if (tx.ContainsZerocoins()) {
             for (const CTxIn in : tx.vin) {
                 if (in.scriptSig.IsZerocoinSpend())
@@ -5009,6 +5052,25 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
             for (const CTxOut out : tx.vout) {
                 if (out.IsZerocoinMint())
                     nMints++;
+            }
+        }
+
+        //process file
+        if (!tx.vfiles.empty()) {
+            std::vector<CFile>::const_iterator it = tx.vfiles.begin();
+            while (it != tx.vfiles.end()) {
+                uint256 fileHash = it->fileHash;
+                if (isHashInLocator(fileHash)) continue; //ignore
+
+                CDiskFileBlockPos postx;
+
+                //file not found at DB.
+                if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
+                    vFileIndex.push_back(fileHash);
+                }
+
+                //todo: добавить ли тут проверку файла на диске. 
+                ++it;
             }
         }
     }
@@ -5264,6 +5326,24 @@ bool static LoadBlockIndexDB(string& strError)
         }
     }
 
+    //Load fileBlock file info
+    pblockfiletree->ReadLastFileBlockFile(nLastFileDiskFile);
+    vinfoFileBlockFile.reserve(nLastFileDiskFile + 1);
+    LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileDiskFile);
+    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
+        pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile]);
+    }
+//    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
+    //TODO: ????
+    for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
+        CFileBlockFileInfo info;
+        if (pblockfiletree->ReadFileBlockFileInfo(nFile, info)) {
+            vinfoFileBlockFile.push_back(info);
+        } else {
+            break;
+        }
+    }
+
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     set<int> setBlkDataFiles;
@@ -5458,7 +5538,48 @@ bool InitBlockIndex()
 
 bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
 {
+    CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
+    uint64_t nRewind = blkdat.GetPos();
+    while (!blkdat.eof()) {
+        boost::this_thread::interruption_point();
 
+        blkdat.SetPos(nRewind);
+        nRewind++;         // start one byte further next time, in case of failure
+        blkdat.SetLimit(); // remove former limit
+        unsigned int nSize = 0;
+        try {
+            // locate a header
+            unsigned char buf[MESSAGE_START_SIZE];
+            blkdat.FindByte(Params().MessageStart()[0]);
+            nRewind = blkdat.GetPos() + 1;
+            blkdat >> FLATDATA(buf);
+            if (memcmp(buf, Params().MessageStart(), MESSAGE_START_SIZE))
+                continue;
+            // read size
+            blkdat >> nSize;
+            if (nSize < 80 || nSize > MAX_BLOCK_SIZE_CURRENT)
+                continue;
+        } catch (const std::exception&) {
+            // no valid fileBlock header found; don't complain
+            break;
+        }
+
+        // read block
+        uint64_t nBlockPos = blkdat.GetPos();
+        if (dbp)
+            dbp->numberPosition = nBlockPos;
+        blkdat.SetLimit(nBlockPos + nSize);
+        blkdat.SetPos(nBlockPos);
+        CFile file;
+        blkdat >> file;
+        nRewind = blkdat.GetPos();
+
+        if (file.fileHash == file.CalcFileHash()) {
+
+        }
+    }
+
+    return true;
 }
 
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp)
@@ -6625,6 +6746,87 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
         CheckBlockIndex();
     }
+
+    //file region
+    else if (strCommand == "file" && !fImporting && !fReindex)//todo: fImporting??? fReindex???
+    {
+         std::vector<CFile> vfiles;
+         vRecv >> vfiles;
+
+        if (!vfiles.empty()) {
+            std::vector<CFile>::iterator it = vfiles.begin();
+            while (it != vfiles.end()) {
+                uint256 fileHash = it->fileHash;
+                LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
+
+                //file isNeeded
+                if (isHashInLocator(fileHash)) {
+
+                    //file validate
+                    if (fileHash == it->CalcFileHash()) {
+                        //save file
+                        unsigned int nFileSize = ::GetSerializeSize(it->vBytes , SER_DISK, CLIENT_VERSION);
+                        CDiskFileBlockPos filePos;
+                        CValidationState state;
+                        if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                            return error("LoadBlockIndex() : FindBlockPos failed");
+
+                        pblockfiletree->WriteTxFileIndex(it->CalcFileHash(), filePos);
+
+                        if (!WriteFileBlockToDisk(*it, filePos))
+                            return state.Abort("Failed to write file");
+
+                        UpdateFileBlockPosData(filePos);
+                        removeFileLocatorHash(fileHash);
+                    }
+                }
+
+                ++it;
+            }
+        }
+    }
+
+    else if (strCommand == "getfiles")
+    {
+        std::vector<uint256> hashes;
+        vRecv >> hashes;
+
+        if (!hashes.empty()) {
+            int nLimit = MAX_SEND_FILE_RESULTS;
+            bool isResultHasData = false;
+
+            std::vector<CFile> vfiles;
+            vfiles.resize(MAX_SEND_FILE_RESULTS);
+
+            std::vector<uint256>::const_iterator it = hashes.begin();
+            while (it != hashes.end() || --nLimit <= 0) {
+                if (isHashInLocator(hashes[it - hashes.begin()])) {
+                    //this node search this file to. ignore.
+                    continue;
+                }
+
+                CDiskFileBlockPos postx;
+                if (pblockfiletree->ReadTxFileIndex(*it, postx)) {
+                    CFile file;
+                    if(ReadFileBlockFromDisk(file, postx)) {
+                        //add file to result
+                        vfiles.push_back(file);
+                        isResultHasData = true;
+                    } else {
+//                        LogPrintf("File not found at DiskSpace. fileHash %s\n", *it.toString());
+                    }
+                } else {
+//                    LogPrintf("File not found in DB. fileHash %s\n", *it.toString());
+                }
+            }
+
+            if (isResultHasData) {
+                //push file
+                pfrom->PushMessage("file", vfiles);
+            }
+        }
+    }
+    //endfile region
 
     else if (strCommand == "block" && !fImporting && !fReindex) // Ignore blocks received while importing
     {

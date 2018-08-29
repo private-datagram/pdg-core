@@ -86,22 +86,25 @@ bool CBlockFileTreeDB::WriteTxFileIndex(const uint256 &txid, CDiskFileBlockPos& 
     return Write(make_pair('d', txid), pos);
 }
 
-bool CBlockFileTreeDB::ReadTxFileIndex(const uint256 &txid, CFile& file) {
-    return Read(make_pair('d', txid), file);
+bool CBlockFileTreeDB::WriteLastFileBlockFile(int nFile)
+{
+    return Write('n', nFile);
 }
 
-
-bool CBlockFileTreeDB::WriteTxFileIndex(const uint256 &txid, CFile& file) {
-    return Write(make_pair('d', txid), file);
-}
-/*
-bool CBlockFileTreeDB::ReadFile(const CBigNum &bn, uint256 &txHash) {
-    return false;
+bool CBlockFileTreeDB::ReadLastFileBlockFile(int& nFile)
+{
+    return Read('n', nFile);
 }
 
-bool CBlockFileTreeDB::ReadFile(const uint256 &hash, uint256 &hashTx) {
-    return false;
-}*/
+bool CBlockFileTreeDB::ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo)
+{
+    return Read(make_pair('k', nFile), fileinfo);
+}
+
+bool CBlockFileTreeDB::WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo)
+{
+    return Write(make_pair('k', nFile), fileinfo);
+}
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)
 {

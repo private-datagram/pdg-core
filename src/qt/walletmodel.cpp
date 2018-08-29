@@ -333,6 +333,8 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
         if (meta->IsInstanceOf<CPaymentRequest>()) {
             newTx->type = TX_FILE_PAYMENT_REQUEST;
+            newTx->vchFile = recipients[0].vchFile;  // TODO: remove
+
         } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {

@@ -81,12 +81,11 @@ private:
 
 public:
     bool ReadTxFileIndex(const uint256& txid, CDiskFileBlockPos& pos);
-//    bool ReadTxFileIndex(const uint256& txid, CDiskTxPos& pos);
     bool WriteTxFileIndex(const uint256& txid, CDiskFileBlockPos& pos);
-
-    bool ReadTxFileIndex(const uint256& txid, CFile& file);
-    bool WriteTxFileIndex(const uint256 &txid, CFile& file);
-//    bool WriteTxFileIndex(const uint256& txid, CDiskTxPos& pos);
+    bool WriteLastFileBlockFile(int nFile);
+    bool ReadLastFileBlockFile(int& nFile);
+    bool ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo);
+    bool WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo);
 };
 
 class CZerocoinDB : public CLevelDBWrapper

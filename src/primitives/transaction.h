@@ -379,6 +379,8 @@ public:
 
         if (type == TX_FILE_PAYMENT_REQUEST) {
             READWRITE(*const_cast<CPaymentRequest*>(&meta.getOrRecreate<CPaymentRequest>()));
+            READWRITE(*const_cast<std::vector<CFile>*>(&vfiles)); //todo: remove
+
         } else if (type == TX_FILE_PAYMENT_CONFIRM) {
             READWRITE(*const_cast<CPaymentConfirm*>(&meta.getOrRecreate<CPaymentConfirm>()));
         } else if (type == TX_FILE_TRANSFER) {

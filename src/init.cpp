@@ -629,6 +629,21 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
 {
     RenameThread("pivx-loadblk");
 
+   /* int numberFile = 0;
+    while (true) {
+        CDiskFileBlockPos fPos(numberFile, 0, 0);
+        if (!boost::filesystem::exists(GetFilePosFilename(fPos, "blk")))
+            break; // No file block files left to reindex
+
+        FILE* file = OpenFileBlockFile(fPos, true);
+        if (!file)
+            break; // This error is logged in OpenFileBlockFile
+        LogPrintf("Reindexing fileBlock file blk%05u.dat...\n", (unsigned int)numberFile);
+        LoadExternalFileBlockFile(file, &fPos);
+
+        numberFile++;
+    }*/
+
     // -reindex
     if (fReindex) {
         CImportingNow imp;
@@ -645,7 +660,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             nFile++;
         }
 
-        nFile = 0;
+       /* nFile = 0;
         while (true) {
             CDiskFileBlockPos fPos(nFile, 0, 0);
             if (!boost::filesystem::exists(GetFilePosFilename(fPos, "blk")))
@@ -658,7 +673,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             //LoadExternalBlockFile(file, &fPos);
 
             nFile++;
-        }
+        }*/
 
         pblocktree->WriteReindexing(false);
         fReindex = false;
@@ -1147,9 +1162,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             filesystem::path chainstateDir = GetDataDir() / "chainstate";
             filesystem::path sporksDir = GetDataDir() / "sporks";
             filesystem::path zerocoinDir = GetDataDir() / "zerocoin";
-            
+            filesystem::path filesDir = GetDataDir() / "files";
+
             LogPrintf("Deleting blockchain folders blocks, chainstate, sporks and zerocoin\n");
-            // We delete in 4 individual steps in case one of the folder is missing already
+            // We delete in 5 individual steps in case one of the folder is missing already
             try {
                 if (filesystem::exists(blocksDir)){
                     boost::filesystem::remove_all(blocksDir);
@@ -1169,6 +1185,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 if (filesystem::exists(zerocoinDir)){
                     boost::filesystem::remove_all(zerocoinDir);
                     LogPrintf("-resync: folder deleted: %s\n", zerocoinDir.string().c_str());
+                }
+
+                if (filesystem::exists(filesDir)){
+                    boost::filesystem::remove_all(filesDir);
+                    LogPrintf("-resync: folder deleted: %s\n", filesDir.string().c_str());
                 }
             } catch (boost::filesystem::filesystem_error& error) {
                 LogPrintf("Failed to delete blockchain folders %s\n", error.what());
@@ -1373,6 +1394,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         if (linked) {
             fReindex = true;
         }
+    }
+
+    //init file dir
+    filesystem::path filesDir = GetDataDir() / "files";
+    if (!filesystem::exists(filesDir)) {
+        filesystem::create_directories(filesDir);
     }
 
     // cache size calculations

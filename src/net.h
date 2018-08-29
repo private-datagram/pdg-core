@@ -366,6 +366,7 @@ public:
     CCriticalSection cs_inventory;
     std::multimap<int64_t, CInv> mapAskFor;
     std::vector<uint256> vBlockRequested;
+    std::vector<uint256> vFileRequested;
 
     // Ping time measurement:
     // The pong reply we're expecting, or 0 if no pong expected.

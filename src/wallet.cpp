@@ -2880,19 +2880,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
 
                     pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
 
-                    if (!WriteFileBlockToDisk(file.vBytes, filePos))
+                    if (!WriteFileBlockToDisk(file, filePos))
                         return state.Abort("Failed to write file");
 
                     UpdateFileBlockPosData(filePos);
-
-                    CDiskFileBlockPos blockPos2;
-                    pblockfiletree->ReadTxFileIndex(file.CalcFileHash(), blockPos2);
-
-                    std::vector<char> vBytes;
-                    if (!ReadFileBlockFromDisk(vBytes, filePos))
-                        return state.Abort("Failed to read file");
-
-                    int nIn2 = 0;
                 }
 
                 // Sign

@@ -108,6 +108,9 @@ static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
  *  less than this number, we reached their tip. Changing this value is a protocol upgrade. */
 static const unsigned int MAX_HEADERS_RESULTS = 2000;
+
+//Number of file sent in one getfiles result
+static const unsigned int MAX_SEND_FILE_RESULTS = 5;
 /** Size of the "block download window": how far ahead of our current height do we fetch?
  *  Larger windows tolerate larger download speed differences between peer, but increase the potential
  *  degree of disordering of blocks on disk (which make reindexing and in the future perhaps pruning
@@ -170,6 +173,8 @@ extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
+extern std::vector<uint256> vFileIndex;
+
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
 
@@ -219,6 +224,10 @@ boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const c
 
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
+
+/** Import blockFile from an external file */
+bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp);
+
 /** Import blocks from an external file */
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp = NULL);
 /** Initialize a new block tree database + block data on disk */
@@ -474,8 +483,8 @@ public:
 };
 
 /** File region */
-bool WriteFileBlockToDisk(std::vector<char>& vBytes, CDiskFileBlockPos& pos);
-bool ReadFileBlockFromDisk(std::vector<char>& vBytes, const CDiskFileBlockPos& pos);
+bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos);
+bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos);
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
@@ -527,8 +536,8 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
-        READWRITE(VARINT(numberFiles));
         READWRITE(VARINT(numberBytesSize));
+        READWRITE(VARINT(numberFiles));
 //        READWRITE(VARINT(nUndoSize));
         READWRITE(VARINT(firstRecordTime));
         READWRITE(VARINT(lastRecordTime));
