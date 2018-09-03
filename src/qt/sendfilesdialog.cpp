@@ -105,12 +105,14 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         return;
     }
 
-    CPaymentRequest meta;
+//    CPaymentRequest meta;
+    CFileMeta meta;
 
-    std::string descriptionMessage = ui->descriptionField->text().toStdString();
-    meta.vfMessage.reserve(descriptionMessage.length());
-    meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
-    meta.nPrice = ui->priceField->value();
+//    meta.confirmTxid = "cofTxId";
+//    std::string descriptionMessage = ui->descriptionField->text().toStdString();
+//    meta.vfMessage.reserve(descriptionMessage.length());
+//    meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
+//    meta.nPrice = ui->priceField->value();
 
 
     /*QFileInfo fileInfo(ui->fileNameField->text());

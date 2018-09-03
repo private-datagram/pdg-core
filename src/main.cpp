@@ -4891,26 +4891,25 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
         }
     }
 
-  /*  for (const CTransaction& tx : block.vtx) {
-        if (tx.type == TX_FILE_TRANSFER) {
-            std::vector<CFile>::const_iterator it = tx.vfiles.begin();
-            while (it != tx.vfiles.end()) { 
-                UniValue fileEntry(UniValue::VOBJ);
-                uint256 fileHash = it->fileHash;
+       for (const CTransaction& tx : block.vtx) {
+            if (tx.type == TX_FILE_TRANSFER) {
+                std::vector<CFile>::const_iterator it = tx.vfiles.begin();
+                while (it != tx.vfiles.end()) {
+                    uint256 fileHash = it->fileHash;
 
-                CDiskFileBlockPos blockPos;
-                pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
+                    CDiskFileBlockPos blockPos;
+                    pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
 
-                CFile fileFromDb;
-                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
-                    return state.Abort("Failed to read file");
+                    CFile fileFromDb;
+                    if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
+                        return state.Abort("Failed to read file");
 
-                int nIn2 = 0;
+                    int nIn2 = 0;
 
-                ++it;
+                    ++it;
+                }
             }
         }
-    }*/
 
     if (block.GetHash() != Params().HashGenesisBlock() && !CheckWork(block, pindexPrev))
         return false;
@@ -5056,7 +5055,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
         }
 
         //process file
-        if (!tx.vfiles.empty()) {
+        if (tx.type == TX_FILE_TRANSFER) {
             std::vector<CFile>::const_iterator it = tx.vfiles.begin();
             while (it != tx.vfiles.end()) {
                 uint256 fileHash = it->fileHash;
@@ -5067,6 +5066,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
                 //file not found at DB.
                 if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
                     vFileIndex.push_back(fileHash);
+                    pfrom->PushMessage("getfiles", vFileIndex);
                 }
 
                 //todo: добавить ли тут проверку файла на диске. 
@@ -5074,6 +5074,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
             }
         }
     }
+
     if (nMints || nSpends)
         LogPrintf("%s : block contains %d zPIV mints and %d zPIV spends\n", __func__, nMints, nSpends);
 
@@ -5328,14 +5329,14 @@ bool static LoadBlockIndexDB(string& strError)
 
     //Load fileBlock file info
     pblockfiletree->ReadLastFileBlockFile(nLastFileDiskFile);
-    vinfoFileBlockFile.reserve(nLastFileDiskFile + 1);
+    vinfoFileBlockFile.resize(nLastFileDiskFile + 1);
     LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileDiskFile);
     for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
         pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile]);
     }
 //    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
     //TODO: ????
-    for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
+  /*  for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
         CFileBlockFileInfo info;
         if (pblockfiletree->ReadFileBlockFileInfo(nFile, info)) {
             vinfoFileBlockFile.push_back(info);
@@ -5343,6 +5344,7 @@ bool static LoadBlockIndexDB(string& strError)
             break;
         }
     }
+    */
 
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
@@ -5974,6 +5976,7 @@ void static ProcessGetData(CNode* pfrom)
                     } else {
                         // To prevent fingerprinting attacks, only send blocks outside of the active
                         // chain if they are valid, and no more than a max reorg depth than the best header
+
                         // chain we know about.
                         send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
                                (chainActive.Height() - mi->second->nHeight < Params().MaxReorganizationDepth());
@@ -6044,6 +6047,16 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
+                if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
+                    if (mapTxLockVote.count(inv.hash)) {
+                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                        ss.reserve(1000);
+                        ss << mapTxLockVote[inv.hash];
+                        pfrom->PushMessage("txlvote", ss);
+                        pushed = true;
+                    }
+                }
+
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -6796,6 +6809,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             bool isResultHasData = false;
 
             std::vector<CFile> vfiles;
+
+            //todo: так или меньше?
             vfiles.resize(MAX_SEND_FILE_RESULTS);
 
             std::vector<uint256>::const_iterator it = hashes.begin();

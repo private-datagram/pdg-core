@@ -629,21 +629,6 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
 {
     RenameThread("pivx-loadblk");
 
-   /* int numberFile = 0;
-    while (true) {
-        CDiskFileBlockPos fPos(numberFile, 0, 0);
-        if (!boost::filesystem::exists(GetFilePosFilename(fPos, "blk")))
-            break; // No file block files left to reindex
-
-        FILE* file = OpenFileBlockFile(fPos, true);
-        if (!file)
-            break; // This error is logged in OpenFileBlockFile
-        LogPrintf("Reindexing fileBlock file blk%05u.dat...\n", (unsigned int)numberFile);
-        LoadExternalFileBlockFile(file, &fPos);
-
-        numberFile++;
-    }*/
-
     // -reindex
     if (fReindex) {
         CImportingNow imp;
@@ -660,7 +645,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             nFile++;
         }
 
-       /* nFile = 0;
+        nFile = 0;
         while (true) {
             CDiskFileBlockPos fPos(nFile, 0, 0);
             if (!boost::filesystem::exists(GetFilePosFilename(fPos, "blk")))
@@ -673,7 +658,7 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             //LoadExternalBlockFile(file, &fPos);
 
             nFile++;
-        }*/
+        }
 
         pblocktree->WriteReindexing(false);
         fReindex = false;

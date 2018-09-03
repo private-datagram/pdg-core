@@ -736,6 +736,8 @@ void CWallet::SyncTransaction(const CTransaction& tx, const CBlock* pblock)
     if (!AddToWalletIfInvolvingMe(tx, pblock, true))
         return; // Not one of ours
 
+
+
     // If a transaction changes 'conflicted' state, that changes the balance
     // available of the outputs it spends. So force those to be
     // recomputed, also:
@@ -2867,6 +2869,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
 
                 // Fill files
                 if (txNew.type == TX_FILE_TRANSFER) {
+                    //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
                     CFile file;
                     file.vBytes = wtxNew.vchFile;
                     file.UpdateFileHash();

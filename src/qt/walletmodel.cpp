@@ -333,13 +333,35 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
         if (meta->IsInstanceOf<CPaymentRequest>()) {
             newTx->type = TX_FILE_PAYMENT_REQUEST;
-            newTx->vchFile = recipients[0].vchFile;  // TODO: remove
 
         } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
             newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+
+            CFile file;
+            file.vBytes = recipients[0].vchFile;
+            file.UpdateFileHash();
+//            txNew.vfiles.push_back(file);
+
+            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+            CDiskFileBlockPos filePos;
+            CValidationState state;
+            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                return error("LoadBlockIndex() : FindBlockPos failed");
+
+            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+
+            if (!WriteFileBlockToDisk(file, filePos))
+                return state.Abort("Failed to write file");
+
+            UpdateFileBlockPosData(filePos);
+
+            std::vector<CFile> vfiles;
+            vfiles.resize(1);
+
+            pfrom->PushMessage("file", vfiles);
         } else {
             newTx->type = TX_PAYMENT;
         }
