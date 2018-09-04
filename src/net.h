@@ -68,6 +68,7 @@ unsigned int SendBufferSize();
 void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);
 void AddressCurrentlyConnected(const CService& addr);
+void FileMessage();
 CNode* FindNode(const CNetAddr& ip);
 CNode* FindNode(const CSubNet& subNet);
 CNode* FindNode(const std::string& addrName);
@@ -87,6 +88,7 @@ typedef int NodeId;
 struct CNodeSignals {
     boost::signals2::signal<int()> GetHeight;
     boost::signals2::signal<bool(CNode*)> ProcessMessages;
+    boost::signals2::signal<bool(CNode*, bool)> SendFile;
     boost::signals2::signal<bool(CNode*, bool)> SendMessages;
     boost::signals2::signal<void(NodeId, const CNode*)> InitializeNode;
     boost::signals2::signal<void(NodeId)> FinalizeNode;

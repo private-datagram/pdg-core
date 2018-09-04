@@ -15,6 +15,8 @@
 #include "allocators.h" /* for SecureString */
 #include "swifttx.h"
 #include "wallet.h"
+#include "main.h"
+#include "txdb.h"
 
 #include <map>
 #include <vector>

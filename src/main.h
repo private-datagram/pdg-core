@@ -240,6 +240,8 @@ void UnloadBlockIndex();
 int ActiveProtocol();
 /** Process protocol messages received from a given node */
 bool ProcessMessages(CNode* pfrom);
+
+void UpdateRequestSendHashFile(const uint256& newRequestHash);
 /**
  * Send queued protocol messages to be sent to a give node.
  *
@@ -247,6 +249,7 @@ bool ProcessMessages(CNode* pfrom);
  * @param[in]   fSendTrickle    When true send the trickled data, otherwise trickle the data until true.
  */
 bool SendMessages(CNode* pto, bool fSendTrickle);
+bool SendFile(CNode* pto, bool fSendTrickele);
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
 

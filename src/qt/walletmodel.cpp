@@ -16,12 +16,14 @@
 #include "db.h"
 #include "keystore.h"
 #include "main.h"
+#include "txdb.h"
 #include "spork.h"
 #include "sync.h"
 #include "ui_interface.h"
 #include "wallet.h"
 #include "walletdb.h" // for BackupWallet
 #include <stdint.h>
+#include <net.h>
 
 #include <QDebug>
 #include <QSet>
@@ -343,25 +345,24 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             CFile file;
             file.vBytes = recipients[0].vchFile;
             file.UpdateFileHash();
-//            txNew.vfiles.push_back(file);
 
             unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
             CDiskFileBlockPos filePos;
             CValidationState state;
             if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                return error("LoadBlockIndex() : FindBlockPos failed");
+                //return error("LoadBlockIndex() : FindBlockPos failed");
+                //todo: добавить ошибку в лог
 
             pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
 
             if (!WriteFileBlockToDisk(file, filePos))
-                return state.Abort("Failed to write file");
+                //todo: добавить ошибку в лог
+                //return state.Abort("Failed to write file");
 
             UpdateFileBlockPosData(filePos);
+            UpdateRequestSendHashFile(file.CalcFileHash());
+            FileMessage();
 
-            std::vector<CFile> vfiles;
-            vfiles.resize(1);
-
-            pfrom->PushMessage("file", vfiles);
         } else {
             newTx->type = TX_PAYMENT;
         }

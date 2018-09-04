@@ -105,6 +105,8 @@ map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 std::vector<uint256> vFileIndex;
 
+uint256 requestSendHashFile;
+
 void EraseOrphansFor(NodeId peer);
 
 static void CheckBlockIndex();
@@ -522,6 +524,7 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.connect(&GetHeight);
     nodeSignals.ProcessMessages.connect(&ProcessMessages);
     nodeSignals.SendMessages.connect(&SendMessages);
+    nodeSignals.SendFile.connect(&SendFile);
     nodeSignals.InitializeNode.connect(&InitializeNode);
     nodeSignals.FinalizeNode.connect(&FinalizeNode);
 }
@@ -531,6 +534,7 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.disconnect(&GetHeight);
     nodeSignals.ProcessMessages.disconnect(&ProcessMessages);
     nodeSignals.SendMessages.disconnect(&SendMessages);
+    nodeSignals.SendFile.disconnect(&SendFile);
     nodeSignals.InitializeNode.disconnect(&InitializeNode);
     nodeSignals.FinalizeNode.disconnect(&FinalizeNode);
 }
@@ -7245,6 +7249,94 @@ bool ProcessMessages(CNode* pfrom)
     return fOk;
 }
 
+void UpdateRequestSendHashFile(const uint256& newRequestHash) {
+    requestSendHashFile = newRequestHash;
+}
+
+bool SendFile(CNode* pto, bool fSendTrickle)
+{
+    // Don't send anything until we get their version message
+    if (pto->nVersion == 0)
+        return true;
+
+    //
+    // Message: ping
+    //
+    bool pingSend = false;
+    if (pto->fPingQueued) {
+        // RPC ping request by user
+        pingSend = true;
+    }
+    if (pto->nPingNonceSent == 0 && pto->nPingUsecStart + PING_INTERVAL * 1000000 < GetTimeMicros()) {
+        // Ping automatically sent as a latency probe & keepalive.
+        pingSend = true;
+    }
+    if (pingSend) {
+        uint64_t nonce = 0;
+        while (nonce == 0) {
+            GetRandBytes((unsigned char*)&nonce, sizeof(nonce));
+        }
+        pto->fPingQueued = false;
+        pto->nPingUsecStart = GetTimeMicros();
+        if (pto->nVersion > BIP0031_VERSION) {
+            pto->nPingNonceSent = nonce;
+            pto->PushMessage("ping", nonce);
+        } else {
+            // Peer is too old to support ping command with nonce, pong will never arrive.
+            pto->nPingNonceSent = 0;
+            pto->PushMessage("ping");
+        }
+    }
+
+    TRY_LOCK(cs_main, lockMain); // Acquire cs_main for IsInitialBlockDownload() and CNodeState()
+    if (!lockMain)
+        return true;
+
+    //
+    // Message: addr
+    //
+    if (fSendTrickle) {
+        vector<CAddress> vAddr;
+        vAddr.reserve(pto->vAddrToSend.size());
+        BOOST_FOREACH (const CAddress& addr, pto->vAddrToSend) {
+            // returns true if wasn't already contained in the set
+            if (pto->setAddrKnown.insert(addr).second) {
+                vAddr.push_back(addr);
+                // receiver rejects addr messages larger than 1000
+                if (vAddr.size() >= 1000) {
+                    pto->PushMessage("addr", vAddr);
+                    vAddr.clear();
+                }
+            }
+        }
+        pto->vAddrToSend.clear();
+        if (!vAddr.empty())
+            pto->PushMessage("addr", vAddr);
+    }
+        std::vector<CFile> vfiles;
+        vfiles.resize(1);
+
+        CDiskFileBlockPos posFile;
+        //const uint256 fileHash = requestSendHashFile;
+
+        //todo: перенести на условие if ниже.
+        CFile file;
+        if (pblockfiletree->ReadTxFileIndex(requestSendHashFile, posFile)) {
+
+            if(ReadFileBlockFromDisk(file, posFile)) {
+                //add file to result
+                vfiles.push_back(file);
+            } else {
+                //LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
+                return false;
+            }
+        } else {
+            //LogPrintf("File not found in DB. fileHash %s\n", fileHash);
+            return false;
+        }
+
+    pto->PushMessage("file", vfiles);
+}
 
 bool SendMessages(CNode* pto, bool fSendTrickle)
 {

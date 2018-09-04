@@ -1490,6 +1490,57 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
     return true;
 }
 
+void FileMessage()
+{
+    vector<CNode*> vNodesCopy;
+    {
+        LOCK(cs_vNodes);
+        vNodesCopy = vNodes;
+        BOOST_FOREACH (CNode* pnode, vNodesCopy) {
+            pnode->AddRef();
+        }
+    }
+
+    // Poll the connected nodes for messages
+    CNode* pnodeTrickle = NULL;
+    if (!vNodesCopy.empty())
+        pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
+
+    BOOST_FOREACH (CNode* pnode, vNodesCopy) {
+        if (pnode->fDisconnect)
+            continue;
+
+        // Receive messages
+        {
+            TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
+            if (lockRecv) {
+                if (!g_signals.ProcessMessages(pnode))
+                    pnode->CloseSocketDisconnect();
+
+                if (pnode->nSendSize < SendBufferSize()) {
+                    //if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
+                     //   fSleep = false;
+                    //}
+                }
+            }
+        }
+        boost::this_thread::interruption_point();
+
+        // Send messages
+        {
+            TRY_LOCK(pnode->cs_vSend, lockSend);
+            if (lockSend)
+                g_signals.SendFile(pnode, pnode == pnodeTrickle || pnode->fWhitelisted);
+        }
+        boost::this_thread::interruption_point();
+    }
+
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH (CNode* pnode, vNodesCopy)
+            pnode->Release();
+    }
+}
 
 void ThreadMessageHandler()
 {
