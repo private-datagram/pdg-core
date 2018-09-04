@@ -342,26 +342,30 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_TRANSFER;
             newTx->vchFile = recipients[0].vchFile; // TODO: refactor
 
-            CFile file;
-            file.vBytes = recipients[0].vchFile;
-            file.UpdateFileHash();
 
-            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-            CDiskFileBlockPos filePos;
-            CValidationState state;
-            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                //return error("LoadBlockIndex() : FindBlockPos failed");
-                //todo: добавить ошибку в лог
+//
+//            CFile file;
+//            file.vBytes = recipients[0].vchFile;
+//            file.UpdateFileHash();
+//
+//            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+//            CDiskFileBlockPos filePos;
+//            CValidationState state;
+//            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+//                //return error("LoadBlockIndex() : FindBlockPos failed");
+//                //todo: добавить ошибку в лог
+//
+//            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+//
+//            if (!WriteFileBlockToDisk(file, filePos))
+//                //todo: добавить ошибку в лог
+//                //return state.Abort("Failed to write file");
+//
+//            UpdateFileBlockPosData(filePos);
+//            UpdateRequestSendHashFile(file.CalcFileHash());
+//            FileMessage();
 
-            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
 
-            if (!WriteFileBlockToDisk(file, filePos))
-                //todo: добавить ошибку в лог
-                //return state.Abort("Failed to write file");
-
-            UpdateFileBlockPosData(filePos);
-            UpdateRequestSendHashFile(file.CalcFileHash());
-            FileMessage();
 
         } else {
             newTx->type = TX_PAYMENT;
@@ -373,6 +377,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
                 CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
+        
 
         bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, strFailReason, coinControl, recipients[0].inputType, recipients[0].useSwiftTX);
         transaction.setTransactionFee(nFeeRequired);
@@ -437,6 +442,32 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
         CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
         ssTx << *t;
         transaction_array.append(&(ssTx[0]), ssTx.size());
+
+       //send file
+        PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
+        if (meta->IsInstanceOf<CFileMeta>) {
+            CFile file;
+            file.vBytes = recipients[0].vchFile;
+            file.UpdateFileHash();
+
+            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+            CDiskFileBlockPos filePos;
+            CValidationState state;
+            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                //return error("LoadBlockIndex() : FindBlockPos failed");
+                //todo: добавить ошибку в лог
+
+            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+
+            if (!WriteFileBlockToDisk(file, filePos))
+                //todo: добавить ошибку в лог
+                //return state.Abort("Failed to write file");
+
+            UpdateFileBlockPosData(filePos);
+            UpdateRequestSendHashFile(file.CalcFileHash());
+            FileMessage();
+        }
+
     }
 
     // Add addresses / update labels that we've sent to to the address book,
