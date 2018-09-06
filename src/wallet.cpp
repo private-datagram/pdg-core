@@ -2873,7 +2873,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                     CFile file;
                     file.vBytes = wtxNew.vchFile;
                     file.UpdateFileHash();
-                    txNew.vfiles.push_back(file);
+                    //txNew.vfiles.push_back(file);
 
                     unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
                     CDiskFileBlockPos filePos;

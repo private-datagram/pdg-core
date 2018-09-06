@@ -445,7 +445,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
 
        //send file
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
-        if (meta->IsInstanceOf<CFileMeta>) {
+        if (meta->IsInstanceOf<CFileMeta>()) {
             CFile file;
             file.vBytes = recipients[0].vchFile;
             file.UpdateFileHash();
@@ -453,15 +453,18 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
             unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
             CDiskFileBlockPos filePos;
             CValidationState state;
-            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                //return error("LoadBlockIndex() : FindBlockPos failed");
-                //todo: добавить ошибку в лог
+            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
+
+                //todo: собрать закомитить и запушить, отправить на мой комп.
+
+                LogPrintf("FindBlockPos failed\n");
+            }
 
             pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
 
-            if (!WriteFileBlockToDisk(file, filePos))
-                //todo: добавить ошибку в лог
-                //return state.Abort("Failed to write file");
+            if (!WriteFileBlockToDisk(file, filePos)) {
+                LogPrintf("WriteFileBlockToDisk failed\n");
+            }
 
             UpdateFileBlockPosData(filePos);
             UpdateRequestSendHashFile(file.CalcFileHash());
