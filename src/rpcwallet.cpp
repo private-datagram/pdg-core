@@ -68,14 +68,9 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     entry.push_back(Pair("walletconflicts", conflicts));
 
     UniValue files(UniValue::VARR);
-    std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
-    while (it != wtx.vfiles.end()) {
-        UniValue fileEntry(UniValue::VOBJ);
-        fileEntry.push_back(Pair("hash", it->fileHash.ToString()));
-        files.push_back(fileEntry);
-
-        ++it;
-    }
+    UniValue fileEntry(UniValue::VOBJ);
+    fileEntry.push_back(Pair("hash", wtx.fileHash.ToString()));
+    files.push_back(fileEntry);
 
     entry.push_back(Pair("files", files));
 

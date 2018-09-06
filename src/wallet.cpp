@@ -2867,28 +2867,6 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 txNew.type = wtxNew.type;
                 txNew.meta = wtxNew.meta;
 
-                // Fill files
-                if (txNew.type == TX_FILE_TRANSFER) {
-                    //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
-                    CFile file;
-                    file.vBytes = wtxNew.vchFile;
-                    file.UpdateFileHash();
-                    //txNew.vfiles.push_back(file);
-
-                    unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-                    CDiskFileBlockPos filePos;
-                    CValidationState state;
-                    if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                        return error("LoadBlockIndex() : FindBlockPos failed");
-
-                    pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
-
-                    if (!WriteFileBlockToDisk(file, filePos))
-                        return state.Abort("Failed to write file");
-
-                    UpdateFileBlockPosData(filePos);
-                }
-
                 // Sign
                 int nIn = 0;
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)

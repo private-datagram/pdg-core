@@ -340,33 +340,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
-            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
-
-
-//
-//            CFile file;
-//            file.vBytes = recipients[0].vchFile;
-//            file.UpdateFileHash();
-//
-//            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-//            CDiskFileBlockPos filePos;
-//            CValidationState state;
-//            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-//                //return error("LoadBlockIndex() : FindBlockPos failed");
-//                //todo: добавить ошибку в лог
-//
-//            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
-//
-//            if (!WriteFileBlockToDisk(file, filePos))
-//                //todo: добавить ошибку в лог
-//                //return state.Abort("Failed to write file");
-//
-//            UpdateFileBlockPosData(filePos);
-//            UpdateRequestSendHashFile(file.CalcFileHash());
-//            FileMessage();
-
-
-
+            //newTx->vchFile = recipients[0].vchFile; // TODO: refactor
         } else {
             newTx->type = TX_PAYMENT;
         }
@@ -433,44 +407,70 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
 
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
+        //todo:???
         transaction.getRecipients();
+
+        //todo: мб перенести в CommitTransaction?? тогда в этот метод нужно добавить recipients.
+        //send file
+         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
+
+         CFile file;
+         uint256 fileHash;
+         bool fileMeta = meta->IsInstanceOf<CFileMeta>();
+         if (fileMeta) {
+             file.vBytes = recipients[0].vchFile;
+             file.UpdateFileHash();
+
+             fileHash = file.CalcFileHash();
+             newTx->fileHash = fileHash;
+         }
 
         if (!wallet->CommitTransaction(*newTx, *keyChange, (recipients[0].useSwiftTX) ? "ix" : "tx"))
             return TransactionCommitFailed;
+
+        //send file
+         if (fileMeta) {
+             unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+             CDiskFileBlockPos filePos;
+             CValidationState state;
+             if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
+                 LogPrintf("FindBlockPos failed\n");
+             }
+
+             pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+
+             if (!WriteFileBlockToDisk(file, filePos)) {
+                 LogPrintf("WriteFileBlockToDisk failed\n");
+             }
+
+             UpdateFileBlockPosData(filePos);
+             UpdateRequestSendHashFile(file.CalcFileHash());
+             FileMessage();
+
+             //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
+            // CFile file;
+            // file.vBytes = wtxNew.vchFile;//todo: взять у рисипиента
+             //file.UpdateFileHash();
+             //txNew.vfiles.push_back(file);
+
+ //            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+ //            CDiskFileBlockPos filePos;
+ //            CValidationState state;
+ //            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+ //                return error("LoadBlockIndex() : FindBlockPos failed");
+
+ //            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
+
+ //            if (!WriteFileBlockToDisk(file, filePos))
+ //                return state.Abort("Failed to write file");
+
+ //            UpdateFileBlockPosData(filePos);
+         }
 
         CTransaction* t = (CTransaction*)newTx;
         CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
         ssTx << *t;
         transaction_array.append(&(ssTx[0]), ssTx.size());
-
-       //send file
-        PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
-        if (meta->IsInstanceOf<CFileMeta>()) {
-            CFile file;
-            file.vBytes = recipients[0].vchFile;
-            file.UpdateFileHash();
-
-            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
-            CDiskFileBlockPos filePos;
-            CValidationState state;
-            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
-
-                //todo: собрать закомитить и запушить, отправить на мой комп.
-
-                LogPrintf("FindBlockPos failed\n");
-            }
-
-            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
-
-            if (!WriteFileBlockToDisk(file, filePos)) {
-                LogPrintf("WriteFileBlockToDisk failed\n");
-            }
-
-            UpdateFileBlockPosData(filePos);
-            UpdateRequestSendHashFile(file.CalcFileHash());
-            FileMessage();
-        }
-
     }
 
     // Add addresses / update labels that we've sent to to the address book,
