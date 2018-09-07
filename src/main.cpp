@@ -4897,21 +4897,16 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
 
        for (const CTransaction& tx : block.vtx) {
             if (tx.type == TX_FILE_TRANSFER) {
-                std::vector<CFile>::const_iterator it = tx.vfiles.begin();
-                while (it != tx.vfiles.end()) {
-                    uint256 fileHash = it->fileHash;
+                uint256 fileHash = tx.fileHash;
 
-                    CDiskFileBlockPos blockPos;
-                    pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
+                CDiskFileBlockPos blockPos;
+                pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
 
-                    CFile fileFromDb;
-                    if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
-                        return state.Abort("Failed to read file");
+                CFile fileFromDb;
+                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
+                    return state.Abort("Failed to read file");
 
-                    int nIn2 = 0;
-
-                    ++it;
-                }
+                int nIn2 = 0;
             }
         }
 
@@ -5060,22 +5055,18 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
 
         //process file
         if (tx.type == TX_FILE_TRANSFER) {
-            std::vector<CFile>::const_iterator it = tx.vfiles.begin();
-            while (it != tx.vfiles.end()) {
-                uint256 fileHash = it->fileHash;
-                if (isHashInLocator(fileHash)) continue; //ignore
+            uint256 fileHash = tx.fileHash;
+            if (isHashInLocator(fileHash)) continue; //ignore
 
-                CDiskFileBlockPos postx;
+            CDiskFileBlockPos postx;
 
-                //file not found at DB.
-                if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
-                    vFileIndex.push_back(fileHash);
-                    pfrom->PushMessage("getfiles", vFileIndex);
-                }
-
-                //todo: добавить ли тут проверку файла на диске. 
-                ++it;
+            //file not found at DB.
+            if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
+                vFileIndex.push_back(fileHash);
+                pfrom->PushMessage("getfiles", vFileIndex);
             }
+
+            //todo: добавить ли тут проверку файла на диске.
         }
     }
 
@@ -7314,7 +7305,7 @@ bool SendFile(CNode* pto, bool fSendTrickle)
             pto->PushMessage("addr", vAddr);
     }
         std::vector<CFile> vfiles;
-        vfiles.resize(1);
+        vfiles.resize(0);
 
         CDiskFileBlockPos posFile;
         //const uint256 fileHash = requestSendHashFile;

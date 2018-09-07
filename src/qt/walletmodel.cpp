@@ -437,14 +437,16 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
                  LogPrintf("FindBlockPos failed\n");
              }
 
-             pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
-
              if (!WriteFileBlockToDisk(file, filePos)) {
                  LogPrintf("WriteFileBlockToDisk failed\n");
              }
 
+             if (!pblockfiletree->WriteTxFileIndex(fileHash, filePos)) {
+                LogPrintf("WriteTxFileIndex failed\n");
+             }
+
              UpdateFileBlockPosData(filePos);
-             UpdateRequestSendHashFile(file.CalcFileHash());
+             UpdateRequestSendHashFile(fileHash);
              FileMessage();
 
              //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
