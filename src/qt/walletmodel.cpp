@@ -430,7 +430,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
 
         //send file
          if (fileMeta) {
-             unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
+             unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
              CDiskFileBlockPos filePos;
              CValidationState state;
              if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {

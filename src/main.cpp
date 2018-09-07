@@ -2086,9 +2086,9 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
 {
     // Open history file to append
-    CAutoFile fileout(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    CAutoFile fileout(OpenFileBlockFile(pos), SER_DISK, CLIENT_VERSION);
     if (fileout.IsNull())
-        return error("WriteBlockToDisk : OpenBlockFile failed");
+        return error("WriteFileBlockToDisk : OpenFileBlockFile failed");
 
     // Write index header
     unsigned int nSize = fileout.GetSerializeSize(file);
@@ -2097,7 +2097,7 @@ bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
     // Write block
     long fileOutPos = ftell(fileout.Get());
     if (fileOutPos < 0)
-        return error("WriteCFileToDisk : ftell failed");
+        return error("WriteFileBlockToDisk : ftell failed");
     pos.numberPosition = (unsigned int)fileOutPos;
     fileout << file;
 
@@ -2117,7 +2117,7 @@ bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
         filein >> file;
 
         //todo: В базу хэш не сохраняется
-        file.CalcFileHash();
+        file.UpdateFileHash();
     } catch (std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -4901,6 +4901,7 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
        for (const CTransaction& tx : block.vtx) {
             if (tx.type == TX_FILE_TRANSFER) {
                 uint256 fileHash = tx.fileHash;
+                if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
 
                 CDiskFileBlockPos blockPos;
                 pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
