@@ -354,7 +354,7 @@ public:
     std::vector<CTxOut> vout;
     PtrContainer<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
-    uint256 fileHash;
+    uint256 fileHash = NULL;
     const uint32_t nLockTime;
     //const unsigned int nTime;
 

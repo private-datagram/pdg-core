@@ -2115,6 +2115,9 @@ bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
 
     try {
         filein >> file;
+
+        //todo: В базу хэш не сохраняется
+        file.CalcFileHash();
     } catch (std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -5056,7 +5059,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
         //process file
         if (tx.type == TX_FILE_TRANSFER) {
             uint256 fileHash = tx.fileHash;
-            if (isHashInLocator(fileHash)) continue; //ignore
+            if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
 
             CDiskFileBlockPos postx;
 
