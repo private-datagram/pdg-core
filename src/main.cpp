@@ -6833,6 +6833,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 } else {
 //                    LogPrintf("File not found in DB. fileHash %s\n", *it.toString());
                 }
+
+                it++;
             }
 
             if (isResultHasData) {

@@ -340,13 +340,6 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
-            //newTx->vchFile = recipients[0].vchFile; // TODO: refactor
-            CFile file;
-            file.vBytes = recipients[0].vchFile;
-            file.UpdateFileHash();
-
-            uint256 fileHash = file.CalcFileHash();
-            newTx->fileHash = fileHash;
         } else {
             newTx->type = TX_PAYMENT;
         }
@@ -422,7 +415,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
 
          CFile file;
          uint256 fileHash;
-         bool fileMeta = meta->IsInstanceOf<CFileMeta>();
+         bool fileMeta = newTx->type == TX_FILE_TRANSFER;
          if (fileMeta) {
              file.vBytes = recipients[0].vchFile;
              file.UpdateFileHash();
@@ -441,19 +434,22 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
              CValidationState state;
              if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
                  LogPrintf("FindBlockPos failed\n");
+                 return TransactionCommitFailed;
              }
 
              if (!WriteFileBlockToDisk(file, filePos)) {
                  LogPrintf("WriteFileBlockToDisk failed\n");
+                 return TransactionCommitFailed;
              }
 
              if (!pblockfiletree->WriteTxFileIndex(fileHash, filePos)) {
                 LogPrintf("WriteTxFileIndex failed\n");
+                return TransactionCommitFailed;
              }
 
-             UpdateFileBlockPosData(filePos);
-             UpdateRequestSendHashFile(fileHash);
-             FileMessage();
+             //UpdateFileBlockPosData(filePos);
+             //UpdateRequestSendHashFile(fileHash);
+             //FileMessage();
 
              //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
             // CFile file;
