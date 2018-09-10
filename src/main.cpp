@@ -2117,7 +2117,7 @@ bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
         filein >> file;
 
         //todo: В базу хэш не сохраняется
-        file.UpdateFileHash();
+        //file.UpdateFileHash();
     } catch (std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -6768,6 +6768,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!vfiles.empty()) {
             std::vector<CFile>::iterator it = vfiles.begin();
             while (it != vfiles.end()) {
+                it->UpdateFileHash();
                 uint256 fileHash = it->fileHash;
                 LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
 
