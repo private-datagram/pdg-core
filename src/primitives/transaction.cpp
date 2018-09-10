@@ -120,9 +120,9 @@ void CTransaction::UpdateHash() const
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
 }
 
-CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), meta(), vfiles(), nLockTime(0) { }
+CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), meta(), fileHash(), nLockTime(0) { }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {
+CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), fileHash(tx.fileHash), nLockTime(tx.nLockTime) {
     UpdateHash();
 }
 

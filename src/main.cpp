@@ -6760,7 +6760,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
 
     //file region
-    else if (strCommand == "file" && !fImporting && !fReindex)//todo: fImporting??? fReindex???
+    else if (strCommand == "file")//todo: fImporting??? fReindex???
     {
          std::vector<CFile> vfiles;
          vRecv >> vfiles;
@@ -6809,10 +6809,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             bool isResultHasData = false;
 
             std::vector<CFile> vfiles;
-
-            //todo: так или меньше?
-            vfiles.resize(MAX_SEND_FILE_RESULTS);
-
             std::vector<uint256>::const_iterator it = hashes.begin();
             while (it != hashes.end() || --nLimit <= 0) {
                 if (isHashInLocator(hashes[it - hashes.begin()])) {
@@ -6840,6 +6836,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (isResultHasData) {
                 //push file
                 pfrom->PushMessage("file", vfiles);
+
+                //UpdateRequestSendHashFile(fileHash);
+                //FileMessage();
             }
         }
     }

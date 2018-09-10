@@ -447,7 +447,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
                 return TransactionCommitFailed;
              }
 
-             //UpdateFileBlockPosData(filePos);
+             UpdateFileBlockPosData(filePos);
              //UpdateRequestSendHashFile(fileHash);
              //FileMessage();
 
