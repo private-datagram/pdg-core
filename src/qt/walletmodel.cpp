@@ -341,6 +341,12 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
             //newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+            CFile file;
+            file.vBytes = recipients[0].vchFile;
+            file.UpdateFileHash();
+
+            uint256 fileHash = file.CalcFileHash();
+            newTx->fileHash = fileHash;
         } else {
             newTx->type = TX_PAYMENT;
         }

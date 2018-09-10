@@ -822,7 +822,6 @@ public:
     PtrContainer<CTransactionMeta> meta;
 
     //vector<char> vchFile;
-    uint256 fileHash;
 
     // memory only
     mutable bool fDebitCached;

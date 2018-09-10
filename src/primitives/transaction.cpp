@@ -135,6 +135,7 @@ CTransaction& CTransaction::operator=(const CTransaction &tx) {
     *const_cast<std::vector<CFile>*>(&vfiles) = tx.vfiles;
     *const_cast<unsigned int*>(&nLockTime) = tx.nLockTime;
     *const_cast<uint256*>(&hash) = tx.hash;
+    *const_cast<uint256*>(&fileHash) = tx.fileHash;
     return *this;
 }
 
