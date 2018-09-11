@@ -112,7 +112,7 @@ namespace crypto {
             int len = RSA_public_encrypt(dataSize, reinterpret_cast<const unsigned char *>(data), encrypted, pubKey, PADDING);
             if (len == -1) {
                 printf("ERROR: RSA_public_encrypt: %s\n", ERR_error_string(ERR_get_error(), NULL)); // TODO: to log
-                free(encrypted);
+                delete encrypted;
                 return false;
             }
 

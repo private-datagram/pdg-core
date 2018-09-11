@@ -335,10 +335,10 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_PAYMENT_REQUEST;
         } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
-        } else if (meta->IsInstanceOf<CFileMeta>()) {
+        } /*else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
             newTx->vchFile = recipients[0].vchFile; // TODO: refactor
-        } else {
+        }*/ else {
             newTx->type = TX_PAYMENT;
         }
         newTx->meta = *meta;

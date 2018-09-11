@@ -112,9 +112,8 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
     meta.nPrice = ui->priceField->value();
 
-
-    /*QFileInfo fileInfo(ui->fileNameField->text());
-    recipient.filename = fileInfo.fileName();*/
+    QFileInfo fileInfo(ui->fileNameField->text());
+    recipient.filename = fileInfo.fileName();
 
 
     if (validate()) {

@@ -25,6 +25,8 @@
 #include "txdb.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "crypto/aes.h"
+#include "crypto/rsa.h"
 
 #include "denomination_functions.h"
 #include "libzerocoin/Denominations.h"
@@ -2866,13 +2868,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 txNew.type = wtxNew.type;
                 txNew.meta = wtxNew.meta;
 
+                // TODO: remove after file sync will be implemented
                 // Fill files
-                if (txNew.type == TX_FILE_TRANSFER) {
-                    CFile file;
-                    file.vBytes = wtxNew.vchFile;
-                    file.UpdateFileHash();
-                    txNew.vfiles.push_back(file);
-                }
+                if (txNew.type == TX_FILE_TRANSFER)
+                    txNew.vfiles = wtxNew.vfiles;
 
                 // Sign
                 int nIn = 0;
@@ -5351,6 +5350,9 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
 }
 
 bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
+    if (!pblock)
+        return false;
+
     if (tx.type == TX_FILE_TRANSFER) {
         CFileMeta *meta = &tx.meta.get<CFileMeta>();
         mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxid);
@@ -5362,7 +5364,9 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
             return true;
 
-        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = tx;
+        //IsTransactionInChain()
+        // TODO: check in walletdb before
+        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, 0); //mapBlockIndex.find(pblock->GetHash())->second->nHeight
         //mapMaturationPaymentConfirmTransactionsHeights[] // TODO: add height
         return true;
     }
@@ -5380,9 +5384,180 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
         it++;
     }*/
 
+    for (auto it = mapMaturationPaymentConfirmTransactions.begin(), next_it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); it = next_it) {
+        next_it = it; ++next_it;
+        uint32_t lockTime = it->second.tx.nLockTime;
+        int blocksToMaturePayment = 6;
+
+        // if time comes
+        if ((int64_t) lockTime < ((int64_t) lockTime < LOCKTIME_THRESHOLD ? (int64_t) chainActive.Height() - blocksToMaturePayment : chainActive.Tip(false)->nTime - blocksToMaturePayment * 60000)) {
+            // TODO: implement statuses, if state_error don't remove transaction from map
+            if (!PaymentConfirmed(it->second.tx)) {
+                error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
+                //continue
+            }
+
+            mapMaturationPaymentConfirmTransactions.erase(it);
+        }
+    }
+
+
     return false;
 }
 
+bool CWallet::PaymentConfirmed(const CTransaction& tx) {
+    if (tx.type != TX_FILE_PAYMENT_CONFIRM) {
+        return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
+    }
+
+    // find in address
+    // TODO: payment address to meta
+    CTxDestination dest;
+
+    // TODO: refactor the f*cking bullshit
+    CTransaction prevOut;
+    uint256 blockHash;
+    COutPoint prevOutpoint = tx.vin[0].prevout;
+    if (!GetTransaction(prevOutpoint.hash, prevOut, blockHash, true))
+        return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
+
+    if (!ExtractDestination(prevOut.vout[prevOutpoint.n].scriptPubKey, dest))
+        return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
+
+    // prepare data
+    CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
+
+    CWalletDB walletDB(strWalletFile);
+
+    CDataStream inputFile(SER_NETWORK, PROTOCOL_VERSION);
+    std::string filename;
+
+    // read and prepare file data
+    {
+        CWalletFileTx walletFileTx;
+
+        if (!walletDB.ReadWalletFileTx(paymentConfirm->requestTxid, walletFileTx))
+            return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+
+        inputFile.reserve(10000);
+        inputFile << walletFileTx.vchBytes;
+        filename = walletFileTx.filename;
+    }
+
+    // prepare meta
+    CDataStream metaStream(SER_NETWORK, PROTOCOL_VERSION);
+
+    crypto::aes::AESKey key;
+    crypto::aes::GenerateAESKey(key);
+
+    {
+        CEncodedMeta metaToEncode;
+        metaToEncode.nFileSize = inputFile.size();
+        metaToEncode.vfFileKey.insert(metaToEncode.vfFileKey.end(), &key.key[0], &key.key[0] + sizeof(key.key));
+        metaToEncode.fileHash = Hash(metaToEncode.vfFileKey.begin(), metaToEncode.vfFileKey.end());
+        metaToEncode.vfFilename.insert(metaToEncode.vfFilename.end(), filename.data(),
+                                       filename.data() + filename.size());
+
+        metaStream.reserve(1000);
+        metaStream << metaToEncode;
+    }
+
+    // encode meta
+    RSA* rsaPubKey = crypto::rsa::PublicDERToKey(paymentConfirm->vfPublicKey);
+
+    char* encryptedMeta;
+    int encryptedLen;
+    if (!crypto::rsa::RSAEncrypt(rsaPubKey, &metaStream[0], metaStream.size(), &encryptedMeta, &encryptedLen)) {
+        RSA_free(rsaPubKey);
+        return error("%s : Failed to encrypt meta", __func__);
+    }
+    RSA_free(rsaPubKey);
+
+    metaStream.clear();
+
+    // fill filemeta
+    CFileMeta fileMeta;
+    fileMeta.vfEncodedMeta.insert(fileMeta.vfEncodedMeta.end(), encryptedMeta, encryptedMeta + encryptedLen);
+    fileMeta.confirmTxid = tx.GetHash();
+
+    delete encryptedMeta;
+
+    // prepare bytes
+    CDataStream encryptedFile(SER_NETWORK, PROTOCOL_VERSION);
+    crypto::aes::EncryptAES(key, encryptedFile, inputFile, inputFile.size());
+
+    // fill file
+    CFile file;
+    file.vBytes.reserve(encryptedFile.size());
+    file.vBytes.insert(file.vBytes.end(), encryptedFile.begin(), encryptedFile.begin() + encryptedFile.size()); // todo: kosyak 1
+    file.fileHash = Hash(file.vBytes.begin(), file.vBytes.end());
+
+    encryptedFile.clear();
+
+    if (!SendFileTx(file, fileMeta, dest))
+        return false;
+
+    if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
+        LogPrintStr("Failed to delete wallet file tx");
+
+    return true;
+}
+
+bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest) {
+    LogPrintStr(std::string("address: ") + CBitcoinAddress(dest).ToString());
+
+    // fill transaction
+    CMutableTransaction tx;
+    tx.type = TX_FILE_TRANSFER;
+    tx.meta = fileMeta;
+    tx.vfiles.emplace_back(file);
+
+    // main params
+    CWallet* wallet = this;
+
+    CWalletTx newTx(pwalletMain, tx);
+    CReserveKey reservekey(wallet);
+
+    // out params
+    CAmount nFeeRequired = 0;
+
+    bool useSwiftTX = false;
+    CAmount amount = 0;
+
+    CScript scriptPubKey = GetScriptForDestination(dest);
+
+    // create transaction
+    {
+        LOCK2(cs_main, wallet->cs_wallet);
+
+        string strError;
+        if (!wallet->CreateTransaction(scriptPubKey, amount, newTx, reservekey, nFeeRequired, strError, NULL, ALL_COINS, useSwiftTX, (CAmount)0)) {
+            if (amount + nFeeRequired > pwalletMain->GetBalance())
+                strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
+            LogPrintf("SendMoney() : %s\n", strError);
+            return error("%s : Failed to CreateTransaction", __func__);
+        }
+    }
+
+    // send transaction
+    {
+        LOCK2(cs_main, wallet->cs_wallet);
+
+        if (!wallet->CommitTransaction(newTx, reservekey, (useSwiftTX) ? "ix" : "tx"))
+            return error("%s : Failed to CommitTransaction", __func__); //TransactionCommitFailed; // TODO: make detailed
+    }
+
+    // accept transaction
+    /**
+    if (sendStatus.status == WalletModel::OK) {
+            acceptTransaction(recipients[0], currentTransaction);
+
+            accept();
+        }
+    */
+
+    return true;
+}
 
 CWalletFileTx::CWalletFileTx(): paymentRequestTxid(), vchBytes(), filename() {}
 

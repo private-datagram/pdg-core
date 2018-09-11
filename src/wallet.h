@@ -192,7 +192,8 @@ private:
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
     bool ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
-    bool ProcessFileContract(const CBlock* pblock);
+    bool PaymentConfirmed(const CTransaction& tx);
+    bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest);
 
 public:
     bool MintableCoins();
@@ -225,6 +226,7 @@ public:
     bool SetMintUnspent(const CBigNum& bnSerial);
     bool UpdateMint(const CBigNum& bnValue, const int& nHeight, const uint256& txid, const libzerocoin::CoinDenomination& denom);
     string GetUniqueWalletBackupName(bool fzpivAuto) const;
+    bool ProcessFileContract(const CBlock* pblock);
 
 
     /** Zerocin entry changed.
@@ -823,7 +825,6 @@ public:
 
     int32_t type;
     PtrContainer<CTransactionMeta> meta;
-    vector<char> vchFile;
 
     // memory only
     mutable bool fDebitCached;

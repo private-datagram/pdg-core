@@ -102,8 +102,7 @@ map<uint256, COrphanTx> mapOrphanTransactions;
 map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
-
-map<uint256, CTransaction> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
+map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
 
 
 void EraseOrphansFor(NodeId peer);
@@ -694,7 +693,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.IsDust(::minRelayTxFee)) {
+        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER) {
             reason = "dust";
             return false;
         }
@@ -3532,6 +3531,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (it != mapZerocoinspends.end())
             mapZerocoinspends.erase(it);
     }
+
+    pwalletMain->ProcessFileContract(&block);
 
     return true;
 }

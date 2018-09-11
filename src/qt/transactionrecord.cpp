@@ -160,7 +160,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             sub.idx = parts.size();
             parts.append(sub);
         }
-    } else if (nNet > 0 || wtx.IsCoinBase()) {
+    } else if (nNet > 0 || wtx.IsCoinBase() || (nNet == 0 && ((CMerkleTx*)&wtx)->type == TX_FILE_TRANSFER)) { // TODO: make beautiful
         //
         // Credit
         //
