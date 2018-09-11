@@ -335,11 +335,11 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
         if (meta->IsInstanceOf<CPaymentRequest>()) {
             newTx->type = TX_FILE_PAYMENT_REQUEST;
-
         } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
+            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
         } else {
             newTx->type = TX_PAYMENT;
         }
@@ -413,62 +413,39 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
         //send file
          PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
 
-         CFile file;
-         uint256 fileHash;
-         bool fileMeta = newTx->type == TX_FILE_TRANSFER;
-         if (fileMeta) {
-             file.vBytes = recipients[0].vchFile;
-             file.UpdateFileHash();
-
-             fileHash = file.CalcFileHash();
-             newTx->fileHash = fileHash;
-         }
-
         if (!wallet->CommitTransaction(*newTx, *keyChange, (recipients[0].useSwiftTX) ? "ix" : "tx"))
             return TransactionCommitFailed;
 
         //send file
-         if (fileMeta) {
-             unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
-             CDiskFileBlockPos filePos;
-             CValidationState state;
-             if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
-                 LogPrintf("FindBlockPos failed\n");
-                 return TransactionCommitFailed;
+         if (newTx->type == TX_FILE_TRANSFER) {
+             vector<CFile> vfiles = newTx->vfiles;
+             if (!vfiles.empty()) {
+                 std::vector<CFile>::iterator it = vfiles.begin();
+                 while (it != vfiles.end()) {
+                     CFile file = *it;
+                     unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+                     CDiskFileBlockPos filePos;
+                     CValidationState state;
+                     if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
+                         LogPrintf("FindBlockPos failed\n");
+                         return TransactionCommitFailed;
+                     }
+
+                     if (!WriteFileBlockToDisk(file, filePos)) {
+                         LogPrintf("WriteFileBlockToDisk failed\n");
+                         return TransactionCommitFailed;
+                     }
+
+                     if (!pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos)) {
+                         LogPrintf("WriteTxFileIndex failed\n");
+                         return TransactionCommitFailed;
+                     }
+
+                     UpdateFileBlockPosData(filePos);
+
+                     ++it;
+                 }
              }
-
-             if (!WriteFileBlockToDisk(file, filePos)) {
-                 LogPrintf("WriteFileBlockToDisk failed\n");
-                 return TransactionCommitFailed;
-             }
-
-             if (!pblockfiletree->WriteTxFileIndex(fileHash, filePos)) {
-                LogPrintf("WriteTxFileIndex failed\n");
-                return TransactionCommitFailed;
-             }
-
-             UpdateFileBlockPosData(filePos);
-             //UpdateRequestSendHashFile(fileHash);
-             //FileMessage();
-
-             //todo: удалить от сюда сохранение файла и оставить только сохранение хэша в блокчейн
-            // CFile file;
-            // file.vBytes = wtxNew.vchFile;//todo: взять у рисипиента
-             //file.UpdateFileHash();
-             //txNew.vfiles.push_back(file);
-
- //            unsigned int nFileSize = ::GetSerializeSize(file.vBytes , SER_DISK, CLIENT_VERSION);
- //            CDiskFileBlockPos filePos;
- //            CValidationState state;
- //            if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
- //                return error("LoadBlockIndex() : FindBlockPos failed");
-
- //            pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos);
-
- //            if (!WriteFileBlockToDisk(file, filePos))
- //                return state.Abort("Failed to write file");
-
- //            UpdateFileBlockPosData(filePos);
          }
 
         CTransaction* t = (CTransaction*)newTx;

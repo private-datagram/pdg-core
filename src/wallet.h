@@ -821,7 +821,7 @@ public:
     int32_t type;
     PtrContainer<CTransactionMeta> meta;
 
-    //vector<char> vchFile;
+    vector<char> vchFile;
 
     // memory only
     mutable bool fDebitCached;
@@ -908,6 +908,10 @@ public:
         nImmatureWatchCreditCached = 0;
         nChangeCached = 0;
         nOrderPos = -1;
+
+        // TODO: refactor
+        type = ((CMerkleTx*)this)->type;
+        meta = ((CMerkleTx*)this)->meta;
     }
 
     ADD_SERIALIZE_METHODS;

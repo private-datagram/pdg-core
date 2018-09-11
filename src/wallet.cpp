@@ -2867,6 +2867,19 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 txNew.type = wtxNew.type;
                 txNew.meta = wtxNew.meta;
 
+                //send file
+                if (txNew.type == TX_FILE_TRANSFER) {
+                    CFile file;
+                    file.vBytes = wtxNew.vchFile;
+                    file.UpdateFileHash();
+
+                    txNew.fileHash = file.CalcFileHash();
+
+                    vector<CFile> vFile;
+                    vFile.push_back(file);
+                    txNew.vfiles = vFile;
+                }
+
                 // Sign
                 int nIn = 0;
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
