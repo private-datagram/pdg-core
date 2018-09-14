@@ -162,11 +162,11 @@ namespace crypto {
             return true;
         }
 
-        bool RSADecrypt(RSA *pubKey, const vector<char> &vchEncrypted, vector<char> &vchOutData) {
+        bool RSADecrypt(RSA *privKey, const vector<char> &vchEncrypted, vector<char> &vchOutData) {
             char *data;
             int len;
 
-            if (!RSADecrypt(pubKey, &vchEncrypted[0], (int) vchEncrypted.size(), &data, &len)) {
+            if (!RSADecrypt(privKey, &vchEncrypted[0], (int) vchEncrypted.size(), &data, &len)) {
                 return false;
             }
 

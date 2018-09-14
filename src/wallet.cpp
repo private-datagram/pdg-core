@@ -5440,7 +5440,7 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
             return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
 
         inputFile.reserve(10000);
-        inputFile << walletFileTx.vchBytes;
+        inputFile.write(&walletFileTx.vchBytes[0], walletFileTx.vchBytes.size());
         filename = walletFileTx.filename;
     }
 
@@ -5454,7 +5454,7 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
         CEncodedMeta metaToEncode;
         metaToEncode.nFileSize = inputFile.size();
         metaToEncode.vfFileKey.insert(metaToEncode.vfFileKey.end(), &key.key[0], &key.key[0] + sizeof(key.key));
-        metaToEncode.fileHash = Hash(metaToEncode.vfFileKey.begin(), metaToEncode.vfFileKey.end());
+        metaToEncode.fileHash = Hash(inputFile.begin(), inputFile.end());
         metaToEncode.vfFilename.insert(metaToEncode.vfFilename.end(), filename.data(),
                                        filename.data() + filename.size());
 
@@ -5489,7 +5489,7 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
     // fill file
     CFile file;
     file.vBytes.reserve(encryptedFile.size());
-    file.vBytes.insert(file.vBytes.end(), encryptedFile.begin(), encryptedFile.begin() + encryptedFile.size()); // todo: kosyak 1
+    file.vBytes.assign(encryptedFile.begin(), encryptedFile.end()); // todo: kosyak 1
     file.fileHash = Hash(file.vBytes.begin(), file.vBytes.end());
 
     encryptedFile.clear();

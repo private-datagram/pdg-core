@@ -27,6 +27,8 @@
 #include "ui_interface.h"
 #include "utilmoneystr.h"
 #include "wallet.h"
+#include "crypto/aes.h"
+#include "crypto/rsa.h"
 
 #include <QMessageBox>
 #include <QScrollBar>
@@ -38,7 +40,7 @@
 #include <QDataStream>
 #include <QBitArray>
 #include <QFileInfo>
-
+#include <QtCore/qfile.h>
 
 
 #define NUM_ITEMS 9
@@ -432,13 +434,75 @@ void SendFilesDialog::initFileHistory()
 
 void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index)
 {
-    ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
-
     if (!filter)
         return;
 
+    // find transaction in blockchain
+    QVariant blockQVariantFile = index.data(TransactionTableModel::TxHashRole);
+    uint256 txHash = uint256(blockQVariantFile.value<QString>().toStdString());
+
+    CTransaction fileTx;
+    uint256 hashBlock;
+
+    if (!GetTransaction(txHash, fileTx, hashBlock, true)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file transaction"));
+        return;
+    }
+
+    // check hash of encrypted file
+    if (fileTx.vfiles[0].fileHash != Hash(fileTx.vfiles[0].vBytes.begin(), fileTx.vfiles[0].vBytes.end())) {
+        QMessageBox::critical(this, tr("Save file"), tr("File hash doesn't match. File corrupted"));
+        return;
+    }
+
+    CFileMeta* fileMeta = &fileTx.meta.get<CFileMeta>();
+
+    CTransaction paymentTx;
+    if (!GetTransaction(fileMeta->confirmTxid, paymentTx, hashBlock, true)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file payment transaction"));
+        return;
+    }
+
+    CPaymentConfirm paymentConfirm = paymentTx.meta.get<CPaymentConfirm>();
+
+    // red key from wallet db
+    CWalletDB wdb(pwalletMain->strWalletFile, "r+");
+    vector<char> publicKey;
+    vector<char> privateKey;
+    wdb.ReadFileEncryptKeys(paymentConfirm.requestTxid, publicKey, privateKey);
+    RSA* privKey = crypto::rsa::PrivateDERToKey(privateKey);
+    unique_ptr<RSA> privKeyPtr(privKey);
+
+    // decrypt meta
+    vector<char> outMeta;
+    crypto::rsa::RSADecrypt(privKey, fileMeta->vfEncodedMeta, outMeta);
+
+    CDataStream metaStream(SER_NETWORK, PROTOCOL_VERSION);
+    metaStream.write(&outMeta[0], outMeta.size());
+    CEncodedMeta encodedMeta;
+    metaStream >> encodedMeta;
+    std::string filename(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
+    std::string description(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
+
+    // extract key
+    crypto::aes::AESKey key;
+    memcpy(&key.key[0], &encodedMeta.vfFileKey[0], encodedMeta.vfFileKey.size());
+
+    // decrypt file
+    CDataStream encodedStream(SER_NETWORK, PROTOCOL_VERSION);
+    encodedStream.write(&fileTx.vfiles[0].vBytes[0], fileTx.vfiles[0].vBytes.size());
+    CDataStream destStream(SER_NETWORK, PROTOCOL_VERSION);
+    crypto::aes::DecryptAES(key, destStream, encodedStream, encodedStream.size());
+
+    // check hash of decrypted file
+    if (encodedMeta.fileHash != Hash(destStream.begin(), destStream.end())) {
+        QMessageBox::critical(this, tr("Save file"), tr("Decrypt file error. Hash mismatch"));
+        return;
+    }
+
+
     QString fileName = QFileDialog::getSaveFileName(this,
-            tr("Save File"), "",
+            tr("Save File: %1").arg(QString::fromStdString(filename)), "",
             tr("All Files (*)"));
 
     if (fileName.isEmpty())
@@ -446,17 +510,14 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
     else {
         QFile file(fileName);
         if (!file.open(QIODevice::WriteOnly)) {
-            QMessageBox::information(this, tr("Unable to open file"),
+            QMessageBox::critical(this, tr("Unable to open file"),
                                      file.errorString());
             return;
         }
 
+        // save file
         QDataStream out(&file);
-        QVariant blockQVariantFile = index.data(TransactionTableModel::FileRole);
-        QVector<char> vFile = blockQVariantFile.value<QVector<char>>();
-
-        out.writeRawData(vFile.data(), vFile.size());
-        ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
+        out.writeRawData(&destStream[0], static_cast<int>(destStream.size()));
     }
 }
 

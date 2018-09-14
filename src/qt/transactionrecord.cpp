@@ -459,17 +459,5 @@ int TransactionRecord::getOutputIndex() const
 }
 
 void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
-
-    if (!wtx.vfiles.empty()) {
-        std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
-          while (it != wtx.vfiles.end()) {
-              if (it->vBytes.empty()) {
-                  continue;
-              }
-
-              sub.vFileBytes = it->vBytes;
-              ++it;
-          }
-          //sub.address = sub.address + "";
-      }
+    // TODO: make fill meta information
 }

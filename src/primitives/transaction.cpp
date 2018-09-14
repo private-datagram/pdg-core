@@ -275,12 +275,12 @@ CFile::CFile() : nFlags(0), vBytes() {
 
 uint256 CFile::CalcFileHash() const
 {
-    return SerializeHash(vBytes);
+    return Hash(vBytes.begin(), vBytes.end());
 }
 
 uint256 CFile::UpdateFileHash()
 {
-    return this->fileHash = SerializeHash(vBytes);
+    return this->fileHash = CalcFileHash();
 }
 
 std::string CFile::ToString() const

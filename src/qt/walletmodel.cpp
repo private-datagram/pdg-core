@@ -21,6 +21,8 @@
 #include "ui_interface.h"
 #include "wallet.h"
 #include "walletdb.h" // for BackupWallet
+#include "crypto/aes.h"
+#include "crypto/rsa.h"
 #include <stdint.h>
 
 #include <QDebug>

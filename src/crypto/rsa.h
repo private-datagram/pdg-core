@@ -50,6 +50,8 @@ namespace crypto {
          */
         bool RSAEncrypt(RSA *pubKey, const char *data, int dataSize, char **outData, int *outLen);
 
+        bool RSAEncrypt(RSA *pubKey, const vector<char> &vchData, vector<char> &vchOutEncrypted);
+
         /**
          * Decrypts data
          * @param privKey RSA private key
@@ -62,9 +64,7 @@ namespace crypto {
         bool RSADecrypt(RSA *privKey, const char *encryptedData, int encryptedSize, char **outData,
                         int *outLen);
 
-        bool RSAEncrypt(RSA *pubKey, const vector<char> &vchData, vector<char> &vchOutEncrypted);
-
-        bool RSADecrypt(RSA *pubKey, const vector<char> &vchEncrypted, vector<char> &vchOutData);
+        bool RSADecrypt(RSA *privKey, const vector<char> &vchEncrypted, vector<char> &vchOutData);
 
     }
 }

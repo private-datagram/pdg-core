@@ -26,7 +26,7 @@ namespace crypto {
             unsigned char key[AES_BITS / 8];
         };
 
-        void GenerateAESKey(AESKey &outKey) {
+        inline void GenerateAESKey(AESKey &outKey) {
             RAND_bytes(outKey.key, sizeof(outKey.key));
         }
 
