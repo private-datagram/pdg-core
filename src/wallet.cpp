@@ -27,6 +27,7 @@
 #include "utilmoneystr.h"
 #include "crypto/aes.h"
 #include "crypto/rsa.h"
+#include "files.h"
 
 #include "denomination_functions.h"
 #include "libzerocoin/Denominations.h"
@@ -5444,43 +5445,13 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
         filename = walletFileTx.filename;
     }
 
-    // prepare meta
-    CDataStream metaStream(SER_NETWORK, PROTOCOL_VERSION);
-
     crypto::aes::AESKey key;
     crypto::aes::GenerateAESKey(key);
 
-    {
-        CEncodedMeta metaToEncode;
-        metaToEncode.nFileSize = inputFile.size();
-        metaToEncode.vfFileKey.insert(metaToEncode.vfFileKey.end(), &key.key[0], &key.key[0] + sizeof(key.key));
-        metaToEncode.fileHash = Hash(inputFile.begin(), inputFile.end());
-        metaToEncode.vfFilename.insert(metaToEncode.vfFilename.end(), filename.data(),
-                                       filename.data() + filename.size());
-
-        metaStream.reserve(1000);
-        metaStream << metaToEncode;
-    }
-
-    // encode meta
-    RSA* rsaPubKey = crypto::rsa::PublicDERToKey(paymentConfirm->vfPublicKey);
-
-    char* encryptedMeta;
-    int encryptedLen;
-    if (!crypto::rsa::RSAEncrypt(rsaPubKey, &metaStream[0], metaStream.size(), &encryptedMeta, &encryptedLen)) {
-        RSA_free(rsaPubKey);
-        return error("%s : Failed to encrypt meta", __func__);
-    }
-    RSA_free(rsaPubKey);
-
-    metaStream.clear();
-
-    // fill filemeta
     CFileMeta fileMeta;
-    fileMeta.vfEncodedMeta.insert(fileMeta.vfEncodedMeta.end(), encryptedMeta, encryptedMeta + encryptedLen);
-    fileMeta.confirmTxid = tx.GetHash();
-
-    delete encryptedMeta;
+    if(!PrepareMeta(inputFile, filename, key, fileMeta)) {
+        return error("%s : Failed to prepare meta for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+    }
 
     // prepare bytes
     CDataStream encryptedFile(SER_NETWORK, PROTOCOL_VERSION);
@@ -5489,7 +5460,7 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
     // fill file
     CFile file;
     file.vBytes.reserve(encryptedFile.size());
-    file.vBytes.assign(encryptedFile.begin(), encryptedFile.end()); // todo: kosyak 1
+    file.vBytes.assign(encryptedFile.begin(), encryptedFile.end());
     file.fileHash = Hash(file.vBytes.begin(), file.vBytes.end());
 
     encryptedFile.clear();

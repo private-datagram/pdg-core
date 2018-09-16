@@ -36,8 +36,8 @@ namespace crypto {
             RAND_bytes(&iv[0], sizeof(iv));
 
             // Setup the AES Key structure required for use in the OpenSSL APIs
-            AES_KEY *AesKey = new AES_KEY();
-            AES_set_encrypt_key(key.key, AES_BITS, AesKey);
+            AES_KEY *aesKey = new AES_KEY();
+            AES_set_encrypt_key(key.key, AES_BITS, aesKey);
 
             unsigned char srcBuf[BUFFER_SIZE + AES_BLOCK_SIZE];
             unsigned char encBuf[BUFFER_SIZE + AES_BLOCK_SIZE];
@@ -50,7 +50,7 @@ namespace crypto {
 
             // first block random data to more security
             RAND_bytes(&srcBuf[0], AES_BLOCK_SIZE);
-            AES_cbc_encrypt(&srcBuf[0], &encBuf[0], AES_BLOCK_SIZE, (const AES_KEY *) AesKey, &iv[0], AES_ENCRYPT);
+            AES_cbc_encrypt(&srcBuf[0], &encBuf[0], AES_BLOCK_SIZE, (const AES_KEY *) aesKey, &iv[0], AES_ENCRYPT);
             dstStream.write((char *) &encBuf[0], AES_BLOCK_SIZE);
 
             // read, encrypt and write
@@ -76,7 +76,7 @@ namespace crypto {
                     srcBuf[bufSize - 1] = static_cast<unsigned char>((bufSize - read) & 0xff);
                 }
 
-                AES_cbc_encrypt(&srcBuf[0], &encBuf[0], bufSize, (const AES_KEY *) AesKey, &iv[0], AES_ENCRYPT);
+                AES_cbc_encrypt(&srcBuf[0], &encBuf[0], bufSize, (const AES_KEY *) aesKey, &iv[0], AES_ENCRYPT);
 
                 dstStream.write((char *) &encBuf[0], bufSize);
 
