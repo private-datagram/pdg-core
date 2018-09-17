@@ -822,6 +822,7 @@ public:
     PtrContainer<CTransactionMeta> meta;
 
     vector<char> vchFile;
+    std::vector<CFile> vfiles;
 
     // memory only
     mutable bool fDebitCached;

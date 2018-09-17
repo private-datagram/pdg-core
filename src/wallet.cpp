@@ -2870,7 +2870,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 //send file
                 if (txNew.type == TX_FILE_TRANSFER) {
                     CFile file;
-                    file.vBytes = wtxNew.vchFile;
+                    file.vBytes = wtxNew.vfiles[0].vBytes;
                     file.UpdateFileHash();
 
                     txNew.fileHash = file.CalcFileHash();

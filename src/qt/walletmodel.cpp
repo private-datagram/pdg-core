@@ -339,7 +339,17 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
         } else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
-            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+            //newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+
+            CFile file;
+            file.vBytes = recipients[0].vchFile;
+            file.UpdateFileHash();
+
+            newTx->fileHash = file.CalcFileHash();
+
+            vector<CFile> vFile;
+            vFile.push_back(file);
+            newTx->vfiles = vFile;
         } else {
             newTx->type = TX_PAYMENT;
         }
