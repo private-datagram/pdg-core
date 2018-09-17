@@ -484,6 +484,17 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
     std::string filename(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
     std::string description(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
 
+    // choose destination filename
+    QString destFilename = QFileDialog::getSaveFileName(this,
+                                                        tr("Save File: %1. File size: %2KB") // TODO: remove information after UI will be implemented
+                                                                .arg(QString::fromStdString(filename))
+                                                                .arg((int)round((float)encodedMeta.nFileSize / 1024.0f)),
+                                                        filename.data(), tr("All Files (*)")
+    );
+
+    if (destFilename.isEmpty())
+        return;
+
     // extract key
     crypto::aes::AESKey key;
     memcpy(&key.key[0], &encodedMeta.vfFileKey[0], encodedMeta.vfFileKey.size());
@@ -500,25 +511,17 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
         return;
     }
 
-
-    QString fileName = QFileDialog::getSaveFileName(this,
-            tr("Save File: %1").arg(QString::fromStdString(filename)), "",
-            tr("All Files (*)"));
-
-    if (fileName.isEmpty())
+    QFile file(destFilename);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::critical(this, tr("Unable to open file for writing"), file.errorString());
         return;
-    else {
-        QFile file(fileName);
-        if (!file.open(QIODevice::WriteOnly)) {
-            QMessageBox::critical(this, tr("Unable to open file"),
-                                     file.errorString());
-            return;
-        }
-
-        // save file
-        QDataStream out(&file);
-        out.writeRawData(&destStream[0], static_cast<int>(destStream.size()));
     }
+
+    // save file
+    QDataStream out(&file);
+    out.writeRawData(&destStream[0], static_cast<int>(destStream.size()));
+
+    file.close();
 }
 
 

@@ -5354,6 +5354,7 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
     if (!pblock)
         return false;
 
+    // remove already processed transactions
     if (tx.type == TX_FILE_TRANSFER) {
         CFileMeta *meta = &tx.meta.get<CFileMeta>();
         mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxid);
@@ -5361,14 +5362,14 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         return false;
     }
 
+    // add transaction in order waiting confirmation
     if (tx.type == TX_FILE_PAYMENT_CONFIRM) {
         if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
             return true;
 
-        //IsTransactionInChain()
         // TODO: check in walletdb before
-        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, 0); //mapBlockIndex.find(pblock->GetHash())->second->nHeight
-        //mapMaturationPaymentConfirmTransactionsHeights[] // TODO: add height
+        CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
+        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
         return true;
     }
 
@@ -5376,51 +5377,45 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
 }
 
 bool CWallet::ProcessFileContract(const CBlock* pblock) {
-    /*std::map<uint256, CTransaction>::iterator it = mapMaturationPaymentConfirmTransactions.begin();
-    while (it != mapMaturationPaymentConfirmTransactions.end()) {
-        CTransaction *transaction = &it->second;
+    if (pblock == nullptr || mapMaturationPaymentConfirmTransactions.empty())
+        return false;
 
-        transaction->
-
-        it++;
-    }*/
+    CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
+    int blockHeight = blockIndex->nHeight;
 
     for (auto it = mapMaturationPaymentConfirmTransactions.begin(), next_it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); it = next_it) {
         next_it = it; ++next_it;
-        uint32_t lockTime = it->second.tx.nLockTime;
-        int blocksToMaturePayment = 6;
 
-        // if time comes
-        if ((int64_t) lockTime < ((int64_t) lockTime < LOCKTIME_THRESHOLD ? (int64_t) chainActive.Height() - blocksToMaturePayment : chainActive.Tip(false)->nTime - blocksToMaturePayment * 60000)) {
+        // is the payment transaction confirmed
+        if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
             // TODO: implement statuses, if state_error don't remove transaction from map
-            if (!PaymentConfirmed(it->second.tx)) {
+            if (!OnPaymentConfirmed(it->second.tx)) {
                 error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
-                //continue
             }
 
             mapMaturationPaymentConfirmTransactions.erase(it);
         }
     }
 
-
     return false;
 }
 
-bool CWallet::PaymentConfirmed(const CTransaction& tx) {
+bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (tx.type != TX_FILE_PAYMENT_CONFIRM) {
         return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
     }
-
-    // find in address
-    // TODO: payment address to meta
-    CTxDestination dest;
 
     // TODO: refactor the f*cking bullshit
     CTransaction prevOut;
     uint256 blockHash;
     COutPoint prevOutpoint = tx.vin[0].prevout;
+
     if (!GetTransaction(prevOutpoint.hash, prevOut, blockHash, true))
         return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
+
+    // find in address
+    // TODO: payment address to meta
+    CTxDestination dest;
 
     if (!ExtractDestination(prevOut.vout[prevOutpoint.n].scriptPubKey, dest))
         return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
@@ -5449,7 +5444,7 @@ bool CWallet::PaymentConfirmed(const CTransaction& tx) {
     crypto::aes::GenerateAESKey(key);
 
     CFileMeta fileMeta;
-    if(!PrepareMeta(inputFile, filename, key, fileMeta)) {
+    if (!PrepareMeta(inputFile, filename, key, paymentConfirm->vfPublicKey, tx.GetHash(), fileMeta)) {
         return error("%s : Failed to prepare meta for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
     }
 

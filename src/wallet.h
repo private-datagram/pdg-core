@@ -192,7 +192,7 @@ private:
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
     bool ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
-    bool PaymentConfirmed(const CTransaction& tx);
+    bool OnPaymentConfirmed(const CTransaction& tx);
     bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest);
 
 public:
