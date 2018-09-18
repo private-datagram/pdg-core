@@ -256,7 +256,13 @@ void UpdateRequestSendHashFile(const uint256& newRequestHash);
  * @param[in]   fSendTrickle    When true send the trickled data, otherwise trickle the data until true.
  */
 bool SendMessages(CNode* pto, bool fSendTrickle);
+
+/** Request a file */
+bool GetFiles(CNode* pto, bool fSendTrickle);
+
+/** Send a file */
 bool SendFile(CNode* pto, bool fSendTrickele);
+
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
 
