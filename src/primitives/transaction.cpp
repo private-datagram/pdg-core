@@ -6,16 +6,9 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "primitives/block.h"
-#include "primitives/transaction.h"
 
 #include "chain.h"
-#include "hash.h"
 #include "main.h"
-#include "tinyformat.h"
-#include "utilstrencodings.h"
-#include "transaction.h"
-
-#include <boost/foreach.hpp>
 
 extern bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock, bool fAllowSlow);
 
@@ -297,7 +290,7 @@ CTransactionMeta::CTransactionMeta(uint32_t nFlags): nFlags(nFlags) {}
 
 CTransactionMeta::CTransactionMeta(): nFlags(TX_META_EMPTY) {}
 
-CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), vfMessage(), nPrice() {
+CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), sComment(), nPrice() {
 }
 
 CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), vfPublicKey() {

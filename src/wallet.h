@@ -1242,6 +1242,7 @@ public:
     uint256 paymentRequestTxid;
     vector<char> vchBytes;
     std::string filename;
+    uint160 destinationAddress;
 
     CWalletFileTx();
     CWalletFileTx(const CWalletFileTx& request);
@@ -1253,6 +1254,7 @@ public:
         READWRITE(paymentRequestTxid);
         READWRITE(*const_cast<std::vector<char>*>(&vchBytes));
         READWRITE(*const_cast<std::string*>(&filename));
+        READWRITE(destinationAddress);
     }
 
 };

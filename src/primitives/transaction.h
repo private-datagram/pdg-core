@@ -228,7 +228,7 @@ public:
     }
 
     bool IsNull() {
-        return nFlags != TX_META_EMPTY;
+        return nFlags == TX_META_EMPTY;
     }
 
     virtual CTransactionMeta* clone() const {
@@ -247,8 +247,9 @@ class CPaymentRequest: public CTransactionMeta {
 public:
     CPaymentRequest();
 
-    std::vector<char> vfMessage;
+    std::string sComment;
     CAmount nPrice;
+    uint160 paymentAddress;
     // TODO: don't forget about hash, think about security
 
     ADD_SERIALIZE_METHODS;
@@ -257,8 +258,9 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
-        READWRITE(*const_cast<std::vector<char>*>(&vfMessage));
+        READWRITE(sComment);
         READWRITE(nPrice);
+        READWRITE(paymentAddress);
     }
 
     CTransactionMeta* clone() const override {

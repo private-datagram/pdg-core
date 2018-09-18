@@ -58,7 +58,10 @@ SendFilesDialog::~SendFilesDialog()
 
 void SendFilesDialog::clear()
 {
-
+    ui->fileNameField->clear();
+    ui->descriptionField->clear();
+    ui->priceField->clear();
+    ui->addressField->clear();
 }
 
 
@@ -99,24 +102,35 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     bool valid = true;
 
     recipient = getValue();
-    // TODO: refactor
-    if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
-        QMessageBox::critical(this, tr("Send File"),
-                              tr("Error opening file"),
-                              QMessageBox::Ok, QMessageBox::Ok);
+
+    CKeyID destKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destKeyId)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Destination address error: %1").arg(recipient.address), QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
+    // TODO: refactor
+    if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error opening file"), QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+
+    //region Prepare meta
     CPaymentRequest meta;
 
-    std::string descriptionMessage = ui->descriptionField->text().toStdString();
-    meta.vfMessage.reserve(descriptionMessage.length());
-    meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
+    meta.sComment = ui->descriptionField->text().toStdString();
     meta.nPrice = ui->priceField->value();
+
+    CPubKey pubKey;
+    if (!pwalletMain->GetKeyFromPool(pubKey)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error: Keypool ran out, please call keypoolrefill first"),
+                              QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+    meta.paymentAddress = pubKey.GetID();
 
     QFileInfo fileInfo(ui->fileNameField->text());
     recipient.filename = fileInfo.fileName();
-
 
     if (validate()) {
         recipients.append(recipient);
@@ -124,11 +138,8 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         valid = false;
     }
 
-    //if (!valid || recipients.isEmpty()) {
-
-    if (!valid) {
+    if (!valid)
         return;
-    }
 
     QString strFunds = "";
     QString strFee = "";
@@ -335,13 +346,22 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
         return;
     }
 
+    if (!saveFileMeta(recipients[0], currentTransaction)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error: Keypool ran out, please call keypoolrefill first"),
+                              QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+
     // now send the prepared transaction
     WalletModel::SendCoinsReturn sendStatus = model->sendCoins(currentTransaction);
 
     if (sendStatus.status == WalletModel::OK) {
-        acceptTransaction(recipients[0], currentTransaction);
-
         accept();
+    } else {
+        // erase saved file on send payment request failed
+        CWalletDB walletdb(pwalletMain->strWalletFile);
+        const uint256 &paymentRequestTx = SerializeHash(*(CTransaction *) currentTransaction.getTransaction());
+        walletdb.EraseWalletFileTx(paymentRequestTx);
     }
 
     fNewRecipientAllowed = true;
@@ -546,12 +566,20 @@ bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchout
     return true;
 }
 
-bool SendFilesDialog::acceptTransaction(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const {
+bool SendFilesDialog::saveFileMeta(const SendCoinsRecipient &recipient,
+                                   WalletModelTransaction &currentTransaction) const {
+    // save data to wallet, needed when file will send
     CWalletFileTx wftx;
     wftx.filename = recipient.filename.toStdString();
     wftx.vchBytes = recipient.vchFile;
     CTransaction *tx = (CTransaction *) currentTransaction.getTransaction();
     wftx.paymentRequestTxid = SerializeHash(*tx); // TODO: check twice
+    CKeyID destinationKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId)) {
+        LogPrintf("%s: destination address invalid: %s\n", __func__, recipient.address.toStdString().data());
+        return false;
+    }
+    wftx.destinationAddress = destinationKeyId;
 
     CWalletDB walletdb(pwalletMain->strWalletFile);
     return walletdb.WriteWalletFileTx(wftx);

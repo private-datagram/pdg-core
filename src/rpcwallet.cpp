@@ -529,35 +529,17 @@ UniValue sendfilepayment(const UniValue& params, bool fHelp)
 
     // TODO: check if already confirmed
 
-    // TODO: payment address to meta
-    CTxDestination dest;
+    CPaymentRequest* paymentRequest = &paymentRequestWtx.meta.get<CPaymentRequest>();
 
-    // TODO: refactor f*cking shit
-    CTransaction prevOut;
-    uint256 blockHash;
-    COutPoint prevOutpoint = paymentRequestWtx.vin[0].prevout;
-    if (!GetTransaction(prevOutpoint.hash, prevOut, blockHash, true))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "In address not found");
-
-    if (!ExtractDestination(prevOut.vout[prevOutpoint.n].scriptPubKey, dest))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "In address not found");
-
-    CBitcoinAddress address(dest);
+    CBitcoinAddress address(CKeyID(paymentRequest->paymentAddress));
 
     if (!address.IsValid())
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid PIVX address");
 
-    CPaymentRequest* paymentRequest = &paymentRequestWtx.meta.get<CPaymentRequest>();
-
     // Amount
     CAmount nAmount = paymentRequest->nPrice;
 
-    // Wallet comments
     CWalletTx wtx;
-    /*if (params.size() > 2 && !params[2].isNull() && !params[2].get_str().empty())
-        wtx.mapValue["comment"] = params[2].get_str();
-    if (params.size() > 3 && !params[3].isNull() && !params[3].get_str().empty())
-        wtx.mapValue["to"] = params[3].get_str();*/
 
     // crypto
     RSA* keypair = crypto::rsa::GenKeypair(2048);

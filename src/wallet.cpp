@@ -5405,20 +5405,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
     }
 
-    // TODO: refactor the f*cking bullshit
-    CTransaction prevOut;
-    uint256 blockHash;
-    COutPoint prevOutpoint = tx.vin[0].prevout;
-
-    if (!GetTransaction(prevOutpoint.hash, prevOut, blockHash, true))
-        return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
-
-    // find in address
-    // TODO: payment address to meta
-    CTxDestination dest;
-
-    if (!ExtractDestination(prevOut.vout[prevOutpoint.n].scriptPubKey, dest))
-        return error("%s : In address not found for transaction - %s", __func__, tx.GetHash().ToString());
+    // TODO: check transaction valid
 
     // prepare data
     CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
@@ -5427,6 +5414,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     CDataStream inputFile(SER_NETWORK, PROTOCOL_VERSION);
     std::string filename;
+    CTxDestination fileDestination;
 
     // read and prepare file data
     {
@@ -5438,6 +5426,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         inputFile.reserve(10000);
         inputFile.write(&walletFileTx.vchBytes[0], walletFileTx.vchBytes.size());
         filename = walletFileTx.filename;
+        fileDestination = CKeyID(walletFileTx.destinationAddress);
     }
 
     crypto::aes::AESKey key;
@@ -5460,7 +5449,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     encryptedFile.clear();
 
-    if (!SendFileTx(file, fileMeta, dest))
+    if (!SendFileTx(file, fileMeta, fileDestination))
         return false;
 
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
