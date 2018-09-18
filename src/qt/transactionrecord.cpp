@@ -12,6 +12,7 @@
 #include "swifttx.h"
 #include "timedata.h"
 #include "wallet.h"
+#include "txdb.h"
 
 #include <stdint.h>
 
@@ -459,17 +460,19 @@ int TransactionRecord::getOutputIndex() const
 }
 
 void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
+    if (wtx.type == TX_FILE_TRANSFER) {
+        CDiskFileBlockPos pos;
+        if (!pblockfiletree->ReadTxFileIndex(wtx.fileHash, pos)) {
+            LogPrintf("Failed to read file position");
+            return;
+        }
 
-    if (!wtx.vfiles.empty()) {
-        std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
-          while (it != wtx.vfiles.end()) {
-              if (it->vBytes.empty()) {
-                  continue;
-              }
+        CFile dbFile;
+        if (!ReadFileBlockFromDisk(dbFile, pos)) {
+            LogPrintf("Failed to read file");
+            return;
+        }
 
-              sub.vFileBytes = it->vBytes;
-              ++it;
-          }
-          //sub.address = sub.address + "";
-      }
+        sub.vFileBytes = dbFile.vBytes;
+    }
 }

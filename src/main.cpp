@@ -103,7 +103,7 @@ map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-std::vector<uint256> vFileIndex;
+std::vector<uint256> vFileHashes;
 
 uint256 requestSendHashFile;
 
@@ -493,12 +493,12 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
 
 void removeFileLocatorHash(uint256& hash)
 {
-    vFileIndex.erase(std::remove(std::begin(vFileIndex), std::end(vFileIndex), hash), std::end(vFileIndex));
+    vFileHashes.erase(std::remove(std::begin(vFileHashes), std::end(vFileHashes), hash), std::end(vFileHashes));
 }
 
 bool isHashInLocator(uint256& hash)
 {
-    return find(vFileIndex.begin(), vFileIndex.end(), hash) != vFileIndex.end();
+    return find(vFileHashes.begin(), vFileHashes.end(), hash) != vFileHashes.end();
 }
 
 } // anon namespace
@@ -4533,7 +4533,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         bool mutated;
         uint256 hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
         if (block.hashMerkleRoot != hashMerkleRoot2) {
-            hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
             return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"),
                 REJECT_INVALID, "bad-txnmrklroot", true);
         }
@@ -4903,16 +4902,17 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
        for (const CTransaction& tx : block.vtx) {
             if (tx.type == TX_FILE_TRANSFER) {
                 uint256 fileHash = tx.fileHash;
-                if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
+//                if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
 
-                CDiskFileBlockPos blockPos;
-                pblockfiletree->ReadTxFileIndex(fileHash, blockPos);
+//                CDiskFileBlockPos blockPos;
+//                if (!pblockfiletree->ReadTxFileIndex(fileHash, blockPos))
+//                    return state.Abort("Failed to read file position");
 
-                CFile fileFromDb;
-                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
-                    return state.Abort("Failed to read file");
+//                CFile fileFromDb;
+//                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
+//                    return state.Abort("Failed to read file");
 
-                int nIn2 = 0;
+//                int nIn2 = 0;
             }
         }
 
@@ -5043,6 +5043,8 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
     int64_t nStartTime = GetTimeMillis();
     bool checked = CheckBlock(*pblock, state);
 
+    std::vector<uint256> vTxFileHashes;
+
     int nMints = 0;
     int nSpends = 0;
     for (const CTransaction tx : pblock->vtx) {
@@ -5060,18 +5062,17 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
         }
 
         //process file
-        if (tx.type == TX_FILE_TRANSFER) {
+        if (tx.type == TX_FILE_TRANSFER && pfrom != NULL) {
             uint256 fileHash = tx.fileHash;
             if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
 
             CDiskFileBlockPos postx;
-
             //file not found at DB.
             if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
-                vFileIndex.push_back(fileHash);
-                pfrom->PushMessage("getfiles", vFileIndex);
+                  vTxFileHashes.push_back(fileHash);
+                //todo: ??
+                return false;
             }
-
             //todo: добавить ли тут проверку файла на диске.
         }
     }
@@ -5089,6 +5090,15 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
             pfrom->PushMessage("getblocks", chainActive.GetLocator(), uint256(0));
             return false;
         }
+
+        //Get file if TX with fileHashes
+        if (!vTxFileHashes.empty()) {
+           LogPrintf("%s : Block contains file Hashes", __func__);
+           vFileHashes.insert(vFileHashes.end(), vTxFileHashes.begin(), vTxFileHashes.end());
+        }
+
+        //todo: Заменить на получение файлов из ближайших нодов(по рейтингу или пингу)
+        pfrom->PushMessage("getfiles", vFileHashes);
     }
 
     {
@@ -6770,6 +6780,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!vfiles.empty()) {
             std::vector<CFile>::iterator it = vfiles.begin();
             while (it != vfiles.end()) {
+                //TODO: надо ли?
                 it->UpdateFileHash();
                 uint256 fileHash = it->fileHash;
                 LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
@@ -6780,16 +6791,17 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                     //file validate
                     if (fileHash == it->CalcFileHash()) {
                         //save file
-                        unsigned int nFileSize = ::GetSerializeSize(it->vBytes , SER_DISK, CLIENT_VERSION);
+                        unsigned int nFileSize = ::GetSerializeSize(*it, SER_DISK, CLIENT_VERSION);
                         CDiskFileBlockPos filePos;
                         CValidationState state;
                         if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
                             return error("LoadBlockIndex() : FindBlockPos failed");
 
-                        pblockfiletree->WriteTxFileIndex(it->CalcFileHash(), filePos);
-
                         if (!WriteFileBlockToDisk(*it, filePos))
                             return state.Abort("Failed to write file");
+
+                        if (!pblockfiletree->WriteTxFileIndex(it->CalcFileHash(), filePos))
+                                return state.Abort("Failed to write file position");
 
                         UpdateFileBlockPosData(filePos);
                         removeFileLocatorHash(fileHash);

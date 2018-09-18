@@ -173,7 +173,7 @@ extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-extern std::vector<uint256> vFileIndex;
+extern std::vector<uint256> vFileHashes;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
