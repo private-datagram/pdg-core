@@ -196,6 +196,13 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals);
 void UnregisterNodeSignals(CNodeSignals& nodeSignals);
 
 /**
+ * @brief HandleFileTransferTx
+ * @param pfrom
+ * @param pblock
+ */
+void HandleFileTransferTx(CNode* pfrom, CBlock* pblock);
+
+/**
  * Process an incoming block. This only returns after the best known valid
  * block is made active. Note that it does not, however, guarantee that the
  * specific block passed to it has been checked for validity!

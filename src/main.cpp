@@ -5037,13 +5037,43 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
+void HandleFileTransferTx(CNode* pfrom, CBlock* pblock) {
+    if (pfrom == NULL ) return;
+
+    std::vector<uint256> vTxFileHashes;
+
+    for (const CTransaction tx : pblock->vtx) {
+        //process file
+        if (tx.type != TX_FILE_TRANSFER) continue;
+
+        uint256 fileHash = tx.fileHash;
+        if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
+
+        CDiskFileBlockPos postx;
+        //file not found at DB.
+        if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
+              vTxFileHashes.push_back(fileHash);
+        }
+        //todo: добавить ли тут проверку файла на диске.
+    }
+
+    //Get file if TX with fileHashes
+    if (!vTxFileHashes.empty()) {
+       LogPrintf("%s : Block contains file Hashes", __func__);
+       vFileHashes.insert(vFileHashes.end(), vTxFileHashes.begin(), vTxFileHashes.end());
+    }
+
+    //todo: Заменить на получение файлов из ближайших нодов(по рейтингу или пингу)
+    if (!vFileHashes.empty()) {
+        pfrom->PushMessage("getfiles", vFileHashes);
+    }
+}
+
 bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDiskBlockPos* dbp)
 {
     // Preliminary checks
     int64_t nStartTime = GetTimeMillis();
     bool checked = CheckBlock(*pblock, state);
-
-    std::vector<uint256> vTxFileHashes;
 
     int nMints = 0;
     int nSpends = 0;
@@ -5060,21 +5090,6 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
                     nMints++;
             }
         }
-
-        //process file
-        if (tx.type == TX_FILE_TRANSFER && pfrom != NULL) {
-            uint256 fileHash = tx.fileHash;
-            if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
-
-            CDiskFileBlockPos postx;
-            //file not found at DB.
-            if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
-                  vTxFileHashes.push_back(fileHash);
-                //todo: ??
-                return false;
-            }
-            //todo: добавить ли тут проверку файла на диске.
-        }
     }
 
     if (nMints || nSpends)
@@ -5090,15 +5105,6 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
             pfrom->PushMessage("getblocks", chainActive.GetLocator(), uint256(0));
             return false;
         }
-
-        //Get file if TX with fileHashes
-        if (!vTxFileHashes.empty()) {
-           LogPrintf("%s : Block contains file Hashes", __func__);
-           vFileHashes.insert(vFileHashes.end(), vTxFileHashes.begin(), vTxFileHashes.end());
-        }
-
-        //todo: Заменить на получение файлов из ближайших нодов(по рейтингу или пингу)
-        pfrom->PushMessage("getfiles", vFileHashes);
     }
 
     {
@@ -5122,6 +5128,8 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
 
     if (!ActivateBestChain(state, pblock, checked))
         return error("%s : ActivateBestChain failed", __func__);
+
+    HandleFileTransferTx(pfrom, pblock);
 
     if (!fLiteMode) {
         if (masternodeSync.RequestedMasternodeAssets > MASTERNODE_SYNC_LIST) {
