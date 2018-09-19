@@ -197,10 +197,9 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals);
 
 /**
  * @brief HandleFileTransferTx
- * @param pfrom
  * @param pblock
  */
-void HandleFileTransferTx(CNode* pfrom, CBlock* pblock);
+void HandleFileTransferTx(CBlock* pblock);
 
 /**
  * Process an incoming block. This only returns after the best known valid

@@ -5039,9 +5039,7 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
-void HandleFileTransferTx(CNode* pfrom, CBlock* pblock) {
-    if (pfrom == NULL ) return;
-
+void HandleFileTransferTx(CBlock* pblock) {
     std::vector<uint256> vTxFileHashes;
 
     for (const CTransaction tx : pblock->vtx) {
@@ -5135,7 +5133,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
     if (!ActivateBestChain(state, pblock, checked))
         return error("%s : ActivateBestChain failed", __func__);
 
-    HandleFileTransferTx(pfrom, pblock);
+    HandleFileTransferTx(pblock);
 
     if (!fLiteMode) {
         if (masternodeSync.RequestedMasternodeAssets > MASTERNODE_SYNC_LIST) {
