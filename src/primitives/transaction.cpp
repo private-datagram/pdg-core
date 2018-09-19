@@ -262,26 +262,14 @@ std::string CTransaction::ToString() const
 }
 
 
-CFile::CFile() : nFlags(0), vBytes() {
-    UpdateFileHash();
-}
-
-uint256 CFile::CalcFileHash() const
-{
-    return Hash(vBytes.begin(), vBytes.end());
-}
-
-uint256 CFile::UpdateFileHash()
-{
-    return this->fileHash = CalcFileHash();
+CFile::CFile() : nFlags(0) {
 }
 
 std::string CFile::ToString() const
 {
     std::string str;
-    str += strprintf("CFile(ver=%d, nFlags=%d, vBytes.size=%u, hash=%s)\n",
+    str += strprintf("CFile(nFlags=%d, hash=%s)\n",
                      nFlags,
-                     vBytes.size(),
                      fileHash.ToString());
     return str;
 }

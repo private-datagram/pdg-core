@@ -507,8 +507,9 @@ public:
 };
 
 /** File region */
-bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos);
-bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos);
+bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos);
+bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos);
+bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos);
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);

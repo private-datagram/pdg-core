@@ -19,6 +19,38 @@
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 
+struct CDBFile
+{
+    // Encrypted file bytes
+    std::vector<char> vBytes;
+    // Encrypted file hash
+    uint256 fileHash;
+    bool removed;
+
+    CDBFile();
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        // TODO: is nVersion write needed?
+        // Update file hash before write
+        if (!ser_action.ForRead()) {
+            UpdateFileHash();
+        }
+
+        READWRITE(*const_cast<std::vector<char>*>(&vBytes));
+        READWRITE(fileHash);
+        READWRITE(removed);
+    }
+
+    uint256 CalcFileHash() const;
+
+    uint256 UpdateFileHash();
+
+    std::string ToString() const;
+};
+
 struct CDiskBlockPos {
     int nFile;
     unsigned int nPos;

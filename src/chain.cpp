@@ -78,3 +78,26 @@ uint256 CBlockIndex::GetBlockTrust() const
         return bnPoWTrust > 1 ? bnPoWTrust : 1;
     }
 }
+
+CDBFile::CDBFile() : vBytes(), removed(false) {
+    UpdateFileHash();
+}
+
+uint256 CDBFile::CalcFileHash() const
+{
+    return Hash(vBytes.begin(), vBytes.end());
+}
+
+uint256 CDBFile::UpdateFileHash()
+{
+    return this->fileHash = CalcFileHash();
+}
+
+std::string CDBFile::ToString() const
+{
+    std::string str;
+    str += strprintf("DBCFile(vBytes.size=%u, hash=%s)\n",
+                     vBytes.size(),
+                     fileHash.ToString());
+    return str;
+}

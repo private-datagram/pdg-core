@@ -521,11 +521,9 @@ struct CMutableTransaction
 
 struct CFile
 {
-    uint32_t nFlags;
-    // Encrypted file bytes
-    std::vector<char> vBytes;
     // Encrypted file hash
     uint256 fileHash;
+    uint32_t nFlags;
 
     CFile();
 
@@ -533,20 +531,9 @@ struct CFile
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        // TODO: is nVersion write needed?
-        // Update file hash before write
-        if (!ser_action.ForRead()) {
-            UpdateFileHash();
-        }
-
-        READWRITE(nFlags);
-        READWRITE(*const_cast<std::vector<char>*>(&vBytes));
         READWRITE(fileHash);
+        READWRITE(nFlags);
     }
-
-    uint256 CalcFileHash() const;
-
-    uint256 UpdateFileHash();
 
     std::string ToString() const;
 

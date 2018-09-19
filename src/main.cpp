@@ -2057,9 +2057,8 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 //
 // File region
 //
-// TODO: CFile to CDBFile
 // TODO: figure out with locks
-bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
+bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos)
 {
     // Open history file to append
     CAutoFile fileout(OpenFileBlockFile(pos), SER_DISK, CLIENT_VERSION);
@@ -2080,9 +2079,22 @@ bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
     return true;
 }
 
-// TODO: CFile to CDBFile
+bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos)
+{
+    CDiskFileBlockPos newPos = pos;
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(file, newPos))
+        return error("RemoveFileBlockFromDisk : read file block failed");
+
+    file.removed = true;
+    if (!WriteFileBlockToDisk(file, newPos))
+        return error("RemoveFileBlockFromDisk : write updated(removed) file failed");
+
+    return true;
+}
+
 // TODO: figure out with locks
-bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
+bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos)
 {
     // Open history file to read
     CAutoFile filein(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
@@ -5011,7 +5023,7 @@ void HandleFileTransferTx(CBlock* pblock) {
 
         CDiskFileBlockPos postx;
         //file not found at DB.
-        if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
+        if (!pblockfiletree->ReadFileIndex(fileHash, postx)) {
             vPandingReceiveFileHashes.push_back(fileHash);
         }
         //todo: добавить ли тут проверку файла на диске.
@@ -6728,11 +6740,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     //file region
     else if (strCommand == "file")//todo: fImporting??? fReindex???
     {
-         std::vector<CFile> vfiles;
+         std::vector<CDBFile> vfiles;
          vRecv >> vfiles;
 
         if (!vfiles.empty()) {
-            std::vector<CFile>::iterator it = vfiles.begin();
+            std::vector<CDBFile>::iterator it = vfiles.begin();
             while (it != vfiles.end()) {
                 uint256 fileHash = it->fileHash;
                 // TODO: check file hash
@@ -6752,7 +6764,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         if (!WriteFileBlockToDisk(*it, filePos))
                             return state.Abort("Failed to write file");
 
-                        if (!pblockfiletree->WriteTxFileIndex(it->CalcFileHash(), filePos))
+                        if (!pblockfiletree->WriteFileIndex(it->CalcFileHash(), filePos))
                                 return state.Abort("Failed to write file position");
 
                         UpdateFileBlockPosData(filePos);
@@ -6774,7 +6786,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             int nLimit = MAX_SEND_FILE_RESULTS;
             bool isResultHasData = false;
 
-            std::vector<CFile> vfiles;
+            std::vector<CDBFile> vfiles;
             std::vector<uint256>::const_iterator it = hashes.begin();
             while (it != hashes.end() || --nLimit <= 0) {
                 if (isFileReceivePending(hashes[it - hashes.begin()])) {
@@ -6783,8 +6795,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 }
 
                 CDiskFileBlockPos postx;
-                if (pblockfiletree->ReadTxFileIndex(*it, postx)) {
-                    CFile file;
+                if (pblockfiletree->ReadFileIndex(*it, postx)) {
+                    CDBFile file;
                     if(ReadFileBlockFromDisk(file, postx)) {
                         //add file to result
                         vfiles.push_back(file);
@@ -7343,16 +7355,15 @@ bool SendFile(CNode* pto, bool fSendTrickle)
         if (!vAddr.empty())
             pto->PushMessage("addr", vAddr);
     }
-    std::vector<CFile> vfiles;
+    std::vector<CDBFile> vfiles;
     vfiles.resize(0);
 
     CDiskFileBlockPos posFile;
     //const uint256 fileHash = requestSendHashFile;
 
-    //todo: перенести на условие if ниже.
-    CFile file;
-    if (pblockfiletree->ReadTxFileIndex(requestSendHashFile, posFile)) {
+    if (pblockfiletree->ReadFileIndex(requestSendHashFile, posFile)) {
 
+        CDBFile file;
         if(ReadFileBlockFromDisk(file, posFile)) {
             //add file to result
             vfiles.push_back(file);
