@@ -82,8 +82,6 @@ uint256 CBlock::BuildMerkleTree(bool* fMutated) const
     if (fMutated) {
         *fMutated = mutated;
     }
-    //todo: удалить
-    std::vector<uint256> vMerkleTreeTemp = vMerkleTree;
     return (vMerkleTree.empty() ? uint256() : vMerkleTree.back());
 }
 

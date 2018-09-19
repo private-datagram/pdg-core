@@ -53,7 +53,7 @@ private:
     // Additional parameter msgArg can be used via .arg(msgArg).
     void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString(), bool fPrepare = false);
     bool readFile(const string &filename, vector<char> &vchFile) const;
-    bool acceptTransaction(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const;
+    bool saveFileMeta(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const;
 
 signals:
     // Fired when a message should be reported to the user

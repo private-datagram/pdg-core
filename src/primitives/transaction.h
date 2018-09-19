@@ -213,6 +213,7 @@ struct CFile;
 class CTransactionMeta {
 protected:
     uint32_t nFlags; // TODO: why?
+    CTransactionMeta(uint32_t nFlags);
 
 public:
     CTransactionMeta();
@@ -227,7 +228,7 @@ public:
     }
 
     bool IsNull() {
-        return nFlags != TX_META_EMPTY;
+        return nFlags == TX_META_EMPTY;
     }
 
     virtual CTransactionMeta* clone() const {
@@ -246,8 +247,9 @@ class CPaymentRequest: public CTransactionMeta {
 public:
     CPaymentRequest();
 
-    std::vector<char> vfMessage;
+    std::string sComment;
     CAmount nPrice;
+    uint160 paymentAddress;
     // TODO: don't forget about hash, think about security
 
     ADD_SERIALIZE_METHODS;
@@ -256,8 +258,9 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
-        READWRITE(*const_cast<std::vector<char>*>(&vfMessage));
+        READWRITE(sComment);
         READWRITE(nPrice);
+        READWRITE(paymentAddress);
     }
 
     CTransactionMeta* clone() const override {
@@ -275,6 +278,7 @@ class CPaymentConfirm: public CTransactionMeta {
 
 public:
     CPaymentConfirm();
+    CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey);
 
     // Payment request transaction hash
     uint256 requestTxid;
@@ -354,7 +358,6 @@ public:
     std::vector<CTxOut> vout;
     PtrContainer<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
-    uint256 fileHash;
     const uint32_t nLockTime;
     //const unsigned int nTime;
 
@@ -380,12 +383,10 @@ public:
 
         if (type == TX_FILE_PAYMENT_REQUEST) {
             READWRITE(*const_cast<CPaymentRequest*>(&meta.getOrRecreate<CPaymentRequest>()));
-
         } else if (type == TX_FILE_PAYMENT_CONFIRM) {
             READWRITE(*const_cast<CPaymentConfirm*>(&meta.getOrRecreate<CPaymentConfirm>()));
         } else if (type == TX_FILE_TRANSFER) {
             READWRITE(*const_cast<CFileMeta*>(&meta.getOrRecreate<CFileMeta>()));
-            READWRITE(*const_cast<uint256*>(&fileHash));
             READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
         }
 
@@ -470,7 +471,6 @@ struct CMutableTransaction
     std::vector<CTxOut> vout;
     PtrContainer<CTransactionMeta> meta;
     std::vector<CFile> vfiles;
-    uint256 fileHash;
     uint32_t nLockTime;
 
     CMutableTransaction();
@@ -494,7 +494,6 @@ struct CMutableTransaction
             READWRITE(*const_cast<CPaymentConfirm*>(&meta.getOrRecreate<CPaymentConfirm>()));
         } else if (type == TX_FILE_TRANSFER) {
             READWRITE(*const_cast<CFileMeta*>(&meta.getOrRecreate<CFileMeta>()));
-            READWRITE(*const_cast<uint256*>(&fileHash));
             READWRITE(*const_cast<std::vector<CFile>*>(&vfiles));
         }
 
@@ -540,9 +539,9 @@ struct CFile
             UpdateFileHash();
         }
 
-        READWRITE(fileHash);
         READWRITE(nFlags);
         READWRITE(*const_cast<std::vector<char>*>(&vBytes));
+        READWRITE(fileHash);
     }
 
     uint256 CalcFileHash() const;

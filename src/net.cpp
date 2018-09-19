@@ -1490,6 +1490,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
     return true;
 }
 
+// TODO: select optimal nodes
 void GetFilesMessage()
 {
     vector<CNode*> vNodesCopy;

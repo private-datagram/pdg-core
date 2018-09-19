@@ -29,6 +29,8 @@
 
 #include <univalue.h>
 
+#include "crypto/rsa.h"
+
 using namespace std;
 using namespace boost;
 using namespace boost::assign;
@@ -47,6 +49,25 @@ void EnsureWalletIsUnlocked(bool fAllowAnonOnly)
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
 
+void MetaToJSON(const PtrContainer<CTransactionMeta>& meta, UniValue& entry)
+{
+    UniValue metaEntry(UniValue::VOBJ);
+    if (meta.IsInstanceOf<CPaymentRequest>()) {
+        CPaymentRequest pr = meta.get<CPaymentRequest>();
+        metaEntry.push_back(Pair("price", ValueFromAmount(pr.nPrice)));
+    } else if (meta.IsInstanceOf<CPaymentConfirm>()) {
+        CPaymentConfirm pc = meta.get<CPaymentConfirm>();
+        metaEntry.push_back(Pair("requestTxid", pc.requestTxid.GetHex()));
+        metaEntry.push_back(Pair("publicKey", &pc.vfPublicKey[0]));
+    } if (meta.IsInstanceOf<CFileMeta>()) {
+        CFileMeta fm = meta.get<CFileMeta>();
+        metaEntry.push_back(Pair("confirmTxid", fm.confirmTxid.GetHex()));
+        metaEntry.push_back(Pair("metaLen", (int) fm.vfEncodedMeta.size()));
+    }
+
+    entry.push_back(Pair("meta", metaEntry));
+}
+
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain(false);
@@ -62,17 +83,13 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     }
     uint256 hash = wtx.GetHash();
     entry.push_back(Pair("txid", hash.GetHex()));
+    entry.push_back(Pair("txtype", wtx.type));
     UniValue conflicts(UniValue::VARR);
     BOOST_FOREACH (const uint256& conflict, wtx.GetConflicts())
         conflicts.push_back(conflict.GetHex());
     entry.push_back(Pair("walletconflicts", conflicts));
 
-    UniValue files(UniValue::VARR);
-    UniValue fileEntry(UniValue::VOBJ);
-    fileEntry.push_back(Pair("hash", wtx.fileHash.ToString()));
-    files.push_back(fileEntry);
-
-    entry.push_back(Pair("files", files));
+    MetaToJSON(wtx.meta, entry);
 
     // TODO: add files info
     /*// files
@@ -468,6 +485,77 @@ UniValue sendtoaddressix(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     SendMoney(address.Get(), nAmount, wtx, true);
+
+    return wtx.GetHash().GetHex();
+}
+
+UniValue sendfilepayment(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 4)
+        throw runtime_error(
+                "confirmfilepayment \"pivxaddress\" amount ( \"comment\" \"comment-to\" )\n"
+                "\nSend an amount to a given address. The amount is a real and is rounded to the nearest 0.00000001\n" +
+                HelpRequiringPassphrase() + "\n"
+
+                                            "\nArguments:\n"
+                                            "1. \"pivxaddress\"  (string, required) The pivx address to send to.\n"
+                                            "2. \"amount\"      (numeric, required) The amount in PIV to send. eg 0.1\n"
+                                            "3. \"comment\"     (string, optional) A comment used to store what the transaction is for. \n"
+                                            "                             This is not part of the transaction, just kept in your wallet.\n"
+                                            "4. \"comment-to\"  (string, optional) A comment to store the name of the person or organization \n"
+                                            "                             to which you're sending the transaction. This is not part of the \n"
+                                            "                             transaction, just kept in your wallet.\n"
+
+                                            "\nResult:\n"
+                                            "\"transactionid\"  (string) The transaction id.\n"
+
+                                            "\nExamples:\n" +
+                HelpExampleCli("sendtoaddress", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\" 0.1") +
+                HelpExampleCli("sendtoaddress", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\" 0.1 \"donation\" \"seans outpost\"") +
+                HelpExampleRpc("sendtoaddress", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\", 0.1, \"donation\", \"seans outpost\""));
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+
+    if (!pwalletMain->mapWallet.count(hash))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+
+    const CWalletTx& paymentRequestWtx = pwalletMain->mapWallet[hash];
+
+    if (paymentRequestWtx.type != TX_FILE_PAYMENT_REQUEST)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid transaction type. Required Payment Request");
+
+    // TODO: check if already confirmed
+
+    CPaymentRequest* paymentRequest = &paymentRequestWtx.meta.get<CPaymentRequest>();
+
+    CBitcoinAddress address(CKeyID(paymentRequest->paymentAddress));
+
+    if (!address.IsValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid PIVX address");
+
+    // Amount
+    CAmount nAmount = paymentRequest->nPrice;
+
+    CWalletTx wtx;
+
+    // crypto
+    RSA* keypair = crypto::rsa::GenKeypair(2048);
+    vector<char> publicKey;
+    vector<char> privateKey;
+    crypto::rsa::KeypairToDER(keypair, publicKey, privateKey);
+
+    wtx.type = TX_FILE_PAYMENT_CONFIRM;
+    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), publicKey);
+
+    EnsureWalletIsUnlocked();
+
+    CWalletDB wdb(pwalletMain->strWalletFile, "r+");
+    wdb.WriteFileEncryptKeys(((CTransaction *) &paymentRequestWtx)->GetHash(), publicKey, privateKey);
+
+    SendMoney(address.Get(), nAmount, wtx);
 
     return wtx.GetHash().GetHex();
 }
@@ -1663,11 +1751,6 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
             "    }\n"
             "    ,...\n"
             "  ],\n"
-            "  \"file\" : \"file\",  (string) File data involved in the transaction\n"
-            "    {\n"
-            "      \"hash\" : \"filehash\",    (string) The file hash involved in the transaction'\n"
-            "    }\n"
-            "  ,\n"
             "  \"hex\" : \"data\"         (string) Raw data for transaction\n"
             "}\n"
 

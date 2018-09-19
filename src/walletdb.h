@@ -191,6 +191,9 @@ public:
     bool ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFileTx& outWalletFileTx);
     bool EraseWalletFileTx(const uint256& hashPaymentRequestTx);
 
+    bool WriteFileEncryptKeys(const uint256& hashPaymentRequestTx, const vector<char>& publicKey, const vector<char>& privateKey);
+    bool ReadFileEncryptKeys(const uint256& hashPaymentRequestTx, vector<char>& outvchPublicKey, vector<char>& outvchPrivateKey);
+    bool EraseFileEncryptKeys(const uint256& hashPaymentRequestTx);
 
 private:
     CWalletDB(const CWalletDB&);

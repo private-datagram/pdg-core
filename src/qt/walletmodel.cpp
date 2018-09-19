@@ -22,6 +22,8 @@
 #include "ui_interface.h"
 #include "wallet.h"
 #include "walletdb.h" // for BackupWallet
+#include "crypto/aes.h"
+#include "crypto/rsa.h"
 #include <stdint.h>
 #include <net.h>
 
@@ -337,20 +339,10 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             newTx->type = TX_FILE_PAYMENT_REQUEST;
         } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
             newTx->type = TX_FILE_PAYMENT_CONFIRM;
-        } else if (meta->IsInstanceOf<CFileMeta>()) {
+        } /*else if (meta->IsInstanceOf<CFileMeta>()) {
             newTx->type = TX_FILE_TRANSFER;
-            //newTx->vchFile = recipients[0].vchFile; // TODO: refactor
-
-            CFile file;
-            file.vBytes = recipients[0].vchFile;
-            file.UpdateFileHash();
-
-            newTx->fileHash = file.CalcFileHash();
-
-            vector<CFile> vFile;
-            vFile.push_back(file);
-            newTx->vfiles = vFile;
-        } else {
+            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
+        }*/ else {
             newTx->type = TX_PAYMENT;
         }
         newTx->meta = *meta;
@@ -360,7 +352,6 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
                 CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
-        
 
         bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, strFailReason, coinControl, recipients[0].inputType, recipients[0].useSwiftTX);
         transaction.setTransactionFee(nFeeRequired);
@@ -416,47 +407,10 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
 
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
-        //todo:???
         transaction.getRecipients();
-
-        //todo: мб перенести в CommitTransaction?? тогда в этот метод нужно добавить recipients.
-        //send file
-         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
 
         if (!wallet->CommitTransaction(*newTx, *keyChange, (recipients[0].useSwiftTX) ? "ix" : "tx"))
             return TransactionCommitFailed;
-
-        //send file
-         if (newTx->type == TX_FILE_TRANSFER) {
-             vector<CFile> vfiles = newTx->vfiles;
-             if (!vfiles.empty()) {
-                 std::vector<CFile>::iterator it = vfiles.begin();
-                 while (it != vfiles.end()) {
-                     CFile file = *it;
-                     unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
-                     CDiskFileBlockPos filePos;
-                     CValidationState state;
-                     if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0)) {
-                         LogPrintf("FindBlockPos failed\n");
-                         return TransactionCommitFailed;
-                     }
-
-                     if (!WriteFileBlockToDisk(file, filePos)) {
-                         LogPrintf("WriteFileBlockToDisk failed\n");
-                         return TransactionCommitFailed;
-                     }
-
-                     if (!pblockfiletree->WriteTxFileIndex(file.CalcFileHash(), filePos)) {
-                         LogPrintf("WriteTxFileIndex failed\n");
-                         return TransactionCommitFailed;
-                     }
-
-                     UpdateFileBlockPosData(filePos);
-
-                     ++it;
-                 }
-             }
-         }
 
         CTransaction* t = (CTransaction*)newTx;
         CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);

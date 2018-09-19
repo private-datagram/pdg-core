@@ -211,16 +211,6 @@ public:
         }
         return QString();
     }
-
-    QVariant getFile(TransactionRecord* rec) {
-        QVariant var;
-
-        if (rec->vFileBytes.size() > 0) {
-            QVector<char> qVector = QVector<char>::fromStdVector(rec->vFileBytes);
-            var.setValue(qVector);
-        }
-        return var;
-    }
 };
 
 TransactionTableModel::TransactionTableModel(CWallet* wallet, WalletModel* parent) : QAbstractTableModel(parent),
@@ -667,8 +657,6 @@ QVariant TransactionTableModel::data(const QModelIndex& index, int role) const
         return formatTxAmount(rec, false, BitcoinUnits::separatorNever);
     case StatusRole:
         return rec->status.status;
-    case FileRole:
-        return priv->getFile(rec);
     }
     return QVariant();
 }

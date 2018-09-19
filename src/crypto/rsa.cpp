@@ -32,7 +32,7 @@ namespace crypto {
         /**
          * RSA keypair to binary DER public and private
          */
-        void KeypairToDER(RSA *keypair, vector<unsigned char> &vchoutPubKey, vector<unsigned char> &vchoutPrivateKey) {
+        void KeypairToDER(RSA *keypair, vector<char> &vchoutPubKey, vector<char> &vchoutPrivateKey) {
             unsigned char buffer[2048];
             unsigned char *pbuffer;
 
@@ -49,14 +49,14 @@ namespace crypto {
             memcpy(&vchoutPrivateKey[0], &buffer[0], len);
         }
 
-        RSA *PublicDERToKey(vector<unsigned char> &derKey) {
-            const unsigned char *chDerKey = &derKey.data()[0];
+        RSA *PublicDERToKey(const vector<char> &derKey) {
+            const unsigned char *chDerKey = reinterpret_cast<const unsigned char *>(&derKey[0]);
             return d2i_RSAPublicKey(NULL, &chDerKey, derKey.size());
         }
 
-        RSA *PrivateDERToKey(vector<unsigned char> &derKey) {
+        RSA *PrivateDERToKey(const vector<char> &derKey) {
             // binary DER to RSA structure
-            const unsigned char *chDerKey = &derKey.data()[0];
+            const unsigned char *chDerKey = reinterpret_cast<const unsigned char *>(&derKey[0]);
             return d2i_RSAPrivateKey(NULL, &chDerKey, derKey.size());
         }
 
@@ -105,19 +105,19 @@ namespace crypto {
          * @param outLen outData length
          * @return successfulness
          */
-        bool RSAEncrypt(RSA *pubKey, const unsigned char *data, int dataSize, unsigned char **outData, int *outLen) {
+        bool RSAEncrypt(RSA *pubKey, const char *data, int dataSize, char **outData, int *outLen) {
             int rsaLen = RSA_size(pubKey);
             unsigned char *encrypted = (unsigned char *) malloc(rsaLen);
 
-            int len = RSA_public_encrypt(dataSize, data, encrypted, pubKey, PADDING);
+            int len = RSA_public_encrypt(dataSize, reinterpret_cast<const unsigned char *>(data), encrypted, pubKey, PADDING);
             if (len == -1) {
                 printf("ERROR: RSA_public_encrypt: %s\n", ERR_error_string(ERR_get_error(), NULL)); // TODO: to log
-                free(encrypted);
+                delete encrypted;
                 return false;
             }
 
             *outLen = len;
-            *outData = encrypted;
+            *outData = reinterpret_cast<char *>(encrypted);
 
             return true;
         }
@@ -131,12 +131,11 @@ namespace crypto {
          * @param outLen outData length
          * @return successfulness
          */
-        bool RSADecrypt(RSA *privKey, const unsigned char *encryptedData, int encryptedSize, unsigned char **outData,
-                        int *outLen) {
+        bool RSADecrypt(RSA *privKey, const char *encryptedData, int encryptedSize, char **outData, int *outLen) {
             int rsaLen = RSA_size(privKey); // That's how many bytes the decrypted data would be
 
             unsigned char *decrypted = (unsigned char *) malloc(rsaLen);
-            int len = RSA_private_decrypt(encryptedSize, encryptedData, decrypted, privKey, PADDING);
+            int len = RSA_private_decrypt(encryptedSize, reinterpret_cast<const unsigned char *>(encryptedData), decrypted, privKey, PADDING);
             if (len == -1) {
                 printf("ERROR: RSA_private_decrypt: %s\n", ERR_error_string(ERR_get_error(), NULL));
                 free(decrypted);
@@ -144,18 +143,17 @@ namespace crypto {
             }
 
             *outLen = len;
-            *outData = decrypted;
+            *outData = reinterpret_cast<char *>(decrypted);
 
             return true;
         }
 
-        bool RSAEncrypt(RSA *pubKey, const vector<unsigned char> &vchData, vector<unsigned char> &vchOutEncrypted) {
-            unsigned char *data;
+        bool RSAEncrypt(RSA *pubKey, const vector<char> &vchData, vector<char> &vchOutEncrypted) {
+            char *data;
             int len;
 
-            if (!RSAEncrypt(pubKey, &vchData[0], (int) vchData.size(), &data, &len)) {
+            if (!RSAEncrypt(pubKey, &vchData[0], (int) vchData.size(), &data, &len))
                 return false;
-            }
 
             vchOutEncrypted.resize(len);
             memcpy(&vchOutEncrypted[0], data, len);
@@ -164,11 +162,11 @@ namespace crypto {
             return true;
         }
 
-        bool RSADecrypt(RSA *pubKey, const vector<unsigned char> &vchEncrypted, vector<unsigned char> &vchOutData) {
-            unsigned char *data;
+        bool RSADecrypt(RSA *privKey, const vector<char> &vchEncrypted, vector<char> &vchOutData) {
+            char *data;
             int len;
 
-            if (!RSADecrypt(pubKey, &vchEncrypted[0], (int) vchEncrypted.size(), &data, &len)) {
+            if (!RSADecrypt(privKey, &vchEncrypted[0], (int) vchEncrypted.size(), &data, &len)) {
                 return false;
             }
 

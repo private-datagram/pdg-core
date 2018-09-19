@@ -644,22 +644,6 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             LoadExternalBlockFile(file, &pos);
             nFile++;
         }
-
-        nFile = 0;
-        while (true) {
-            CDiskFileBlockPos fPos(nFile, 0, 0);
-            if (!boost::filesystem::exists(GetFilePosFilename(fPos, "blk")))
-                break; // No file block files left to reindex
-
-            FILE* file = OpenFileBlockFile(fPos, true);
-            if (!file)
-                break; // This error is logged in OpenFileBlockFile
-            LogPrintf("Reindexing fileBlock file blk%05u.dat...\n", (unsigned int)nFile);
-            //LoadExternalBlockFile(file, &fPos);
-
-            nFile++;
-        }
-
         pblocktree->WriteReindexing(false);
         fReindex = false;
         LogPrintf("Reindexing finished\n");

@@ -12,7 +12,6 @@
 #include "swifttx.h"
 #include "timedata.h"
 #include "wallet.h"
-#include "txdb.h"
 
 #include <stdint.h>
 
@@ -161,7 +160,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             sub.idx = parts.size();
             parts.append(sub);
         }
-    } else if (nNet > 0 || wtx.IsCoinBase()) {
+    } else if (nNet > 0 || wtx.IsCoinBase() || (nNet == 0 && ((CMerkleTx*)&wtx)->type == TX_FILE_TRANSFER)) { // TODO: make beautiful
         //
         // Credit
         //
@@ -460,19 +459,5 @@ int TransactionRecord::getOutputIndex() const
 }
 
 void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
-    if (wtx.type == TX_FILE_TRANSFER) {
-        CDiskFileBlockPos pos;
-        if (!pblockfiletree->ReadTxFileIndex(wtx.fileHash, pos)) {
-            LogPrintf("Failed to read file position");
-            return;
-        }
-
-        CFile dbFile;
-        if (!ReadFileBlockFromDisk(dbFile, pos)) {
-            LogPrintf("Failed to read file");
-            return;
-        }
-
-        sub.vFileBytes = dbFile.vBytes;
-    }
+    // TODO: make fill meta information
 }

@@ -95,6 +95,8 @@ static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
 //static const int COINBASE_MATURITY = 100;
 static const int COINBASE_MATURITY = 5; // TODO: update
+/** File payment confirmations wait to send file */
+static const int FILE_PAYMENT_MATURITY = 3;
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
 static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
 /** Maximum number of script-checking threads allowed */
@@ -138,6 +140,16 @@ struct BlockHasher {
     size_t operator()(const uint256& hash) const { return hash.GetLow64(); }
 };
 
+struct CPaymentMatureTx {
+    CTransaction tx;
+    int blockHeight;
+
+    CPaymentMatureTx(CTransaction tx, int blockHeight): tx(tx), blockHeight(blockHeight) {}
+
+    CPaymentMatureTx() : tx(), blockHeight(0) {}
+};
+
+
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
@@ -173,7 +185,9 @@ extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-extern std::vector<uint256> vFileHashes;
+extern std::vector<uint256> vPandingReceiveFileHashes;
+
+extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
@@ -231,9 +245,6 @@ boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const c
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
 
-/** Import blockFile from an external file */
-bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp);
-
 /** Import blocks from an external file */
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp = NULL);
 /** Initialize a new block tree database + block data on disk */
@@ -273,9 +284,6 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 bool IsInitialBlockDownload();
 /** Format a string that describes several potential problems detected by the core */
 std::string GetWarnings(std::string strFor);
-
-/** Retrieve a file (from memory pool, or from disk, if possible) */
-bool GetFile(const uint256& hash, char& chars);
 
 /** Retrieve a transaction (from memory pool, or from disk, if possible) */
 bool GetTransaction(const uint256& hash, CTransaction& tx, uint256& hashBlock, bool fAllowSlow = false);
@@ -572,7 +580,7 @@ public:
         SetNull();
     }
 
-    //std::string ToString() const;
+    std::string ToString() const;
 
     /** update statistics (does not update nSize) */
     void AddBlock(uint64_t nTimeIn)

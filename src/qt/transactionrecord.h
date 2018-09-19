@@ -134,7 +134,6 @@ public:
     qint64 time;
     Type type;
     std::string address;
-    std::vector<char> vFileBytes;
     CAmount debit;
     CAmount credit;
     /**@}*/

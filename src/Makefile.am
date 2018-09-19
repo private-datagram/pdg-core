@@ -96,6 +96,7 @@ BITCOIN_CORE_H = \
   accumulatorcheckpoints.json.h \
   accumulatormap.h \
   addrman.h \
+  aes.h \
   alert.h \
   allocators.h \
   amount.h \
@@ -128,6 +129,7 @@ BITCOIN_CORE_H = \
   db.h \
   eccryptoverify.h \
   ecwrapper.h \
+  files.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -164,6 +166,7 @@ BITCOIN_CORE_H = \
   rpcclient.h \
   rpcprotocol.h \
   rpcserver.h \
+  rsa.h \
   scheduler.h \
   script/interpreter.h \
   script/script.h \
@@ -267,6 +270,7 @@ libbitcoin_wallet_a_SOURCES = \
   obfuscation-relay.cpp \
   db.cpp \
   crypter.cpp \
+  files.cpp \
   swifttx.cpp \
   masternode.cpp \
   masternode-budget.cpp \
@@ -278,6 +282,7 @@ libbitcoin_wallet_a_SOURCES = \
   rpcdump.cpp \
   primitives/deterministicmint.cpp \
   primitives/zerocoin.cpp \
+  crypto/rsa.cpp \
   rpcwallet.cpp \
   kernel.cpp \
   wallet.cpp \

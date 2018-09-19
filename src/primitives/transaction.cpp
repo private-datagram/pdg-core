@@ -120,9 +120,9 @@ void CTransaction::UpdateHash() const
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
 }
 
-CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), meta(), fileHash(), nLockTime(0) { }
+CTransaction::CTransaction() : hash(), nVersion(CTransaction::CURRENT_VERSION), type(TX_PAYMENT), vin(), vout(), meta(), vfiles(), nLockTime(0) { }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), fileHash(tx.fileHash), nLockTime(tx.nLockTime) {
+CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), type(tx.type), vin(tx.vin), vout(tx.vout), meta(tx.meta), vfiles(tx.vfiles), nLockTime(tx.nLockTime) {
     UpdateHash();
 }
 
@@ -135,7 +135,6 @@ CTransaction& CTransaction::operator=(const CTransaction &tx) {
     *const_cast<std::vector<CFile>*>(&vfiles) = tx.vfiles;
     *const_cast<unsigned int*>(&nLockTime) = tx.nLockTime;
     *const_cast<uint256*>(&hash) = tx.hash;
-    *const_cast<uint256*>(&fileHash) = tx.fileHash;
     return *this;
 }
 
@@ -276,12 +275,12 @@ CFile::CFile() : nFlags(0), vBytes() {
 
 uint256 CFile::CalcFileHash() const
 {
-    return SerializeHash(vBytes);
+    return Hash(vBytes.begin(), vBytes.end());
 }
 
 uint256 CFile::UpdateFileHash()
 {
-    return this->fileHash = SerializeHash(vBytes);
+    return this->fileHash = CalcFileHash();
 }
 
 std::string CFile::ToString() const
@@ -294,18 +293,20 @@ std::string CFile::ToString() const
     return str;
 }
 
+CTransactionMeta::CTransactionMeta(uint32_t nFlags): nFlags(nFlags) {}
+
 CTransactionMeta::CTransactionMeta(): nFlags(TX_META_EMPTY) {}
 
-CPaymentRequest::CPaymentRequest(): vfMessage(), nPrice() {
-    nFlags = TX_META_FILE;
+CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), sComment(), nPrice() {
 }
 
-CPaymentConfirm::CPaymentConfirm(): requestTxid(), vfPublicKey() {
-    nFlags = TX_META_FILE;
+CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), vfPublicKey() {
 }
 
-CFileMeta::CFileMeta() {
-    nFlags = TX_META_FILE;
+CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), requestTxid(requestTxid), vfPublicKey(vfPublicKey) {
+}
+
+CFileMeta::CFileMeta(): CTransactionMeta(TX_META_FILE) {
 }
 
 CEncodedMeta::CEncodedMeta(): fileHash(0), vfFilename(), vfFileKey(), nFileSize(0)  {}

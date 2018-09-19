@@ -191,6 +191,10 @@ private:
 
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
+    bool ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
+    bool OnPaymentConfirmed(const CTransaction& tx);
+    bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest);
+
 public:
     bool MintableCoins();
     bool SelectStakeCoins(std::list<std::unique_ptr<CStakeInput> >& listInputs, CAmount nTargetAmount);
@@ -222,6 +226,7 @@ public:
     bool SetMintUnspent(const CBigNum& bnSerial);
     bool UpdateMint(const CBigNum& bnValue, const int& nHeight, const uint256& txid, const libzerocoin::CoinDenomination& denom);
     string GetUniqueWalletBackupName(bool fzpivAuto) const;
+    bool ProcessFileContract(const CBlock* pblock);
 
 
     /** Zerocin entry changed.
@@ -821,9 +826,6 @@ public:
     int32_t type;
     PtrContainer<CTransactionMeta> meta;
 
-    vector<char> vchFile;
-    std::vector<CFile> vfiles;
-
     // memory only
     mutable bool fDebitCached;
     mutable bool fCreditCached;
@@ -1240,6 +1242,7 @@ public:
     uint256 paymentRequestTxid;
     vector<char> vchBytes;
     std::string filename;
+    uint160 destinationAddress;
 
     CWalletFileTx();
     CWalletFileTx(const CWalletFileTx& request);
@@ -1251,6 +1254,7 @@ public:
         READWRITE(paymentRequestTxid);
         READWRITE(*const_cast<std::vector<char>*>(&vchBytes));
         READWRITE(*const_cast<std::string*>(&filename));
+        READWRITE(destinationAddress);
     }
 
 };

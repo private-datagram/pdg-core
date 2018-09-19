@@ -27,6 +27,8 @@
 #include "ui_interface.h"
 #include "utilmoneystr.h"
 #include "wallet.h"
+#include "crypto/aes.h"
+#include "crypto/rsa.h"
 
 #include <QMessageBox>
 #include <QScrollBar>
@@ -38,7 +40,7 @@
 #include <QDataStream>
 #include <QBitArray>
 #include <QFileInfo>
-
+#include <QtCore/qfile.h>
 
 
 #define NUM_ITEMS 9
@@ -56,7 +58,10 @@ SendFilesDialog::~SendFilesDialog()
 
 void SendFilesDialog::clear()
 {
-
+    ui->fileNameField->clear();
+    ui->descriptionField->clear();
+    ui->priceField->clear();
+    ui->addressField->clear();
 }
 
 
@@ -97,27 +102,35 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     bool valid = true;
 
     recipient = getValue();
-    // TODO: refactor
-    if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
-        QMessageBox::critical(this, tr("Send File"),
-                              tr("Error opening file"),
-                              QMessageBox::Ok, QMessageBox::Ok);
+
+    CKeyID destKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destKeyId)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Destination address error: %1").arg(recipient.address), QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
-//    CPaymentRequest meta;
-    CFileMeta meta;
+    // TODO: refactor
+    if (!readFile(ui->fileNameField->text().toStdString(), recipient.vchFile)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error opening file"), QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
 
-//    meta.confirmTxid = "cofTxId";
-//    std::string descriptionMessage = ui->descriptionField->text().toStdString();
-//    meta.vfMessage.reserve(descriptionMessage.length());
-//    meta.vfMessage.insert(meta.vfMessage.end(), descriptionMessage.begin(), descriptionMessage.end());
-//    meta.nPrice = ui->priceField->value();
+    //region Prepare meta
+    CPaymentRequest meta;
 
+    meta.sComment = ui->descriptionField->text().toStdString();
+    meta.nPrice = ui->priceField->value();
 
-    /*QFileInfo fileInfo(ui->fileNameField->text());
-    recipient.filename = fileInfo.fileName();*/
+    CPubKey pubKey;
+    if (!pwalletMain->GetKeyFromPool(pubKey)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error: Keypool ran out, please call keypoolrefill first"),
+                              QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+    meta.paymentAddress = pubKey.GetID();
 
+    QFileInfo fileInfo(ui->fileNameField->text());
+    recipient.filename = fileInfo.fileName();
 
     if (validate()) {
         recipients.append(recipient);
@@ -125,11 +138,8 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         valid = false;
     }
 
-    //if (!valid || recipients.isEmpty()) {
-
-    if (!valid) {
+    if (!valid)
         return;
-    }
 
     QString strFunds = "";
     QString strFee = "";
@@ -255,11 +265,6 @@ SendCoinsRecipient SendFilesDialog::getValue()
     recipient.amount = 1 * CENT;
     recipient.useSwiftTX = false;
 
-    //todo: ?
-    //CFile cFile;
-    //cFile.vBytes.insert(cFile.vBytes.end(), charFile, charFile + charFile->length());
-    //cFile.UpdateFileHash();
-
     return recipient;
 }
 
@@ -341,13 +346,22 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
         return;
     }
 
+    if (!saveFileMeta(recipients[0], currentTransaction)) {
+        QMessageBox::critical(this, tr("Send File"), tr("Error: Keypool ran out, please call keypoolrefill first"),
+                              QMessageBox::Ok, QMessageBox::Ok);
+        return;
+    }
+
     // now send the prepared transaction
     WalletModel::SendCoinsReturn sendStatus = model->sendCoins(currentTransaction);
 
     if (sendStatus.status == WalletModel::OK) {
-        acceptTransaction(recipients[0], currentTransaction);
-
         accept();
+    } else {
+        // erase saved file on send payment request failed
+        CWalletDB walletdb(pwalletMain->strWalletFile);
+        const uint256 &paymentRequestTx = SerializeHash(*(CTransaction *) currentTransaction.getTransaction());
+        walletdb.EraseWalletFileTx(paymentRequestTx);
     }
 
     fNewRecipientAllowed = true;
@@ -440,32 +454,94 @@ void SendFilesDialog::initFileHistory()
 
 void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index)
 {
-    ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
-
     if (!filter)
         return;
 
-    QString fileName = QFileDialog::getSaveFileName(this,
-            tr("Save File"), "",
-            tr("All Files (*)"));
+    // find transaction in blockchain
+    QVariant blockQVariantFile = index.data(TransactionTableModel::TxHashRole);
+    uint256 txHash = uint256(blockQVariantFile.value<QString>().toStdString());
 
-    if (fileName.isEmpty())
+    CTransaction fileTx;
+    uint256 hashBlock;
+
+    if (!GetTransaction(txHash, fileTx, hashBlock, true)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file transaction"));
         return;
-    else {
-        QFile file(fileName);
-        if (!file.open(QIODevice::WriteOnly)) {
-            QMessageBox::information(this, tr("Unable to open file"),
-                                     file.errorString());
-            return;
-        }
-
-        QDataStream out(&file);
-        QVariant blockQVariantFile = index.data(TransactionTableModel::FileRole);
-        QVector<char> vFile = blockQVariantFile.value<QVector<char>>();
-
-        out.writeRawData(vFile.data(), vFile.size());
-        ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
     }
+
+    // check hash of encrypted file
+    if (fileTx.vfiles[0].fileHash != Hash(fileTx.vfiles[0].vBytes.begin(), fileTx.vfiles[0].vBytes.end())) {
+        QMessageBox::critical(this, tr("Save file"), tr("File hash doesn't match. File corrupted"));
+        return;
+    }
+
+    CFileMeta* fileMeta = &fileTx.meta.get<CFileMeta>();
+
+    CTransaction paymentTx;
+    if (!GetTransaction(fileMeta->confirmTxid, paymentTx, hashBlock, true)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file payment transaction"));
+        return;
+    }
+
+    CPaymentConfirm paymentConfirm = paymentTx.meta.get<CPaymentConfirm>();
+
+    // red key from wallet db
+    CWalletDB wdb(pwalletMain->strWalletFile, "r+");
+    vector<char> publicKey;
+    vector<char> privateKey;
+    wdb.ReadFileEncryptKeys(paymentConfirm.requestTxid, publicKey, privateKey);
+    RSA* privKey = crypto::rsa::PrivateDERToKey(privateKey);
+    unique_ptr<RSA> privKeyPtr(privKey);
+
+    // decrypt meta
+    vector<char> outMeta;
+    crypto::rsa::RSADecrypt(privKey, fileMeta->vfEncodedMeta, outMeta);
+
+    CDataStream metaStream(SER_NETWORK, PROTOCOL_VERSION);
+    metaStream.write(&outMeta[0], outMeta.size());
+    CEncodedMeta encodedMeta;
+    metaStream >> encodedMeta;
+    std::string filename(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
+    std::string description(encodedMeta.vfFilename.begin(),encodedMeta.vfFilename.end());
+
+    // choose destination filename
+    QString destFilename = QFileDialog::getSaveFileName(this,
+                                                        tr("Save File: %1. File size: %2KB") // TODO: remove information after UI will be implemented
+                                                                .arg(QString::fromStdString(filename))
+                                                                .arg((int)round((float)encodedMeta.nFileSize / 1024.0f)),
+                                                        filename.data(), tr("All Files (*)")
+    );
+
+    if (destFilename.isEmpty())
+        return;
+
+    // extract key
+    crypto::aes::AESKey key;
+    memcpy(&key.key[0], &encodedMeta.vfFileKey[0], encodedMeta.vfFileKey.size());
+
+    // decrypt file
+    CDataStream encodedStream(SER_NETWORK, PROTOCOL_VERSION);
+    encodedStream.write(&fileTx.vfiles[0].vBytes[0], fileTx.vfiles[0].vBytes.size());
+    CDataStream destStream(SER_NETWORK, PROTOCOL_VERSION);
+    crypto::aes::DecryptAES(key, destStream, encodedStream, encodedStream.size());
+
+    // check hash of decrypted file
+    if (encodedMeta.fileHash != Hash(destStream.begin(), destStream.end())) {
+        QMessageBox::critical(this, tr("Save file"), tr("Decrypt file error. Hash mismatch"));
+        return;
+    }
+
+    QFile file(destFilename);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::critical(this, tr("Unable to open file for writing"), file.errorString());
+        return;
+    }
+
+    // save file
+    QDataStream out(&file);
+    out.writeRawData(&destStream[0], static_cast<int>(destStream.size()));
+
+    file.close();
 }
 
 
@@ -490,12 +566,20 @@ bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchout
     return true;
 }
 
-bool SendFilesDialog::acceptTransaction(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const {
+bool SendFilesDialog::saveFileMeta(const SendCoinsRecipient &recipient,
+                                   WalletModelTransaction &currentTransaction) const {
+    // save data to wallet, needed when file will send
     CWalletFileTx wftx;
     wftx.filename = recipient.filename.toStdString();
     wftx.vchBytes = recipient.vchFile;
     CTransaction *tx = (CTransaction *) currentTransaction.getTransaction();
     wftx.paymentRequestTxid = SerializeHash(*tx); // TODO: check twice
+    CKeyID destinationKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId)) {
+        LogPrintf("%s: destination address invalid: %s\n", __func__, recipient.address.toStdString().data());
+        return false;
+    }
+    wftx.destinationAddress = destinationKeyId;
 
     CWalletDB walletdb(pwalletMain->strWalletFile);
     return walletdb.WriteWalletFileTx(wftx);

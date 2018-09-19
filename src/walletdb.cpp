@@ -1618,3 +1618,33 @@ bool CWalletDB::ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFil
 bool CWalletDB::EraseWalletFileTx(const uint256& hashPaymentRequestTx) {
     return Erase(make_pair(string("wftx"), hashPaymentRequestTx));
 }
+
+bool CWalletDB::WriteFileEncryptKeys(const uint256& hashPaymentRequestTx, const vector<char>& vchPublicKey, const vector<char>& vchPrivateKey) {
+    if (!Write(make_pair(string("fkeypub"), hashPaymentRequestTx.GetHex()), vchPublicKey))
+        return false;
+
+    if (!Write(make_pair(string("fkeypri"), hashPaymentRequestTx.GetHex()), vchPrivateKey))
+        return false;
+
+    return true;
+}
+
+bool CWalletDB::ReadFileEncryptKeys(const uint256& hashPaymentRequestTx, vector<char>& outvchPublicKey, vector<char>& outvchPrivateKey) {
+    if (!Read(make_pair(string("fkeypub"), hashPaymentRequestTx.GetHex()), outvchPublicKey))
+        return false;
+
+    if (!Read(make_pair(string("fkeypri"), hashPaymentRequestTx.GetHex()), outvchPrivateKey))
+        return false;
+
+    return true;
+}
+
+bool CWalletDB::EraseFileEncryptKeys(const uint256& hashPaymentRequestTx) {
+    if (!Erase(make_pair(string("fkeypub"), hashPaymentRequestTx.GetHex())))
+        return false;
+
+    if (!Erase(make_pair(string("fkeypri"), hashPaymentRequestTx.GetHex())))
+        return false;
+
+    return true;
+}

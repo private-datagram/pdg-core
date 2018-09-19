@@ -102,10 +102,11 @@ map<uint256, COrphanTx> mapOrphanTransactions;
 map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
+map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
 
-std::vector<uint256> vFileHashes;
+std::vector<uint256> vPandingReceiveFileHashes;
 
-uint256 requestSendHashFile;
+uint256 requestSendHashFile; // TODO: remove
 
 void EraseOrphansFor(NodeId peer);
 
@@ -493,12 +494,13 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
 
 void removeFileLocatorHash(uint256& hash)
 {
-    vFileHashes.erase(std::remove(std::begin(vFileHashes), std::end(vFileHashes), hash), std::end(vFileHashes));
+    // TODO: think about locks
+    vPandingReceiveFileHashes.erase(std::remove(std::begin(vPandingReceiveFileHashes), std::end(vPandingReceiveFileHashes), hash), std::end(vPandingReceiveFileHashes));
 }
 
-bool isHashInLocator(uint256& hash)
+bool isFileReceivePending(uint256& hash)
 {
-    return find(vFileHashes.begin(), vFileHashes.end(), hash) != vFileHashes.end();
+    return find(vPandingReceiveFileHashes.begin(), vPandingReceiveFileHashes.end(), hash) != vPandingReceiveFileHashes.end();
 }
 
 } // anon namespace
@@ -715,7 +717,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.IsDust(::minRelayTxFee)) {
+        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER) { // TODO: make safe
             reason = "dust";
             return false;
         }
@@ -1986,36 +1988,6 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     return true;
 }
 
-bool GetFile(const uint256& hash, char& chars)
-{
-//    CDiskTxPos txPos = CDiskTxPos(pos, 20065);
-//    pblockfiletree->WriteTxFileIndex(hash, txPos);
-
-//    CDiskTxPos postx2;
-//    pblockfiletree->ReadTxFileIndex(uint256("duadatdadah"), postx2);
-    LOCK(cs_main);
-
-    CDiskFileBlockPos postx;
-    if (pblockfiletree->ReadTxFileIndex(hash, postx)) {
-        CAutoFile file(OpenFileBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
-        if (file.IsNull())
-            return error("%s: OpenBlockFileFile failed", __func__);
-        CBlockHeader header;
-        try {
-            file >> header;
-            //fseek(file.Get(), postx.offset, SEEK_CUR);
-            //file >> txOut;
-        } catch (std::exception& e) {
-            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-        }
-
-        return true;
-    }
-
-    // transaction not found in the index, nothing more can be done
-    return false;
-}
-
 /** Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock, bool fAllowSlow)
 {
@@ -2085,6 +2057,8 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 //
 // File region
 //
+// TODO: CFile to CDBFile
+// TODO: figure out with locks
 bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
 {
     // Open history file to append
@@ -2106,6 +2080,8 @@ bool WriteFileBlockToDisk(CFile& file, CDiskFileBlockPos& pos)
     return true;
 }
 
+// TODO: CFile to CDBFile
+// TODO: figure out with locks
 bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
 {
     // Open history file to read
@@ -2114,12 +2090,8 @@ bool ReadFileBlockFromDisk(CFile& file, const CDiskFileBlockPos& pos)
         return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
 
     // Read file
-
     try {
         filein >> file;
-
-        //todo: В базу хэш не сохраняется
-        //file.UpdateFileHash();
     } catch (std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -3617,6 +3589,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
+    pwalletMain->ProcessFileContract(&block);
+
     return true;
 }
 
@@ -3661,9 +3635,11 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 fileschanged = true;
                 setDirtyFileInfo.erase(it++);
             }
+
             if (fileschanged && !pblocktree->WriteLastBlockFile(nLastBlockFile)) {
                 return state.Abort("Failed to write to block index");
             }
+
             for (set<CBlockIndex*>::iterator it = setDirtyBlockIndex.begin(); it != setDirtyBlockIndex.end();) {
                 if (!pblocktree->WriteBlockIndex(CDiskBlockIndex(*it))) {
                     return state.Abort("Failed to write to block index");
@@ -3673,19 +3649,20 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            bool fileBlockFileChanged = false ;
+            bool fileBlockFileChanged = false;
             for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
-                if(!pblockfiletree->WriteFileBlockFileInfo(it - vinfoFileBlockFile.begin(), vinfoFileBlockFile[it - vinfoFileBlockFile.begin()])) {
+                unsigned long nFile = it - vinfoFileBlockFile.begin();
+                if (!pblockfiletree->WriteFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
                     return state.Abort("Failed to write to fileBlock index");
                 }
-                bool fileBlockFileChanged = true ;
+                fileBlockFileChanged = true;
                 ++it;
             }
+    
             if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
                 return state.Abort("Failed to write to file block index");
             }
             pblockfiletree->Sync();
-
 
             // Finally flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
@@ -4370,10 +4347,11 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
     }
 
     //Flush file after filled
+    // TODO: aseert addSize < MAX_FILEBLOCKFILE_SIZE
     while (vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
         // LogPrintf("Leaving block file %i: %s\n", nFile, vinfoFileBlockFile[nFile].ToString());
         FlushFileBlockFile(true);
-        pos.numberDiskFile++;
+        ++pos.numberDiskFile;
         if (vinfoFileBlockFile.size() <= pos.numberDiskFile) {
             vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
         }
@@ -4410,7 +4388,7 @@ bool UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
     unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
     unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
 
-    unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize);
+    unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize); // TODO: figure out
 
     vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize = maxValue;
     nLastFileDiskFile = pos.numberDiskFile;
@@ -4534,10 +4512,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     if (fCheckMerkleRoot) {
         bool mutated;
         uint256 hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
-        if (block.hashMerkleRoot != hashMerkleRoot2) {
+        if (block.hashMerkleRoot != hashMerkleRoot2)
             return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"),
                 REJECT_INVALID, "bad-txnmrklroot", true);
-        }
 
         // Check for merkle tree malleability (CVE-2012-2459): repeating sequences
         // of transactions in a block without affecting the merkle root of a block,
@@ -4901,23 +4878,6 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
         }
     }
 
-       for (const CTransaction& tx : block.vtx) {
-            if (tx.type == TX_FILE_TRANSFER) {
-                uint256 fileHash = tx.fileHash;
-//                if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
-
-//                CDiskFileBlockPos blockPos;
-//                if (!pblockfiletree->ReadTxFileIndex(fileHash, blockPos))
-//                    return state.Abort("Failed to read file position");
-
-//                CFile fileFromDb;
-//                if (!ReadFileBlockFromDisk(fileFromDb, blockPos))
-//                    return state.Abort("Failed to read file");
-
-//                int nIn2 = 0;
-            }
-        }
-
     if (block.GetHash() != Params().HashGenesisBlock() && !CheckWork(block, pindexPrev))
         return false;
 
@@ -5040,36 +5000,27 @@ void CBlockIndex::BuildSkip()
 }
 
 void HandleFileTransferTx(CBlock* pblock) {
-    std::vector<uint256> vTxFileHashes;
-
-    for (const CTransaction tx : pblock->vtx) {
-        //process file
+    for (const CTransaction& tx: pblock->vtx) {
         if (tx.type != TX_FILE_TRANSFER) continue;
 
-        uint256 fileHash = tx.fileHash;
-        if (fileHash == NULL || isHashInLocator(fileHash)) continue; //ignore
+        // TODO: check if my file or masternode
+
+        //process file
+        uint256 fileHash = tx.vfiles[0].fileHash;
+        if (fileHash == NULL || isFileReceivePending(fileHash)) continue; //ignore
 
         CDiskFileBlockPos postx;
         //file not found at DB.
         if (!pblockfiletree->ReadTxFileIndex(fileHash, postx)) {
-              vTxFileHashes.push_back(fileHash);
+            vPandingReceiveFileHashes.push_back(fileHash);
         }
         //todo: добавить ли тут проверку файла на диске.
     }
 
-    //Get file if TX with fileHashes
-    if (!vTxFileHashes.empty()) {
-       LogPrintf("%s : Block contains file Hashes", __func__);
-       vFileHashes.insert(vFileHashes.end(), vTxFileHashes.begin(), vTxFileHashes.end());
-    } else {
-        //files not found
-        return;
-    }
-
     //todo: Заменить на получение файлов из ближайших нодов(по рейтингу или пингу)
-    if (!vFileHashes.empty()) {
+    if (!vPandingReceiveFileHashes.empty()) {
         GetFilesMessage();
-        //pfrom->PushMessage("getfiles", vFileHashes);
+        //pfrom->PushMessage("getfiles", vPandingReceiveFileHashes);
     }
 }
 
@@ -5355,11 +5306,13 @@ bool static LoadBlockIndexDB(string& strError)
     vinfoFileBlockFile.resize(nLastFileDiskFile + 1);
     LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileDiskFile);
     for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
-        pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile]);
+        if (!pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
+            LogPrintf("%s: Filed to load file info from db: %d\n", __func__, nFile);
+        }
     }
-//    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
-    //TODO: ????
-  /*  for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
+    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
+    // Load all saved files to db if nLastBlockFile saved invalid
+    for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
         CFileBlockFileInfo info;
         if (pblockfiletree->ReadFileBlockFileInfo(nFile, info)) {
             vinfoFileBlockFile.push_back(info);
@@ -5367,7 +5320,6 @@ bool static LoadBlockIndexDB(string& strError)
             break;
         }
     }
-    */
 
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
@@ -5561,7 +5513,8 @@ bool InitBlockIndex()
     return true;
 }
 
-bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
+// TODO: remove
+/*bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
 {
     CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
     uint64_t nRewind = blkdat.GetPos();
@@ -5605,7 +5558,7 @@ bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
     }
 
     return true;
-}
+}*/
 
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp)
 {
@@ -5999,7 +5952,6 @@ void static ProcessGetData(CNode* pfrom)
                     } else {
                         // To prevent fingerprinting attacks, only send blocks outside of the active
                         // chain if they are valid, and no more than a max reorg depth than the best header
-
                         // chain we know about.
                         send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
                                (chainActive.Height() - mi->second->nHeight < Params().MaxReorganizationDepth());
@@ -6070,16 +6022,6 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
-                if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
-                    if (mapTxLockVote.count(inv.hash)) {
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << mapTxLockVote[inv.hash];
-                        pfrom->PushMessage("txlvote", ss);
-                        pushed = true;
-                    }
-                }
-
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -6792,14 +6734,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!vfiles.empty()) {
             std::vector<CFile>::iterator it = vfiles.begin();
             while (it != vfiles.end()) {
-                //TODO: надо ли?
-                it->UpdateFileHash();
                 uint256 fileHash = it->fileHash;
+                // TODO: check file hash
                 LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
 
                 //file isNeeded
-                if (isHashInLocator(fileHash)) {
-
+                if (isFileReceivePending(fileHash)) {
                     //file validate
                     if (fileHash == it->CalcFileHash()) {
                         //save file
@@ -6837,7 +6777,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             std::vector<CFile> vfiles;
             std::vector<uint256>::const_iterator it = hashes.begin();
             while (it != hashes.end() || --nLimit <= 0) {
-                if (isHashInLocator(hashes[it - hashes.begin()])) {
+                if (isFileReceivePending(hashes[it - hashes.begin()])) {
                     //this node search this file to. ignore.
                     continue;
                 }
@@ -7272,10 +7212,10 @@ bool ProcessMessages(CNode* pfrom)
     return fOk;
 }
 
+// TODO: remove
 void UpdateRequestSendHashFile(const uint256& newRequestHash) {
     requestSendHashFile = newRequestHash;
 }
-
 
 bool GetFiles(CNode* pto, bool fSendTrickle)
 {
@@ -7338,8 +7278,8 @@ bool GetFiles(CNode* pto, bool fSendTrickle)
             pto->PushMessage("addr", vAddr);
     }
 
-    if (!vFileHashes.empty()) {
-        pto->PushMessage("getfiles", vFileHashes);
+    if (!vPandingReceiveFileHashes.empty()) {
+        pto->PushMessage("getfiles", vPandingReceiveFileHashes);
     }
 }
 
@@ -7711,6 +7651,11 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 std::string CBlockFileInfo::ToString() const
 {
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
+}
+
+std::string CFileBlockFileInfo::ToString() const
+{
+    return strprintf("CFileBlockFileInfo(numberBytesSize=%u, numberFiles=%u, time=%s...%s)", numberBytesSize, numberFiles, DateTimeStrFormat("%Y-%m-%d", firstRecordTime), DateTimeStrFormat("%Y-%m-%d", lastRecordTime));
 }
 
 
