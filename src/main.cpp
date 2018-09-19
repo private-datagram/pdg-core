@@ -3658,7 +3658,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 fileBlockFileChanged = true;
                 ++it;
             }
-    
+
             if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
                 return state.Abort("Failed to write to file block index");
             }

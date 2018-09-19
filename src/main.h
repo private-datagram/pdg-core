@@ -184,6 +184,7 @@ extern std::map<uint256, int64_t> mapRejectedBlocks;
 extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
+extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
 extern std::vector<uint256> vPandingReceiveFileHashes;
 
