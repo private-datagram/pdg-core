@@ -262,7 +262,7 @@ SendCoinsRecipient SendFilesDialog::getValue()
 
     // Normal payment
     recipient.address = ui->addressField->text();
-    recipient.amount = 1 * CENT;
+    recipient.amount = 1 * CENT; // TODO: fix it
     recipient.useSwiftTX = false;
 
     return recipient;
@@ -287,6 +287,8 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
 
     if (prepareStatus.status != WalletModel::OK) {
         fNewRecipientAllowed = true;
+        QMessageBox::critical(this, tr("Send File"), tr("Error to prepare transaction. Status code: %1").arg((int)prepareStatus.status),
+                              QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
