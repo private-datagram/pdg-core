@@ -568,16 +568,15 @@ bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchout
 bool SendFilesDialog::saveFileMeta(const SendCoinsRecipient &recipient,
                                    WalletModelTransaction &currentTransaction) const {
     // save data to wallet, needed when file will send
+    CKeyID destinationKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId))
+        return error("%s: destination address invalid: %s", __func__, recipient.address.toStdString().data());
+
     CWalletFileTx wftx;
     wftx.filename = recipient.filename.toStdString();
     wftx.vchBytes = recipient.vchFile;
     CTransaction *tx = (CTransaction *) currentTransaction.getTransaction();
     wftx.paymentRequestTxid = SerializeHash(*tx); // TODO: check twice
-    CKeyID destinationKeyId;
-    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId)) {
-        LogPrintf("%s: destination address invalid: %s\n", __func__, recipient.address.toStdString().data());
-        return false;
-    }
     wftx.destinationAddress = destinationKeyId;
 
     CWalletDB walletdb(pwalletMain->strWalletFile);

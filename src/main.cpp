@@ -2085,7 +2085,7 @@ bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos)
     long fileOutPos = ftell(fileout.Get());
     if (fileOutPos < 0)
         return error("WriteFileBlockToDisk : ftell failed");
-    pos.numberPosition = (unsigned int)fileOutPos;
+    pos.numberPosition = (unsigned int) fileOutPos;
     fileout << file;
 
     return true;
