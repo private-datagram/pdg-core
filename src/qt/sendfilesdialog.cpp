@@ -3,14 +3,12 @@
 #include "ui_sendfilesdialog.h"
 
 #include "addresstablemodel.h"
-#include "askpassphrasedialog.h"
 #include "bitcoinunits.h"
 #include "clientmodel.h"
 #include "coincontroldialog.h"
 #include "guiutil.h"
 #include "optionsmodel.h"
 #include "sendcoinsentry.h"
-#include "walletmodel.h"
 
 #include "transactionfilterproxy.h"
 
@@ -18,15 +16,9 @@
 #include "transactiontablemodel.h"
 
 //send file
-#include <iostream>
 #include <fstream>
-#include <sstream>
 
-#include "base58.h"
 #include "coincontrol.h"
-#include "ui_interface.h"
-#include "utilmoneystr.h"
-#include "wallet.h"
 #include "crypto/aes.h"
 #include "crypto/rsa.h"
 
@@ -471,8 +463,13 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
         return;
     }
 
+    CDBFile dbFile;
+    if (!GetFile(fileTx.vfiles[0].fileHash, dbFile)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file in local storage. May be you need to resync file storage"));
+    }
+
     // check hash of encrypted file
-    if (fileTx.vfiles[0].fileHash != Hash(fileTx.vfiles[0].vBytes.begin(), fileTx.vfiles[0].vBytes.end())) {
+    if (fileTx.vfiles[0].fileHash != Hash(dbFile.vBytes.begin(), dbFile.vBytes.end())) {
         QMessageBox::critical(this, tr("Save file"), tr("File hash doesn't match. File corrupted"));
         return;
     }
@@ -523,7 +520,7 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
 
     // decrypt file
     CDataStream encodedStream(SER_NETWORK, PROTOCOL_VERSION);
-    encodedStream.write(&fileTx.vfiles[0].vBytes[0], fileTx.vfiles[0].vBytes.size());
+    encodedStream.write(&dbFile.vBytes[0], dbFile.vBytes.size());
     CDataStream destStream(SER_NETWORK, PROTOCOL_VERSION);
     crypto::aes::DecryptAES(key, destStream, encodedStream, encodedStream.size());
 

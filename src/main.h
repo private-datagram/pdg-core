@@ -236,7 +236,8 @@ FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 
 bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
-bool  UpdateFileBlockPosData(CDiskFileBlockPos& pos);
+
+void UpdateFileBlockPosData(CDiskFileBlockPos& pos);
 
 /** Open a data file (blk?????.dat) */
 FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false);
@@ -267,6 +268,9 @@ void UpdateRequestSendHashFile(const uint256& newRequestHash);
  * @param[in]   fSendTrickle    When true send the trickled data, otherwise trickle the data until true.
  */
 bool SendMessages(CNode* pto, bool fSendTrickle);
+
+/** Get file from local storage */
+bool GetFile(const uint256& fileHash, CDBFile& fileOut);
 
 /** Request a file */
 bool GetFiles(CNode* pto, bool fSendTrickle);
