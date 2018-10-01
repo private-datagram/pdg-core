@@ -5498,6 +5498,8 @@ bool CWallet::SaveFileDB(CDBFile& file) {
         return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
 
     UpdateFileBlockPosData(filePos);
+
+    return true;
 }
 
 bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest) {

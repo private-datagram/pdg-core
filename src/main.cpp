@@ -2159,7 +2159,7 @@ bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos)
     long fileOutPos = ftell(fileout.Get());
     if (fileOutPos < 0)
         return error("WriteFileBlockToDisk : ftell failed");
-    pos.numberPosition = (unsigned int)fileOutPos;
+    pos.numberPosition = (unsigned int) fileOutPos;
     fileout << file;
 
     return true;
@@ -4440,7 +4440,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
 
     pos.numberDiskFile = nLastFileDiskFile;
 
-    if (vinfoFileBlockFile.size() <= pos.numberDiskFile) {
+    if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
         vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
     }
 
@@ -4450,7 +4450,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
         // LogPrintf("Leaving block file %i: %s\n", nFile, vinfoFileBlockFile[nFile].ToString());
         FlushFileBlockFile(true);
         ++pos.numberDiskFile;
-        if (vinfoFileBlockFile.size() <= pos.numberDiskFile) {
+        if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
             vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
         }
     }
@@ -4482,7 +4482,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
     return true;
 }
 
-bool UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
+void UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
     unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
     unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
 
@@ -7402,6 +7402,8 @@ bool FileRequest(CNode* pto, bool fSendTrickle, uint256 fileHash) {
             pto->PushMessage("fileRequest", fileHash);
         }
     }
+
+    return true;
 }
 
 bool FileAvailableMessages(CNode* pto, bool fSendTrickle, uint256 fileHash) {

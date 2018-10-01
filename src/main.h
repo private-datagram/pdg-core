@@ -248,7 +248,8 @@ FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 
 bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
-bool  UpdateFileBlockPosData(CDiskFileBlockPos& pos);
+
+void UpdateFileBlockPosData(CDiskFileBlockPos& pos);
 
 /** Open a data file (blk?????.dat) */
 FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false);

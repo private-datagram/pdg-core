@@ -3,14 +3,12 @@
 #include "ui_sendfilesdialog.h"
 
 #include "addresstablemodel.h"
-#include "askpassphrasedialog.h"
 #include "bitcoinunits.h"
 #include "clientmodel.h"
 #include "coincontroldialog.h"
 #include "guiutil.h"
 #include "optionsmodel.h"
 #include "sendcoinsentry.h"
-#include "walletmodel.h"
 
 #include "transactionfilterproxy.h"
 
@@ -18,15 +16,9 @@
 #include "transactiontablemodel.h"
 
 //send file
-#include <iostream>
 #include <fstream>
-#include <sstream>
 
-#include "base58.h"
 #include "coincontrol.h"
-#include "ui_interface.h"
-#include "utilmoneystr.h"
-#include "wallet.h"
 #include "crypto/aes.h"
 #include "crypto/rsa.h"
 
@@ -262,7 +254,7 @@ SendCoinsRecipient SendFilesDialog::getValue()
 
     // Normal payment
     recipient.address = ui->addressField->text();
-    recipient.amount = 1 * CENT;
+    recipient.amount = 1 * CENT; // TODO: fix it
     recipient.useSwiftTX = false;
 
     return recipient;
@@ -287,6 +279,8 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
 
     if (prepareStatus.status != WalletModel::OK) {
         fNewRecipientAllowed = true;
+        QMessageBox::critical(this, tr("Send File"), tr("Error to prepare transaction. Status code: %1").arg((int)prepareStatus.status),
+                              QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
@@ -469,8 +463,13 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
         return;
     }
 
+    CDBFile dbFile;
+    if (!GetFile(fileTx.vfiles[0].fileHash, dbFile)) {
+        QMessageBox::critical(this, tr("Save file"), tr("Unable to find file in local storage. May be you need to resync file storage"));
+    }
+
     // check hash of encrypted file
-    if (fileTx.vfiles[0].fileHash != Hash(fileTx.vfiles[0].vBytes.begin(), fileTx.vfiles[0].vBytes.end())) {
+    if (fileTx.vfiles[0].fileHash != Hash(dbFile.vBytes.begin(), dbFile.vBytes.end())) {
         QMessageBox::critical(this, tr("Save file"), tr("File hash doesn't match. File corrupted"));
         return;
     }
@@ -521,7 +520,7 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
 
     // decrypt file
     CDataStream encodedStream(SER_NETWORK, PROTOCOL_VERSION);
-    encodedStream.write(&fileTx.vfiles[0].vBytes[0], fileTx.vfiles[0].vBytes.size());
+    encodedStream.write(&dbFile.vBytes[0], dbFile.vBytes.size());
     CDataStream destStream(SER_NETWORK, PROTOCOL_VERSION);
     crypto::aes::DecryptAES(key, destStream, encodedStream, encodedStream.size());
 
@@ -569,16 +568,15 @@ bool SendFilesDialog::readFile(const std::string &filename, vector<char> &vchout
 bool SendFilesDialog::saveFileMeta(const SendCoinsRecipient &recipient,
                                    WalletModelTransaction &currentTransaction) const {
     // save data to wallet, needed when file will send
+    CKeyID destinationKeyId;
+    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId))
+        return error("%s: destination address invalid: %s", __func__, recipient.address.toStdString().data());
+
     CWalletFileTx wftx;
     wftx.filename = recipient.filename.toStdString();
     wftx.vchBytes = recipient.vchFile;
     CTransaction *tx = (CTransaction *) currentTransaction.getTransaction();
     wftx.paymentRequestTxid = SerializeHash(*tx); // TODO: check twice
-    CKeyID destinationKeyId;
-    if (!CBitcoinAddress(recipient.address.toStdString()).GetKeyID(destinationKeyId)) {
-        LogPrintf("%s: destination address invalid: %s\n", __func__, recipient.address.toStdString().data());
-        return false;
-    }
     wftx.destinationAddress = destinationKeyId;
 
     CWalletDB walletdb(pwalletMain->strWalletFile);
