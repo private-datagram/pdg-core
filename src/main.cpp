@@ -104,9 +104,8 @@ map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
 
-std::vector<uint256> vPandingReceiveFileHashes;
+std::vector<FilePending> vPendingReceiveFile;
 
-uint256 requestSendHashFile; // TODO: remove
 
 void EraseOrphansFor(NodeId peer);
 
@@ -492,16 +491,101 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
     }
 }
 
-void removeFileLocatorHash(uint256& hash)
-{
-    // TODO: think about locks
-    vPandingReceiveFileHashes.erase(std::remove(std::begin(vPandingReceiveFileHashes), std::end(vPandingReceiveFileHashes), hash), std::end(vPandingReceiveFileHashes));
+
+bool isFileReceivePending(uint256& hash) {
+    for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
+        if (it->fileHash == hash) return true;
+    }
+
+    return false;
 }
 
-bool isFileReceivePending(uint256& hash)
-{
-    return find(vPandingReceiveFileHashes.begin(), vPandingReceiveFileHashes.end(), hash) != vPandingReceiveFileHashes.end();
+
+ bool getFileReceivePending(FilePending filePending, uint256& hash) {
+    for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
+        if (it->fileHash == hash) {
+            filePending = *it;
+            return true;
+        }
+    }
+
+    return false;
 }
+
+void addFileReceivePending(uint256 hash, uint256& txConfirmed, NodeId fromPeer = NULL) {
+    FilePending filePending;
+//    LOCK(cs_main);
+//    CNodeState* state = State(nodeid);
+//    if (state == NULL)
+//        return false;
+
+    //file in list? update data.
+    if (isFileReceivePending(hash)) {
+        if (getFileReceivePending(filePending, hash)) {
+            if (filePending.txConfirmed != txConfirmed) {
+                //todo: return
+                //LogPrint("Error. Data file not found in FileReceivePending or txConfirmed not equal");
+                return;
+            }
+
+            //update data.
+            if (filePending.nodeId == NULL && fromPeer != NULL)
+                filePending.nodeId = fromPeer;
+        }
+
+        return;
+    }
+
+    //todo: сделать статус загрузки файла.
+    if (fromPeer != NULL)
+        filePending.nodeId = fromPeer;
+
+    filePending.fileHash = hash;
+    filePending.txConfirmed = txConfirmed;
+    vPendingReceiveFile.push_back(filePending);
+}
+
+void removeFileReceivePending(FilePending* filePending) {
+    vPendingReceiveFile.erase(std::remove(std::begin(vPendingReceiveFile), std::end(vPendingReceiveFile), filePending), std::end(vPendingReceiveFile));
+}
+
+void removeFileReceivePendingByHash(uint256& hash) {
+    FilePending filePending;
+    if (getFileReceivePending(filePending, hash))
+        removeFileReceivePending(&filePending);
+}
+
+void handleFileReceivePending(CNode* pto) {
+    if (!vPendingReceiveFile.empty()) {
+        for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
+            uint256 fileHash = it->fileHash;
+
+            //todo: ?
+            if (!pwalletMain->mapWallet.count(it->txConfirmed)) {
+                removeFileReceivePendingByHash(fileHash);
+                return;
+            }
+
+            const CWalletTx& wtx = pwalletMain->mapWallet[it->txConfirmed];
+            int txConfirmedBlockHeight = wtx.nIndex;
+            int blockHeight = chainActive.Height();
+            if (blockHeight > (txConfirmedBlockHeight + FILE_PENDING_RECEIVE_MATURITY)) {
+                //todo: Можно ли сделать так?
+                removeFileReceivePendingByHash(fileHash);
+                return;
+            }
+
+            if (it->nodeId != NULL) {
+                //todo: переделать на сигнал узлу. (или может не сигнал) чтобы передавать только nodeID.
+                //todo: отправить id узла и запрос файла.
+                //it->node.PushMessage("fileRequest", fileHash);
+            } else {
+                pto->PushMessage("fileRequest", fileHash);
+            }
+        }
+    }
+}
+
 
 } // anon namespace
 
@@ -526,8 +610,9 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.connect(&GetHeight);
     nodeSignals.ProcessMessages.connect(&ProcessMessages);
     nodeSignals.SendMessages.connect(&SendMessages);
-    nodeSignals.SendFile.connect(&SendFile);
-    nodeSignals.GetFiles.connect(&GetFiles);
+    nodeSignals.SendFileMessages.connect(&SendFileMessages);
+    nodeSignals.FileRequestMessages.connect(&FileRequestMessages);
+    nodeSignals.FileAvailableMessages.connect(&FileAvailableMessages);
     nodeSignals.InitializeNode.connect(&InitializeNode);
     nodeSignals.FinalizeNode.connect(&FinalizeNode);
 }
@@ -537,8 +622,9 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.disconnect(&GetHeight);
     nodeSignals.ProcessMessages.disconnect(&ProcessMessages);
     nodeSignals.SendMessages.disconnect(&SendMessages);
-    nodeSignals.SendFile.disconnect(&SendFile);
-    nodeSignals.GetFiles.disconnect(&GetFiles);
+    nodeSignals.SendFileMessages.disconnect(&SendFileMessages);
+    nodeSignals.FileRequestMessages.disconnect(&FileRequestMessages);
+    nodeSignals.FileAvailableMessages.disconnect(&FileAvailableMessages);
     nodeSignals.InitializeNode.disconnect(&InitializeNode);
     nodeSignals.FinalizeNode.disconnect(&FinalizeNode);
 }
@@ -5024,15 +5110,13 @@ void HandleFileTransferTx(CBlock* pblock) {
         CDiskFileBlockPos postx;
         //file not found at DB.
         if (!pblockfiletree->ReadFileIndex(fileHash, postx)) {
-            vPandingReceiveFileHashes.push_back(fileHash);
+
+            //todo: txConfirmed?
+            addFileReceivePending(fileHash, NULL, NULL);
+
+            FileRequest(fileHash);
         }
         //todo: добавить ли тут проверку файла на диске.
-    }
-
-    //todo: Заменить на получение файлов из ближайших нодов(по рейтингу или пингу)
-    if (!vPandingReceiveFileHashes.empty()) {
-        GetFilesMessage();
-        //pfrom->PushMessage("getfiles", vPandingReceiveFileHashes);
     }
 }
 
@@ -6740,87 +6824,113 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     //file region
     else if (strCommand == "file")//todo: fImporting??? fReindex???
     {
-         std::vector<CDBFile> vfiles;
-         vRecv >> vfiles;
+        CDBFile file;
+        vRecv >> file;
 
-        if (!vfiles.empty()) {
-            std::vector<CDBFile>::iterator it = vfiles.begin();
-            while (it != vfiles.end()) {
-                uint256 fileHash = it->fileHash;
-                // TODO: check file hash
-                LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
+        uint256 fileHash = file.fileHash;
+        // TODO: check file hash
+        LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
 
-                //file isNeeded
-                if (isFileReceivePending(fileHash)) {
-                    //file validate
-                    if (fileHash == it->CalcFileHash()) {
-                        //save file
-                        unsigned int nFileSize = ::GetSerializeSize(*it, SER_DISK, CLIENT_VERSION);
-                        CDiskFileBlockPos filePos;
-                        CValidationState state;
-                        if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-                            return error("LoadBlockIndex() : FindBlockPos failed");
+        //file isNeeded
+        if (isFileReceivePending(fileHash)) {
+            //file validate
+            if (fileHash == file.CalcFileHash()) {
+                //save file
+                unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+                CDiskFileBlockPos filePos;
+                CValidationState state;
+                if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                    return error("LoadBlockIndex() : FindBlockPos failed");
 
-                        if (!WriteFileBlockToDisk(*it, filePos))
-                            return state.Abort("Failed to write file");
+                if (!WriteFileBlockToDisk(file, filePos))
+                    return state.Abort("Failed to write file");
 
-                        if (!pblockfiletree->WriteFileIndex(it->CalcFileHash(), filePos))
-                                return state.Abort("Failed to write file position");
+                if (!pblockfiletree->WriteFileIndex(file.CalcFileHash(), filePos))
+                        return state.Abort("Failed to write file position");
 
-                        UpdateFileBlockPosData(filePos);
-                        removeFileLocatorHash(fileHash);
-                    }
-                }
-
-                ++it;
+                UpdateFileBlockPosData(filePos);
+                removeFileReceivePendingByHash(fileHash);
             }
         }
     }
 
-    else if (strCommand == "getfiles")
+    else if (strCommand == "fileRequest")
     {
-        std::vector<uint256> hashes;
-        vRecv >> hashes;
+        uint256 fileHash;
+        vRecv >> fileHash;
 
-        if (!hashes.empty()) {
-            int nLimit = MAX_SEND_FILE_RESULTS;
-            bool isResultHasData = false;
-
-            std::vector<CDBFile> vfiles;
-            std::vector<uint256>::const_iterator it = hashes.begin();
-            while (it != hashes.end() || --nLimit <= 0) {
-                if (isFileReceivePending(hashes[it - hashes.begin()])) {
-                    //this node search this file to. ignore.
-                    continue;
-                }
-
+        if (fileHash != NULL) {
+            //this node search this file to. ignore.
+            if (!isFileReceivePending(fileHash)) {
+                bool isResultHasData = false;
+                CDBFile file;
                 CDiskFileBlockPos postx;
-                if (pblockfiletree->ReadFileIndex(*it, postx)) {
-                    CDBFile file;
-                    if(ReadFileBlockFromDisk(file, postx)) {
+                if (pblockfiletree->ReadFileIndex(fileHash, postx)) {
+
+                    if (ReadFileBlockFromDisk(file, postx)) {
                         //add file to result
-                        vfiles.push_back(file);
                         isResultHasData = true;
                     } else {
-//                        LogPrintf("File not found at DiskSpace. fileHash %s\n", *it.toString());
+                        LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
                     }
                 } else {
-//                    LogPrintf("File not found in DB. fileHash %s\n", *it.toString());
+                    LogPrintf("File not found in DB. fileHash %s\n", fileHash);
                 }
 
-                it++;
+                if (isResultHasData) {
+                    //push file hash
+                    pfrom->PushMessage("fileAvailable", fileHash);
+                }
+            }
+        }
+    }
+
+    else if (strCommand == "fileAvailable")
+    {
+        uint256 fileHash;
+        uint256 txConfirmed;
+        vRecv >> fileHash >> txConfirmed;
+
+        if (fileHash != NULL) {
+            if(isFileReceivePending(fileHash)) {
+                //TODO: добавить проверку на сессию скачивания файла
+
+                pfrom->PushMessage("getfile", fileHash);
+            } else {
+                addFileReceivePending(fileHash, txConfirmed, pfrom->id);
+            }
+        }
+    }
+
+    else if (strCommand == "getfile")
+    {
+        uint256 hash;
+        vRecv >> hash;
+
+         //this node search this file to. ignore.
+        if (!isFileReceivePending(hash)) {
+            bool isResultHasData = false;
+            CDBFile file;
+            CDiskFileBlockPos postx;
+            if (pblockfiletree->ReadFileIndex(hash, postx)) {
+
+                if(ReadFileBlockFromDisk(file, postx)) {
+                    //add file to result
+                    isResultHasData = true;
+                } else {
+                    LogPrintf("File not found at DiskSpace. fileHash %s\n", hash);
+                }
+            } else {
+                LogPrintf("File not found in DB. fileHash %s\n", hash);
             }
 
             if (isResultHasData) {
                 //push file
-                pfrom->PushMessage("file", vfiles);
-
-                //UpdateRequestSendHashFile(fileHash);
-                //FileMessage();
+                pfrom->PushMessage("file", file);
             }
         }
     }
-    //endfile region
+    //end fileregion
 
     else if (strCommand == "block" && !fImporting && !fReindex) // Ignore blocks received while importing
     {
@@ -7224,13 +7334,8 @@ bool ProcessMessages(CNode* pfrom)
     return fOk;
 }
 
-// TODO: remove
-void UpdateRequestSendHashFile(const uint256& newRequestHash) {
-    requestSendHashFile = newRequestHash;
-}
 
-bool GetFiles(CNode* pto, bool fSendTrickle)
-{
+bool FileRequest(CNode* pto, bool fSendTrickle, uint256 fileHash) {
     // Don't send anything until we get their version message
     if (pto->nVersion == 0)
         return true;
@@ -7290,13 +7395,89 @@ bool GetFiles(CNode* pto, bool fSendTrickle)
             pto->PushMessage("addr", vAddr);
     }
 
-    if (!vPandingReceiveFileHashes.empty()) {
-        pto->PushMessage("getfiles", vPandingReceiveFileHashes);
+    if (fileHash == NULL) {
+        handleFileReceivePending(pto);
+    } else {
+        if (!isFileReceivePending(fileHash)) {
+            pto->PushMessage("fileRequest", fileHash);
+        }
     }
 }
 
-bool SendFile(CNode* pto, bool fSendTrickle)
-{
+bool FileAvailableMessages(CNode* pto, bool fSendTrickle, uint256 fileHash) {
+// Don't send anything until we get their version message
+    if (pto->nVersion == 0)
+        return true;
+
+    //
+    // Message: ping
+    //
+    bool pingSend = false;
+    if (pto->fPingQueued) {
+        // RPC ping request by user
+        pingSend = true;
+    }
+    if (pto->nPingNonceSent == 0 && pto->nPingUsecStart + PING_INTERVAL * 1000000 < GetTimeMicros()) {
+        // Ping automatically sent as a latency probe & keepalive.
+        pingSend = true;
+    }
+    if (pingSend) {
+        uint64_t nonce = 0;
+        while (nonce == 0) {
+            GetRandBytes((unsigned char*)&nonce, sizeof(nonce));
+        }
+        pto->fPingQueued = false;
+        pto->nPingUsecStart = GetTimeMicros();
+        if (pto->nVersion > BIP0031_VERSION) {
+            pto->nPingNonceSent = nonce;
+            pto->PushMessage("ping", nonce);
+        } else {
+            // Peer is too old to support ping command with nonce, pong will never arrive.
+            pto->nPingNonceSent = 0;
+            pto->PushMessage("ping");
+        }
+    }
+
+    TRY_LOCK(cs_main, lockMain); // Acquire cs_main for IsInitialBlockDownload() and CNodeState()
+    if (!lockMain)
+        return true;
+
+    //
+    // Message: addr
+    //
+    if (fSendTrickle) {
+        vector<CAddress> vAddr;
+        vAddr.reserve(pto->vAddrToSend.size());
+        BOOST_FOREACH (const CAddress& addr, pto->vAddrToSend) {
+                        // returns true if wasn't already contained in the set
+                        if (pto->setAddrKnown.insert(addr).second) {
+                            vAddr.push_back(addr);
+                            // receiver rejects addr messages larger than 1000
+                            if (vAddr.size() >= 1000) {
+                                pto->PushMessage("addr", vAddr);
+                                vAddr.clear();
+                            }
+                        }
+                    }
+        pto->vAddrToSend.clear();
+        if (!vAddr.empty())
+            pto->PushMessage("addr", vAddr);
+    }
+
+    // check and send file notification
+    CDiskFileBlockPos posFile;
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile))
+        LogPrintf("File not found in DB. fileHash %s\n", fileHash);
+
+    CDBFile file;
+    if(!ReadFileBlockFromDisk(file, posFile))
+        LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
+
+    pto->PushMessage("fileAvailable", fileHash);
+    return true;
+}
+
+bool SendFileMessages(CNode* pto, bool fSendTrickle, uint256 fileHash) {
     // Don't send anything until we get their version message
     if (pto->nVersion == 0)
         return true;
@@ -7355,28 +7536,21 @@ bool SendFile(CNode* pto, bool fSendTrickle)
         if (!vAddr.empty())
             pto->PushMessage("addr", vAddr);
     }
-    std::vector<CDBFile> vfiles;
-    vfiles.resize(0);
 
     CDiskFileBlockPos posFile;
-    //const uint256 fileHash = requestSendHashFile;
-
-    if (pblockfiletree->ReadFileIndex(requestSendHashFile, posFile)) {
-
-        CDBFile file;
-        if(ReadFileBlockFromDisk(file, posFile)) {
-            //add file to result
-            vfiles.push_back(file);
-        } else {
-            //LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
-            return false;
-        }
-    } else {
-        //LogPrintf("File not found in DB. fileHash %s\n", fileHash);
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile)) {
+        LogPrintf("File not found in DB. fileHash %s\n", fileHash);
         return false;
     }
 
-    pto->PushMessage("file", vfiles);
+    CDBFile file;
+    if(!ReadFileBlockFromDisk(file, posFile)) {
+        LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
+        return false;
+    }
+
+    pto->PushMessage("file", file);
+    return true;
 }
 
 bool SendMessages(CNode* pto, bool fSendTrickle)

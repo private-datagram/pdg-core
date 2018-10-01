@@ -5461,6 +5461,9 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         return false;
     }
 
+    FileAvailable(txFile.fileHash);
+
+    //notification about available file
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
         LogPrintStr("Failed to delete wallet file tx");
 

@@ -40,6 +40,9 @@
 // Dump addresses to peers.dat every 15 minutes (900s)
 #define DUMP_ADDRESSES_INTERVAL 900
 
+// Checking required files every 20 seconds
+#define CHECK_REQUIRED_FILES_INTERVAL 20
+
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
 #endif
@@ -1277,6 +1280,11 @@ void DumpAddresses()
         addrman.size(), GetTimeMillis() - nStart);
 }
 
+void FilesPendingHandle()
+{
+    FileRequest();
+}
+
 void DumpData()
 {
     DumpAddresses();
@@ -1490,9 +1498,9 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
     return true;
 }
 
+//region file handle
 // TODO: select optimal nodes
-void GetFilesMessage()
-{
+void FileRequest(uint256 fileHash) {
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
@@ -1531,7 +1539,7 @@ void GetFilesMessage()
         {
             TRY_LOCK(pnode->cs_vSend, lockSend);
             if (lockSend)
-                g_signals.GetFiles(pnode, pnode == pnodeTrickle || pnode->fWhitelisted);
+                g_signals.FileRequestMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
         }
         boost::this_thread::interruption_point();
     }
@@ -1543,8 +1551,58 @@ void GetFilesMessage()
     }
 }
 
-void SendFileMessage()
-{
+void FileAvailable(uint256 fileHash) {
+    vector<CNode*> vNodesCopy;
+    {
+        LOCK(cs_vNodes);
+        vNodesCopy = vNodes;
+        BOOST_FOREACH (CNode* pnode, vNodesCopy) {
+                        pnode->AddRef();
+                    }
+    }
+
+    // Poll the connected nodes for messages
+    CNode* pnodeTrickle = NULL;
+    if (!vNodesCopy.empty())
+        pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
+
+    BOOST_FOREACH (CNode* pnode, vNodesCopy) {
+        if (pnode->fDisconnect)
+            continue;
+
+        // Receive messages
+        {
+            TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
+            if (lockRecv) {
+                if (!g_signals.ProcessMessages(pnode))
+                    pnode->CloseSocketDisconnect();
+
+                if (pnode->nSendSize < SendBufferSize()) {
+                    //if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
+                    //   fSleep = false;
+                    //}
+                }
+            }
+        }
+        boost::this_thread::interruption_point();
+
+        // Send messages
+        {
+            TRY_LOCK(pnode->cs_vSend, lockSend);
+            if (lockSend)
+                g_signals.FileAvailableMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
+        }
+        boost::this_thread::interruption_point();
+    }
+
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH (CNode* pnode, vNodesCopy)
+                        pnode->Release();
+    }
+}
+
+void SendFile(uint256 fileHash) {
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
@@ -1583,7 +1641,7 @@ void SendFileMessage()
         {
             TRY_LOCK(pnode->cs_vSend, lockSend);
             if (lockSend)
-                g_signals.SendFile(pnode, pnode == pnodeTrickle || pnode->fWhitelisted);
+                g_signals.SendFileMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
         }
         boost::this_thread::interruption_point();
     }
@@ -1594,6 +1652,8 @@ void SendFileMessage()
             pnode->Release();
     }
 }
+
+//endregion
 
 void ThreadMessageHandler()
 {
@@ -1873,6 +1933,8 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // Dump network addresses
     scheduler.scheduleEvery(&DumpData, DUMP_ADDRESSES_INTERVAL);
+
+    scheduler.scheduleEvery(&FilesPendingHandle, CHECK_REQUIRED_FILES_INTERVAL);
 
     // ppcoin:mint proof-of-stake blocks in the background
     if (GetBoolArg("-staking", true))

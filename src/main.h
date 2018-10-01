@@ -97,6 +97,8 @@ static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
 static const int COINBASE_MATURITY = 5; // TODO: update
 /** File payment confirmations wait to send file */
 static const int FILE_PAYMENT_MATURITY = 3;
+/** File scheduler pending receive file */
+static const int FILE_PENDING_RECEIVE_MATURITY = 20;
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
 static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
 /** Maximum number of script-checking threads allowed */
@@ -149,6 +151,16 @@ struct CPaymentMatureTx {
     CPaymentMatureTx() : tx(), blockHeight(0) {}
 };
 
+struct FilePending {
+    uint256 txConfirmed;
+    uint256 fileHash;
+
+    //CNode node;
+    NodeId nodeId;
+    int removeBlockHeight;
+
+    FilePending() : txConfirmed(0), fileHash(0), nodeId(-1), removeBlockHeight(0)  {}
+};
 
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
@@ -186,7 +198,7 @@ extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
-extern std::vector<uint256> vPandingReceiveFileHashes;
+extern std::vector<FilePending> vPendingReceiveFile;
 
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
@@ -259,7 +271,6 @@ int ActiveProtocol();
 /** Process protocol messages received from a given node */
 bool ProcessMessages(CNode* pfrom);
 
-void UpdateRequestSendHashFile(const uint256& newRequestHash);
 /**
  * Send queued protocol messages to be sent to a give node.
  *
@@ -268,11 +279,14 @@ void UpdateRequestSendHashFile(const uint256& newRequestHash);
  */
 bool SendMessages(CNode* pto, bool fSendTrickle);
 
-/** Request a file */
-bool GetFiles(CNode* pto, bool fSendTrickle);
+/** Request a file notification */
+bool FileRequestMessages(CNode* pto, bool fSendTrickle, uint256 fileHash);
+
+/** Request info about available file */
+bool FileAvailableMessages(CNode* pro, bool fSendTrickle, uint256 fileHash);
 
 /** Send a file */
-bool SendFile(CNode* pto, bool fSendTrickele);
+bool SendFileMessages(CNode* pto, bool fSendTrickele, uint256 fileHash);
 
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
