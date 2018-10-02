@@ -363,6 +363,15 @@ CNode* FindNode(const CSubNet& subNet)
     return NULL;
 }
 
+CNode* FindNode(const NodeId id)
+{
+    LOCK(cs_vNodes);
+    for (CNode* pnode : vNodes)
+        if (pnode->id == id)
+            return (pnode);
+    return NULL;
+}
+
 CNode* FindNode(const std::string& addrName)
 {
     LOCK(cs_vNodes);
@@ -1282,7 +1291,7 @@ void DumpAddresses()
 
 void FilesPendingHandle()
 {
-    FileRequest();
+    FileRequest(NULL);
 }
 
 void DumpData()

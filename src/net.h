@@ -69,13 +69,16 @@ void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);
 void AddressCurrentlyConnected(const CService& addr);
 
+typedef int NodeId;
+
 //file handle
-void FileRequest(uint256 fileHash = NULL);
+void FileRequest(uint256 fileHash);
 void FileAvailable(uint256 fileHash);
 void SendFile(uint256 fileHash);
 
 CNode* FindNode(const CNetAddr& ip);
 CNode* FindNode(const CSubNet& subNet);
+CNode* FindNode(const NodeId id);
 CNode* FindNode(const std::string& addrName);
 CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char* pszDest = NULL, bool obfuScationMaster = false);
@@ -86,8 +89,6 @@ bool BindListenPort(const CService& bindAddr, std::string& strError, bool fWhite
 void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler);
 bool StopNode();
 void SocketSendData(CNode* pnode);
-
-typedef int NodeId;
 
 // Signals for message handling
 struct CNodeSignals {

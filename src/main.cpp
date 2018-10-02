@@ -107,6 +107,7 @@ map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO:
 std::vector<FilePending> vPendingReceiveFile;
 
 
+
 void EraseOrphansFor(NodeId peer);
 
 static void CheckBlockIndex();
@@ -492,7 +493,7 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
 }
 
 
-bool isFileReceivePending(uint256& hash) {
+bool isFileReceivePending(const uint256& hash) {
     for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
         if (it->fileHash == hash) return true;
     }
@@ -501,7 +502,7 @@ bool isFileReceivePending(uint256& hash) {
 }
 
 
- bool getFileReceivePending(FilePending filePending, uint256& hash) {
+ bool getFileReceivePending(FilePending& filePending, const uint256& hash) {
     for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
         if (it->fileHash == hash) {
             filePending = *it;
@@ -512,13 +513,8 @@ bool isFileReceivePending(uint256& hash) {
     return false;
 }
 
-void addFileReceivePending(uint256 hash, uint256& txConfirmed, NodeId fromPeer = NULL) {
+void addFileReceivePending(const uint256& hash, const uint256& txConfirmed, NodeId fromPeer = -1) {
     FilePending filePending;
-//    LOCK(cs_main);
-//    CNodeState* state = State(nodeid);
-//    if (state == NULL)
-//        return false;
-
     //file in list? update data.
     if (isFileReceivePending(hash)) {
         if (getFileReceivePending(filePending, hash)) {
@@ -529,7 +525,7 @@ void addFileReceivePending(uint256 hash, uint256& txConfirmed, NodeId fromPeer =
             }
 
             //update data.
-            if (filePending.nodeId == NULL && fromPeer != NULL)
+            if (filePending.nodeId == -1 && fromPeer != -1)
                 filePending.nodeId = fromPeer;
         }
 
@@ -537,7 +533,7 @@ void addFileReceivePending(uint256 hash, uint256& txConfirmed, NodeId fromPeer =
     }
 
     //todo: сделать статус загрузки файла.
-    if (fromPeer != NULL)
+    if (fromPeer != -1)
         filePending.nodeId = fromPeer;
 
     filePending.fileHash = hash;
@@ -545,14 +541,14 @@ void addFileReceivePending(uint256 hash, uint256& txConfirmed, NodeId fromPeer =
     vPendingReceiveFile.push_back(filePending);
 }
 
-void removeFileReceivePending(FilePending* filePending) {
+void removeFileReceivePending(FilePending filePending) {
     vPendingReceiveFile.erase(std::remove(std::begin(vPendingReceiveFile), std::end(vPendingReceiveFile), filePending), std::end(vPendingReceiveFile));
 }
 
 void removeFileReceivePendingByHash(uint256& hash) {
     FilePending filePending;
     if (getFileReceivePending(filePending, hash))
-        removeFileReceivePending(&filePending);
+        removeFileReceivePending(filePending);
 }
 
 void handleFileReceivePending(CNode* pto) {
@@ -563,7 +559,7 @@ void handleFileReceivePending(CNode* pto) {
             //todo: ?
             if (!pwalletMain->mapWallet.count(it->txConfirmed)) {
                 removeFileReceivePendingByHash(fileHash);
-                return;
+                continue;
             }
 
             const CWalletTx& wtx = pwalletMain->mapWallet[it->txConfirmed];
@@ -572,15 +568,22 @@ void handleFileReceivePending(CNode* pto) {
             if (blockHeight > (txConfirmedBlockHeight + FILE_PENDING_RECEIVE_MATURITY)) {
                 //todo: Можно ли сделать так?
                 removeFileReceivePendingByHash(fileHash);
-                return;
+                continue;
             }
 
-            if (it->nodeId != NULL) {
-                //todo: переделать на сигнал узлу. (или может не сигнал) чтобы передавать только nodeID.
-                //todo: отправить id узла и запрос файла.
-                //it->node.PushMessage("fileRequest", fileHash);
-            } else {
+
+            if (it->nodeId == -1) {
                 pto->PushMessage("fileRequest", fileHash);
+                continue;
+            }
+
+            CNode *pNode = FindNode(it->nodeId);
+            if (pNode != NULL) {
+                //TODO: return
+                //LogPrint("Node not found by NodeId");
+                pNode->PushMessage("fileRequest", fileHash);
+            } else {
+                 pto->PushMessage("fileRequest", fileHash);
             }
         }
     }
@@ -2072,6 +2075,31 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     // SyncWithWallets(tx, NULL);
 
     return true;
+}
+
+bool GetFile(const uint256& hash, char& chars)
+{
+    LOCK(cs_main);
+
+    CDiskTxPos postx;
+    if (pblocktree->ReadTxIndex(hash, postx)) {
+        CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+        if (file.IsNull())
+            return error("%s: OpenBlockFileFile failed", __func__);
+        CBlockHeader header;
+        try {
+            file >> header;
+            fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+            //file >> txOut;
+        } catch (std::exception& e) {
+            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+        }
+
+        return true;
+    }
+
+    // transaction not found in the index, nothing more can be done
+    return false;
 }
 
 /** Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock */
@@ -7335,7 +7363,7 @@ bool ProcessMessages(CNode* pfrom)
 }
 
 
-bool FileRequest(CNode* pto, bool fSendTrickle, uint256 fileHash) {
+bool FileRequestMessages(CNode* pto, bool fSendTrickle, uint256 fileHash) {
     // Don't send anything until we get their version message
     if (pto->nVersion == 0)
         return true;
