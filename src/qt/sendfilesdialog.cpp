@@ -477,7 +477,7 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
     CFileMeta* fileMeta = &fileTx.meta.get<CFileMeta>();
 
     CTransaction paymentTx;
-    if (!GetTransaction(fileMeta->confirmTxid, paymentTx, hashBlock, true)) {
+    if (!GetTransaction(fileMeta->confirmTxId, paymentTx, hashBlock, true)) {
         QMessageBox::critical(this, tr("Save file"), tr("Unable to find file payment transaction"));
         return;
     }

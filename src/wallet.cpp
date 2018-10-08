@@ -5357,7 +5357,7 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
     // remove already processed transactions
     if (tx.type == TX_FILE_TRANSFER) {
         CFileMeta *meta = &tx.meta.get<CFileMeta>();
-        mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxid);
+        mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxId);
 
         return false;
     }

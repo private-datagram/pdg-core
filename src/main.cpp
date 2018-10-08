@@ -186,6 +186,15 @@ struct QueuedBlock {
 };
 map<uint256, pair<NodeId, list<QueuedBlock>::iterator> > mapBlocksInFlight;
 
+struct QueuedFile {
+    uint256 confirmTxId;
+    uint256 fileHash;
+    int64_t nTime;
+
+    //todo: нужно для таймаута, подумать
+//    int nValidatedQueuedBefore; //! Number of blocks queued with validated headers (globally) at the time this one is requested.
+};
+
 /** Number of blocks in flight with validated headers. */
 int nQueuedValidatedHeaders = 0;
 
@@ -245,6 +254,13 @@ struct CNodeState {
     int nBlocksInFlight;
     //! Whether we consider this a preferred download peer.
     bool fPreferredDownload;
+
+    //region file
+    int64_t nStallingSince;
+
+    list<QueuedBlock> vFilesInFlight;
+    int nFilesInFlight;
+    //end region
 
     CNodeState()
     {
@@ -493,55 +509,49 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
 }
 
 
-bool isFileReceivePending(const uint256& hash) {
-    for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
-        if (it->fileHash == hash) return true;
-    }
-
-    return false;
-}
-
-
- bool getFileReceivePending(FilePending& filePending, const uint256& hash) {
+FilePending* getFileReceivePending(const uint256& hash) {
+    // TODO: optimize search
     for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
         if (it->fileHash == hash) {
-            filePending = *it;
-            return true;
+            return &(*it);
         }
     }
 
-    return false;
+    return nullptr;
 }
 
-void addFileReceivePending(const uint256& hash, const uint256& txConfirmed, NodeId fromPeer = -1) {
-    FilePending filePending;
-    //file in list? update data.
-    if (isFileReceivePending(hash)) {
-        if (getFileReceivePending(filePending, hash)) {
-            if (filePending.txConfirmed != txConfirmed) {
-                //todo: return
-                //LogPrint("Error. Data file not found in FileReceivePending or txConfirmed not equal");
-                return;
-            }
+bool isFileReceivePending(const uint256& hash) {
+    return getFileReceivePending(hash) != nullptr;
+}
 
-            //update data.
-            if (filePending.nodeId == -1 && fromPeer != -1)
-                filePending.nodeId = fromPeer;
-        }
+void addFileReceivePending(const uint256& hash, const uint256& confirmTxId, NodeId fromPeer = -1) {
+    FilePending *filePending = getFileReceivePending(hash);
 
+    // insert new
+    if (filePending == nullptr) {
+        FilePending newFilePending;
+        //todo: сделать статус загрузки файла.
+        if (fromPeer != -1)
+            newFilePending.nodeId = fromPeer;
+
+        newFilePending.fileHash = hash;
+        newFilePending.confirmTxId = confirmTxId;
+        vPendingReceiveFile.emplace_back(newFilePending);
         return;
     }
 
-    //todo: сделать статус загрузки файла.
-    if (fromPeer != -1)
-        filePending.nodeId = fromPeer;
+    if (filePending->confirmTxId != confirmTxId) {
+        //todo: return
+        LogPrint("Error. Data file not found in FileReceivePending or confirmTxId not equal");
+        return;
+    }
 
-    filePending.fileHash = hash;
-    filePending.txConfirmed = txConfirmed;
-    vPendingReceiveFile.push_back(filePending);
+    //update data.
+    if (filePending->nodeId == -1 && fromPeer != -1)
+        filePending->nodeId = fromPeer;
 }
 
-void removeFileReceivePending(FilePending filePending) {
+void removeFileReceivePending(const FilePending& filePending) {
     vPendingReceiveFile.erase(std::remove(std::begin(vPendingReceiveFile), std::end(vPendingReceiveFile), filePending), std::end(vPendingReceiveFile));
 }
 
@@ -552,39 +562,38 @@ void removeFileReceivePendingByHash(uint256& hash) {
 }
 
 void handleFileReceivePending(CNode* pto) {
-    if (!vPendingReceiveFile.empty()) {
-        for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
-            uint256 fileHash = it->fileHash;
+    for (std::vector<FilePending>::iterator filePanding = vPendingReceiveFile.begin(); filePanding != vPendingReceiveFile.end(); ++filePanding) {
+        uint256& fileHash = filePanding->fileHash;
 
-            //todo: ?
-            if (!pwalletMain->mapWallet.count(it->txConfirmed)) {
-                removeFileReceivePendingByHash(fileHash);
-                continue;
-            }
+        CTransaction paymentTx;
+        uint256 hashBlock;
+        if (!GetTransaction(filePanding->confirmTxId, paymentTx, hashBlock, true)) {
+            removeFileReceivePendingByHash(fileHash);
+            continue;
+        }
 
-            const CWalletTx& wtx = pwalletMain->mapWallet[it->txConfirmed];
-            int txConfirmedBlockHeight = wtx.nIndex;
-            int blockHeight = chainActive.Height();
-            if (blockHeight > (txConfirmedBlockHeight + FILE_PENDING_RECEIVE_MATURITY)) {
-                //todo: Можно ли сделать так?
-                removeFileReceivePendingByHash(fileHash);
-                continue;
-            }
+        const CWalletTx& wtx = pwalletMain->mapWallet[filePanding->confirmTxId];
+        int txConfirmedBlockHeight = wtx.nIndex;
+        int blockHeight = chainActive.Height();
+        if (blockHeight > (txConfirmedBlockHeight + FILE_PENDING_RECEIVE_MATURITY)) {
+            //todo: Можно ли сделать так?
+            removeFileReceivePendingByHash(fileHash);
+            continue;
+        }
 
 
-            if (it->nodeId == -1) {
-                pto->PushMessage("fileRequest", fileHash);
-                continue;
-            }
+        if (filePanding->nodeId == -1) {
+            pto->PushMessage("fileRequest", fileHash);
+            continue;
+        }
 
-            CNode *pNode = FindNode(it->nodeId);
-            if (pNode != NULL) {
-                //TODO: return
-                //LogPrint("Node not found by NodeId");
-                pNode->PushMessage("fileRequest", fileHash);
-            } else {
-                 pto->PushMessage("fileRequest", fileHash);
-            }
+        CNode *pNode = FindNode(filePanding->nodeId);
+        if (pNode != NULL) {
+            //TODO: return
+            //LogPrint("Node not found by NodeId");
+            pNode->PushMessage("fileRequest", fileHash);
+        } else {
+             pto->PushMessage("fileRequest", fileHash);
         }
     }
 }
@@ -2077,31 +2086,6 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     return true;
 }
 
-bool GetFile(const uint256& hash, char& chars)
-{
-    LOCK(cs_main);
-
-    CDiskTxPos postx;
-    if (pblocktree->ReadTxIndex(hash, postx)) {
-        CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
-        if (file.IsNull())
-            return error("%s: OpenBlockFileFile failed", __func__);
-        CBlockHeader header;
-        try {
-            file >> header;
-            fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
-            //file >> txOut;
-        } catch (std::exception& e) {
-            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-        }
-
-        return true;
-    }
-
-    // transaction not found in the index, nothing more can be done
-    return false;
-}
-
 /** Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock, bool fAllowSlow)
 {
@@ -2165,6 +2149,19 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
     }
 
     return false;
+}
+
+// TODO: figure out with locks
+bool GetFile(const uint256& fileHash, CDBFile& fileOut) {
+    CDiskFileBlockPos posFile;
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile))
+        return error("%s : File not found in DB. fileHash %s", __func__, fileHash.ToString());
+
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(fileOut, posFile))
+        return error("%s : File not found on disk. fileHash %s", __func__, fileHash.ToString());
+
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -5133,17 +5130,21 @@ void HandleFileTransferTx(CBlock* pblock) {
 
         //process file
         uint256 fileHash = tx.vfiles[0].fileHash;
-        if (fileHash == NULL || isFileReceivePending(fileHash)) continue; //ignore
+        if (isFileReceivePending(fileHash))
+            continue; //ignore
 
         CDiskFileBlockPos postx;
         //file not found at DB.
-        if (!pblockfiletree->ReadFileIndex(fileHash, postx)) {
+        if (pblockfiletree->ReadFileIndex(fileHash, postx))
+            continue;
 
-            //todo: txConfirmed?
-            addFileReceivePending(fileHash, NULL, NULL);
+        CFileMeta* fileMeta = &tx.meta.get<CFileMeta>();
 
-            FileRequest(fileHash);
-        }
+        //todo: confirmTxId?
+        addFileReceivePending(fileHash, fileMeta->confirmTxId);
+
+        FileRequest(fileHash);
+
         //todo: добавить ли тут проверку файла на диске.
     }
 }
@@ -6146,6 +6147,11 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
+
+                if (!pushed && inv.type == MSG_FILE) {
+
+                }
+
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -7787,7 +7793,13 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             }
         }
 
-        //
+        //!pto->fClient ??
+        if (!pto->fDisconnect &&  fFetch && state.nFilesInFlight < MAX_FILES_IN_TRANSIT_PER_PEER) {
+            //реализация выбора очереди файлов у данного нода
+            
+        }
+
+            //
         // Message: getdata (non-blocks)
         //
         while (!pto->fDisconnect && !pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow) {

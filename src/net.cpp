@@ -737,7 +737,7 @@ bool CNode::ReceiveMsgBytes(const char* pch, unsigned int nBytes)
         if (handled < 0)
             return false;
 
-        if (msg.in_data && msg.hdr.nMessageSize > MAX_PROTOCOL_MESSAGE_LENGTH) {
+        if (msg.in_data && msg.hdr.nMessageSize > MAX_PROTOCOL_MESSAGE_LENGTH) { // TODO: PDG increase max size
             LogPrint("net", "Oversized message from peer=%i, disconnecting", GetId());
             return false;
         }
@@ -1509,6 +1509,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 
 //region file handle
 // TODO: select optimal nodes
+// TODO: include locks
 void FileRequest(uint256 fileHash) {
     vector<CNode*> vNodesCopy;
     {

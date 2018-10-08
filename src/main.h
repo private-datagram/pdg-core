@@ -109,6 +109,16 @@ static const int DEFAULT_SCRIPTCHECK_THREADS = 0;
 static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16;
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
 static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
+
+//region file
+/** Number of blocks that can be requested at any given time from a single peer. */
+static const int MAX_FILES_IN_TRANSIT_PER_PEER = 5;
+
+//TODO: подумать, может создавать таймаут в зависимости от размера файла.
+/** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
+static const unsigned int FILE_STALLING_TIMEOUT = 30;
+//end region
+
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
  *  less than this number, we reached their tip. Changing this value is a protocol upgrade. */
 static const unsigned int MAX_HEADERS_RESULTS = 2000;
@@ -152,14 +162,14 @@ struct CPaymentMatureTx {
 };
 
 struct FilePending {
-    uint256 txConfirmed;
+    uint256 confirmTxId;
     uint256 fileHash;
 
     //CNode node;
     NodeId nodeId;
     int removeBlockHeight;
 
-    FilePending() : txConfirmed(0), fileHash(0), nodeId(-1), removeBlockHeight(0)  {}
+    FilePending() : confirmTxId(0), fileHash(0), nodeId(-1), removeBlockHeight(0)  {}
 };
 
 extern CScript COINBASE_FLAGS;

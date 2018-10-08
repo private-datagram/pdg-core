@@ -61,7 +61,7 @@ void MetaToJSON(const PtrContainer<CTransactionMeta>& meta, UniValue& entry)
         metaEntry.push_back(Pair("publicKey", &pc.vfPublicKey[0]));
     } if (meta.IsInstanceOf<CFileMeta>()) {
         CFileMeta fm = meta.get<CFileMeta>();
-        metaEntry.push_back(Pair("confirmTxid", fm.confirmTxid.GetHex()));
+        metaEntry.push_back(Pair("confirmTxId", fm.confirmTxId.GetHex()));
         metaEntry.push_back(Pair("metaLen", (int) fm.vfEncodedMeta.size()));
     }
 

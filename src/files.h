@@ -52,7 +52,7 @@ bool PrepareMeta(Stream& inputFile, const std::string filename, const AESKey& ke
 
     // fill filemeta
     outFileMeta.vfEncodedMeta.insert(outFileMeta.vfEncodedMeta.end(), encryptedMeta, encryptedMeta + encryptedLen);
-    outFileMeta.confirmTxid = confirmTxHash;
+    outFileMeta.confirmTxId = confirmTxHash;
 
     delete encryptedMeta;
 

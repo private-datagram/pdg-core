@@ -33,7 +33,7 @@ struct CDBFile
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        // TODO: is nVersion write needed?
+        // TODO: write nVersion
         // Update file hash before write
         if (!ser_action.ForRead()) {
             UpdateFileHash();

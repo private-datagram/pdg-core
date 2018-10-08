@@ -311,7 +311,7 @@ public:
     CFileMeta();
 
     // Payment confirm transaction hash
-    uint256 confirmTxid;
+    uint256 confirmTxId; // TODO: rename
     // Encoded bytes of struct CEncodedMeta
     std::vector<char> vfEncodedMeta;
 
@@ -321,7 +321,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
-        READWRITE(confirmTxid);
+        READWRITE(confirmTxId);
         READWRITE(*const_cast<std::vector<char>*>(&vfEncodedMeta));
     }
 
