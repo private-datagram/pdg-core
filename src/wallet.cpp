@@ -5455,13 +5455,14 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (!SaveFileDB(dbFile))
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
 
-    if (!SendFileTx(txFile, fileMeta, fileDestination)) {
+    uint256 fileTxHash;
+    if (!SendFileTx(txFile, fileMeta, fileDestination, fileTxHash)) {
         if (!EraseFileDB(dbFile))
             LogPrintf("Remove file in DB failed\n");
         return false;
     }
 
-    FileAvailable(txFile.fileHash);
+    BroadcastFileAvailable(fileTxHash);
 
     //notification about available file
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
@@ -5502,7 +5503,7 @@ bool CWallet::SaveFileDB(CDBFile& file) {
     return true;
 }
 
-bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest) {
+bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest, uint256& outFileTxHash) {
     LogPrintStr(std::string("address: ") + CBitcoinAddress(dest).ToString());
 
     // fill transaction
@@ -5545,6 +5546,8 @@ bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestin
         if (!wallet->CommitTransaction(newTx, reservekey, (useSwiftTX) ? "ix" : "tx"))
             return error("%s : Failed to CommitTransaction", __func__); //TransactionCommitFailed; // TODO: make detailed
     }
+
+    outFileTxHash = newTx.GetHash();
 
     // accept transaction
     /**

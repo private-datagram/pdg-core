@@ -251,6 +251,7 @@ public:
     CAmount nPrice;
     uint160 paymentAddress;
     // TODO: don't forget about hash, think about security
+    // TODO: add expiration time
 
     ADD_SERIALIZE_METHODS;
 

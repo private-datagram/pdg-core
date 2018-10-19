@@ -1291,7 +1291,8 @@ void DumpAddresses()
 
 void FilesPendingHandle()
 {
-    FileRequest(NULL);
+    //FileRequest(NULL);
+    g_signals.ProcessFileReceivePending();
 }
 
 void DumpData()
@@ -1510,7 +1511,41 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 //region file handle
 // TODO: select optimal nodes
 // TODO: include locks
-void FileRequest(uint256 fileHash) {
+void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) {
+    if (pto != nullptr) {
+        pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
+        return;
+    }
+
+    vector<CNode *> vNodesCopy;
+    {
+        LOCK(cs_vNodes);
+        vNodesCopy = vNodes;
+        BOOST_FOREACH (CNode *pnode, vNodesCopy) {
+                        pnode->AddRef();
+                    }
+    }
+
+    BOOST_FOREACH (CNode *pnode, vNodesCopy) {
+                    if (pnode->fDisconnect)
+                        continue;
+
+                    // TODO: PDG 5 check first not busy
+                    if (std::find(busyNodes.begin(), busyNodes.end(), pnode->id) != busyNodes.end())
+                        continue;
+
+                    //1 node or all not busy?
+                    pnode->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
+                    boost::this_thread::interruption_point();
+                }
+
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH (CNode *pnode, vNodesCopy)pnode->Release();
+    }
+}
+
+void BroadcastFileAvailable(uint256 fileTxHash) {
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
@@ -1520,39 +1555,13 @@ void FileRequest(uint256 fileHash) {
         }
     }
 
-    // Poll the connected nodes for messages
-    CNode* pnodeTrickle = NULL;
-    if (!vNodesCopy.empty())
-        pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
+    BOOST_FOREACH (CNode *pnode, vNodesCopy) {
+                    if (pnode->fDisconnect)
+                        continue;
 
-    BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-        if (pnode->fDisconnect)
-            continue;
-
-        // Receive messages
-        {
-            TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
-            if (lockRecv) {
-                if (!g_signals.ProcessMessages(pnode))
-                    pnode->CloseSocketDisconnect();
-
-                if (pnode->nSendSize < SendBufferSize()) {
-                    //if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
-                     //   fSleep = false;
-                    //}
+                    // Send message
+                    g_signals.SendFileAvailable(pnode, fileTxHash);
                 }
-            }
-        }
-        boost::this_thread::interruption_point();
-
-        // Send messages
-        {
-            TRY_LOCK(pnode->cs_vSend, lockSend);
-            if (lockSend)
-                g_signals.FileRequestMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
-        }
-        boost::this_thread::interruption_point();
-    }
 
     {
         LOCK(cs_vNodes);
@@ -1561,7 +1570,7 @@ void FileRequest(uint256 fileHash) {
     }
 }
 
-void FileAvailable(uint256 fileHash) {
+void BroadcastHasFileRequest(uint256 fileTxHash) {
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
@@ -1571,39 +1580,13 @@ void FileAvailable(uint256 fileHash) {
                     }
     }
 
-    // Poll the connected nodes for messages
-    CNode* pnodeTrickle = NULL;
-    if (!vNodesCopy.empty())
-        pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
-
     BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-        if (pnode->fDisconnect)
-            continue;
+                    if (pnode->fDisconnect)
+                        continue;
 
-        // Receive messages
-        {
-            TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
-            if (lockRecv) {
-                if (!g_signals.ProcessMessages(pnode))
-                    pnode->CloseSocketDisconnect();
-
-                if (pnode->nSendSize < SendBufferSize()) {
-                    //if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
-                    //   fSleep = false;
-                    //}
+                    // Send message
+                    g_signals.SendHasFileRequest(pnode, fileTxHash);
                 }
-            }
-        }
-        boost::this_thread::interruption_point();
-
-        // Send messages
-        {
-            TRY_LOCK(pnode->cs_vSend, lockSend);
-            if (lockSend)
-                g_signals.FileAvailableMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
-        }
-        boost::this_thread::interruption_point();
-    }
 
     {
         LOCK(cs_vNodes);

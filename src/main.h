@@ -111,20 +111,25 @@ static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16;
 static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 
 //region file
-/** Number of blocks that can be requested at any given time from a single peer. */
+/** Number of files that can be requested at any given time from a single peer. */
 static const int MAX_FILES_IN_TRANSIT_PER_PEER = 5;
 
-//TODO: подумать, может создавать таймаут в зависимости от размера файла.
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
-static const unsigned int FILE_STALLING_TIMEOUT = 30;
+static const unsigned int FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
+
+/** Timeout in minutes */
+static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+
+static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
+
+/** Number of files that can be requested at any given time from a single peer. */
+static const int NODE_FILE_EVENTS_MAX_COUNT = 1000;
 //end region
 
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
  *  less than this number, we reached their tip. Changing this value is a protocol upgrade. */
 static const unsigned int MAX_HEADERS_RESULTS = 2000;
 
-//Number of file sent in one getfiles result
-static const unsigned int MAX_SEND_FILE_RESULTS = 5;
 /** Size of the "block download window": how far ahead of our current height do we fetch?
  *  Larger windows tolerate larger download speed differences between peer, but increase the potential
  *  degree of disordering of blocks on disk (which make reindexing and in the future perhaps pruning
@@ -161,22 +166,16 @@ struct CPaymentMatureTx {
     CPaymentMatureTx() : tx(), blockHeight(0) {}
 };
 
-struct FilePending {
-    uint256 confirmTxId;
-    uint256 fileHash;
-
-    //CNode node;
-    NodeId nodeId;
-    int removeBlockHeight;
-
-    FilePending() : confirmTxId(0), fileHash(0), nodeId(-1), removeBlockHeight(0)  {}
-};
-
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
+
+//TODO: remove
+//typedef boost::unordered_map<uint256, CBlockFileInfo> FileMap;
+//extern FileMap mapFileIndex;
+
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const std::string strMessageMagic;
@@ -208,7 +207,7 @@ extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
-extern std::vector<FilePending> vPendingReceiveFile;
+//extern std::vector<FilePending> vPendingReceiveFile;                                // TODO: PDG 3 make limit or queue
 
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
 
@@ -291,10 +290,16 @@ bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 
 /** Request a file notification */
-bool FileRequestMessages(CNode* pto, bool fSendTrickle, uint256 fileHash);
+bool ProcessFileReceivePending();
+int CountNotRequiredHashesByNode(NodeId id);
+bool processRequiredFiles();
+bool processKnownHashes();
 
 /** Request info about available file */
-bool FileAvailableMessages(CNode* pro, bool fSendTrickle, uint256 fileHash);
+bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
+
+/** Request file */
+bool SendHasFileRequest(CNode* pto, uint256 fileTxHash);
 
 /** Send a file */
 bool SendFileMessages(CNode* pto, bool fSendTrickele, uint256 fileHash);
@@ -344,6 +349,11 @@ void FlushStateToDisk();
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee = false, bool ignoreFees = false);
 
 bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee = false, bool isDSTX = false);
+
+void AddFileReceivePending(const uint256& fileTxhash, NodeId fromPeer = -1);
+
+void RemoveKnownFileHashesByNode(NodeId peer);
+void RemoveKnownFileHashesByHash(uint256& hash);
 
 int GetInputAge(CTxIn& vin);
 int GetInputAgeIX(uint256 nTXHash, CTxIn& vin);
@@ -458,6 +468,9 @@ int GetZerocoinStartHeight();
 bool IsTransactionInChain(const uint256& txId, int& nHeightTx, CTransaction& tx);
 bool IsTransactionInChain(const uint256& txId, int& nHeightTx);
 bool IsBlockHashInChain(const uint256& hashBlock);
+bool IsFileExist(const uint256& fileHash);
+bool IsFileReceiveNeeded(const uint256& fileTxHash);
+bool IsFileExistByTx(const uint256& fileTxHash);
 bool ValidOutPoint(const COutPoint out, int nHeight);
 void RecalculateZPIVSpent();
 void RecalculateZPIVMinted();

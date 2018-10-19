@@ -1448,6 +1448,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
+               /* string strFileIndexError = "";
+                if (!LoadFileIndex(strFileIndexError)) {
+                    strLoadError = _("Error loading index file database");
+                    strLoadError = strprintf("%s : %s", strLoadError, strFileIndexError);
+                    break;
+                }*/
+
                 // Populate list of invalid/fraudulent outpoints that are banned from the chain
                 invalid_out::LoadOutpoints();
                 invalid_out::LoadSerials();

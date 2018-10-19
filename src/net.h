@@ -72,8 +72,10 @@ void AddressCurrentlyConnected(const CService& addr);
 typedef int NodeId;
 
 //file handle
-void FileRequest(uint256 fileHash);
-void FileAvailable(uint256 fileHash);
+void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto);
+void BroadcastFileAvailable(uint256 fileTxHash);
+void BroadcastHasFileRequest(uint256 fileTxHash);
+
 void SendFile(uint256 fileHash);
 
 CNode* FindNode(const CNetAddr& ip);
@@ -95,8 +97,9 @@ struct CNodeSignals {
     boost::signals2::signal<int()> GetHeight;
     boost::signals2::signal<bool(CNode*)> ProcessMessages;
     boost::signals2::signal<bool(CNode*, bool, uint256)> SendFileMessages;
-    boost::signals2::signal<bool(CNode*, bool, uint256)> FileRequestMessages;
-    boost::signals2::signal<bool(CNode*, bool, uint256)> FileAvailableMessages;
+    boost::signals2::signal<bool()> ProcessFileReceivePending;
+    boost::signals2::signal<bool(CNode*, uint256)> SendFileAvailable;
+    boost::signals2::signal<bool(CNode*, uint256)> SendHasFileRequest;
     boost::signals2::signal<bool(CNode*, bool)> SendMessages;
     boost::signals2::signal<void(NodeId, const CNode*)> InitializeNode;
     boost::signals2::signal<void(NodeId)> FinalizeNode;

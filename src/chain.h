@@ -496,6 +496,12 @@ public:
     const CBlockIndex* GetAncestor(int height) const;
 };
 
+class CFileIndex {
+public:
+    const uint256 *hashFile;
+    const uint256 *hashConfirmTx;
+};
+
 /** Used to marshal pointers into hashes for db storage. */
 class CDiskBlockIndex : public CBlockIndex
 {

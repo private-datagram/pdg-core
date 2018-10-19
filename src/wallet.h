@@ -195,7 +195,7 @@ private:
     bool OnPaymentConfirmed(const CTransaction& tx);
     bool SaveFileDB(CDBFile& file);
     bool EraseFileDB(CDBFile& file);
-    bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest);
+    bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest, uint256& outFileTxHash);
 
 public:
     bool MintableCoins();
