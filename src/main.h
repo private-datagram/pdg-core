@@ -114,16 +114,32 @@ static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 /** Number of files that can be requested at any given time from a single peer. */
 static const int MAX_FILES_IN_TRANSIT_PER_PEER = 5;
 
+static const int TOTAL_HASHES_PER_NODE_THRESHOLD = 5;
+
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
 static const unsigned int FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
 
-/** Timeout in minutes */
+//todo: change timeout
+/** Required file expiration date. Timeout in minutes. 20 minutes */
 static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+
+//todo: change timeout
+/** Flight file expiration date. Timeout in minutes. 20 minutes */
+static const unsigned int FLIGHT_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+
+//todo: change timeout
+/** Known file expiration date. Timeout in minutes. 20 minutes*/
+static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+
 
 static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
 
 /** Number of files that can be requested at any given time from a single peer. */
-static const int NODE_FILE_EVENTS_MAX_COUNT = 1000;
+static const int HAS_FILE_EVENTS_MAX_COUNT = 1000;
+
+/** Number of hash file requests from a single peer. */
+static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 1000;
+
 //end region
 
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
@@ -290,10 +306,15 @@ bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 
 /** Request a file notification */
-bool ProcessFileReceivePending();
-int CountNotRequiredHashesByNode(NodeId id);
+bool processFilesPendingScheduler();
+int CountNotRequiredHashesByNode(uint256& hash, NodeId id);
 bool processRequiredFiles();
 bool processKnownHashes();
+void AddNewFileKnown(uint256& hash, NodeId id);
+int64_t CalcKnownExpirationDate();
+int64_t CalcRequiredFileExpirationDate();
+int64_t CalcFlightTimeout();
+bool CanRequestFile();
 
 /** Request info about available file */
 bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
@@ -352,8 +373,12 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
 
 void AddFileReceivePending(const uint256& fileTxhash, NodeId fromPeer = -1);
 
-void RemoveKnownFileHashesByNode(NodeId peer);
+
 void RemoveKnownFileHashesByHash(uint256& hash);
+void RemoveKnownFileHashesByNode(NodeId peer);
+
+void RemoveKnownHasFileRequestsByHash(uint256& hash);
+void RemoveKnownHasFileRequestsByHash(NodeId peer);
 
 int GetInputAge(CTxIn& vin);
 int GetInputAgeIX(uint256 nTXHash, CTxIn& vin);

@@ -97,7 +97,7 @@ struct CNodeSignals {
     boost::signals2::signal<int()> GetHeight;
     boost::signals2::signal<bool(CNode*)> ProcessMessages;
     boost::signals2::signal<bool(CNode*, bool, uint256)> SendFileMessages;
-    boost::signals2::signal<bool()> ProcessFileReceivePending;
+    boost::signals2::signal<bool()> processFilesPendingScheduler;
     boost::signals2::signal<bool(CNode*, uint256)> SendFileAvailable;
     boost::signals2::signal<bool(CNode*, uint256)> SendHasFileRequest;
     boost::signals2::signal<bool(CNode*, bool)> SendMessages;

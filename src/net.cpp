@@ -1292,7 +1292,7 @@ void DumpAddresses()
 void FilesPendingHandle()
 {
     //FileRequest(NULL);
-    g_signals.ProcessFileReceivePending();
+    g_signals.processFilesPendingScheduler();
 }
 
 void DumpData()
