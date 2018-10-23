@@ -6710,7 +6710,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             bool fAlreadyHave = AlreadyHave(inv);
             LogPrint("net", "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->id);
 
-            if (!fAlreadyHave && !fImporting && !fReindex && inv.type != MSG_BLOCK && inv.type != MSG_FILE)
+            if (!fAlreadyHave && !fImporting && !fReindex && inv.type != MSG_BLOCK && !IsMsgFile(inv.type))
                 pfrom->AskFor(inv);
 
 
@@ -6731,15 +6731,15 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         knownHasFilesMap.insert(std::make_pair(inv.hash, fileKnown));
                     } else {
 //                    if (FileKnown fileKnown = knownHasFilesMap[inv.hash]) {
-                        vector<FileKnown> *vfileKnown = knownHasFilesMap[inv.hash];
-                        BOOST_FOREACH (const vector<FileKnown> fileKnown, vfileKnown) {
-                                if (fileKnown->events > NODE_FILE_EVENTS_MAX_COUNT) {
+                        vector<FileKnown> &vfileKnown = knownHasFilesMap[inv.hash].second;
+                        BOOST_FOREACH (FileKnown &fileKnown, vfileKnown) {
+                                if (fileKnown.events > NODE_FILE_EVENTS_MAX_COUNT) {
 
                                     //todo: what to do with fileKnown->node and pfrom->getId();
                                     Misbehaving(fileKnown.node, 50);
                                     RemoveKnownFileHashesByNode(fileKnown.node);
                                 }
-                                fileKnown->events++;
+                                fileKnown.events++;
                         }
                     }
 
@@ -7888,6 +7888,13 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             pto->PushMessage("getdata", vGetData);
     }
     return true;
+}
+
+bool IsMsgFile(int type) {
+    return type == MSG_HAS_FILE_REQUEST ||
+           type == MSG_HAS_FILE ||
+           type == MSG_FILE_REQUEST ||
+           type == MSG_FILE;
 }
 
 
