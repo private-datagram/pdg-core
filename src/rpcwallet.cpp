@@ -58,6 +58,7 @@ void MetaToJSON(const PtrContainer<CTransactionMeta>& meta, UniValue& entry)
     } else if (meta.IsInstanceOf<CPaymentConfirm>()) {
         CPaymentConfirm pc = meta.get<CPaymentConfirm>();
         metaEntry.push_back(Pair("requestTxid", pc.requestTxid.GetHex()));
+        metaEntry.push_back(Pair("lifeTime", (int64_t) pc.nLifeTime));
         metaEntry.push_back(Pair("publicKey", &pc.vfPublicKey[0]));
     } if (meta.IsInstanceOf<CFileMeta>()) {
         CFileMeta fm = meta.get<CFileMeta>();
@@ -548,7 +549,7 @@ UniValue sendfilepayment(const UniValue& params, bool fHelp)
     crypto::rsa::KeypairToDER(keypair, publicKey, privateKey);
 
     wtx.type = TX_FILE_PAYMENT_CONFIRM;
-    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), publicKey);
+    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), 30*60*60, publicKey);
 
     EnsureWalletIsUnlocked();
 

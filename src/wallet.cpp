@@ -5410,6 +5410,8 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     // prepare data
     CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
 
+    // TODO: check LifeTime
+
     CWalletDB walletDB(strWalletFile);
 
     CDataStream inputFile(SER_NETWORK, PROTOCOL_VERSION);
@@ -5451,6 +5453,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     // fill file
     CFile txFile;
     txFile.fileHash = dbFile.fileHash;
+    txFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: check lifetime and fee before
 
     if (!SaveFileDB(dbFile))
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());

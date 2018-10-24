@@ -279,10 +279,12 @@ class CPaymentConfirm: public CTransactionMeta {
 
 public:
     CPaymentConfirm();
-    CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey);
+    CPaymentConfirm(const uint256& requestTxid, const uint32_t nLifeTime, const std::vector<char>& vfPublicKey);
 
     // Payment request transaction hash
     uint256 requestTxid;
+    // Life time in seconds
+    uint32_t nLifeTime;
     // The RSA public key of receiver for file encryption
     std::vector<char> vfPublicKey;
 
@@ -293,6 +295,7 @@ public:
         CTransactionMeta::SerializationOp(s, ser_action, nType, nVersion);
 
         READWRITE(requestTxid);
+        READWRITE(nLifeTime);
         READWRITE(*const_cast<std::vector<char>*>(&vfPublicKey));
     }
 
@@ -524,6 +527,7 @@ struct CFile
 {
     // Encrypted file hash
     uint256 fileHash;
+    uint32_t nLifeTime;
     uint32_t nFlags;
 
     CFile();
@@ -533,6 +537,7 @@ struct CFile
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(fileHash);
+        READWRITE(nLifeTime);
         READWRITE(nFlags);
     }
 

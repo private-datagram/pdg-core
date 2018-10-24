@@ -281,10 +281,10 @@ CTransactionMeta::CTransactionMeta(): nFlags(TX_META_EMPTY) {}
 CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), sComment(), nPrice() {
 }
 
-CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), vfPublicKey() {
+CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), nLifeTime(0), vfPublicKey() {
 }
 
-CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), requestTxid(requestTxid), vfPublicKey(vfPublicKey) {
+CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const uint32_t nLifeTime, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), nLifeTime(nLifeTime), requestTxid(requestTxid), vfPublicKey(vfPublicKey) {
 }
 
 CFileMeta::CFileMeta(): CTransactionMeta(TX_META_FILE) {

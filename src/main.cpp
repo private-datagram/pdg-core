@@ -6961,7 +6961,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         
                         LogPrint("file", "%s - MSG_FILE_REQUEST. FileTx block time: %d.\n", __func__, nTime);
 
-                        if (nTime != 0 && (nTime + tx.meta.get<CFileMeta>().liveTime) > GetAdjustedTime()) {
+                        if (nTime != 0 && (nTime + tx.vfiles[0].nLifeTime) > GetAdjustedTime()) {
                             LogPrint("file", "%s - MSG_FILE_REQUEST. File expired. Misbehaving.\n", __func__);
                             Misbehaving(pfrom->id, 5);
                         } else if (!HasFile(tx.vfiles[0].fileHash)) {
