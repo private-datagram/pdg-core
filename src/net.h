@@ -72,7 +72,7 @@ void AddressCurrentlyConnected(const CService& addr);
 typedef int NodeId;
 
 //file handle
-void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto);
+void SendFileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto);
 void BroadcastFileAvailable(uint256 fileTxHash);
 void BroadcastHasFileRequest(const uint256 &fileTxHash);
 

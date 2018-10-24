@@ -1554,7 +1554,7 @@ bool CanSendToNode(CNode *peer) {
     return peer->nSendSize < MAX_FILE_SIZE * 1.5;
 }
 
-void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) {
+void SendFileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) {
     if (pto != nullptr) {
         pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
         return;
@@ -1565,22 +1565,22 @@ void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) 
         LOCK(cs_vNodes);
         vNodesCopy = vNodes;
         BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                        pnode->AddRef();
-                    }
+            pnode->AddRef();
+        }
     }
 
     BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                    if (pnode->fDisconnect)
-                        continue;
+        if (pnode->fDisconnect)
+            continue;
 
-                    // TODO: PDG 5 check first not busy
-                    if (std::find(busyNodes.begin(), busyNodes.end(), pnode->id) != busyNodes.end())
-                        continue;
+        // TODO: PDG 5 check first not busy
+        if (std::find(busyNodes.begin(), busyNodes.end(), pnode->id) != busyNodes.end())
+            continue;
 
-                    //1 node or all not busy?
-                    pnode->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
-                    boost::this_thread::interruption_point();
-                }
+        //1 node or all not busy?
+        pnode->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
+        boost::this_thread::interruption_point();
+    }
 
     {
         LOCK(cs_vNodes);

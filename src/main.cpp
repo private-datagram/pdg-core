@@ -727,37 +727,51 @@ void ProcessFileRequests() {
 }
 
 void ProcessFilesPendingScheduler() {
-    for (std::map<uint256, FilePending>::const_iterator filePending = filesPendingMap.begin(); filePending != filesPendingMap.end(); filePending++) {
-        uint256 &fileHash = filePending->first;
+    for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
+        const uint256 &fileHash = it->first;
 
         if (filesInFlightMap.count(fileHash)) {
             QueuedFile fileInFlight = filesInFlightMap[fileHash];
             if (fileInFlight.nTime + FILE_STALLING_TIMEOUT > GetTimeMicros()) {
                 // resend file, change node id
-                filePending->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
+                it->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
 
                 // TODO: если больше нодов нет?
+                if (it->second.nodes.empty()) {
+                    it = filesPendingMap.erase(it);
+                    continue;
+                }
 
                 // и запрашиваем у нового
-                const NodeId newNode = filePending->second.nodes[0];
-                CNode* pNode = FindNode(newNode);
-                std::vector<NodeId> vnodesFileInFlight;
-                FileRequest(fileHash, vnodesFileInFlight, pNode);
+
+                CNode *pNode = nullptr;
+                for (std::set<NodeId>::iterator it2 = it->second.nodes.begin(); it != it->second.nodes.end(); it2++) {
+                    // TODO: выбираем перый свободный нод (с которым не идет сейчас передача  файлов)
+                    *pNode = FindNode(newNode);
+                }
+
+
+                std::vector <NodeId> vnodesFileInFlight;
+                SendFileRequest(fileHash, vnodesFileInFlight, pNode);
                 QueuedFile queuedFile(fileHash, pNode->id, CalcFlightTimeout());
-                filesInFlightMap[fileHash] =  queuedFile// переписываем существующий объект
+                filesInFlightMap[fileHash] = queuedFile;// переписываем существующий объект
             }
+
+            it++;
             continue;
         }
 
         if (CanRequestFile()) {
-            const NodeId newNode = filePending->second.nodes[0];
+            const NodeId newNode = it->second.nodes[0];
             std::vector<NodeId> vnodesFileInFlight;
             CNode* node = node = FindNode(newNode);
             std::vector<NodeId> vnodesFileInFlight;
-            FileRequest(fileHash, vnodesFileInFlight, node);
+            SendFileRequest(fileHash, vnodesFileInFlight, node);
             QueuedFile queuedFile(fileHash, node->id, CalcFlightTimeout());
             filesInFlightMap[fileHash] = queuedFile;
         }
+
+        it++;
     }
 
     processRequiredFiles();
@@ -831,15 +845,15 @@ void AddNewFileKnown(const uint256& hash, const NodeId id) {
 }
 
 int64_t CalcKnownExpirationDate() {
-    return GetTimeMillis() + KNOWN_FILE_EXPIRATION_TIMEOUT;
+    return GetTimeMicros() + KNOWN_FILE_EXPIRATION_TIMEOUT;
 }
 
 int64_t CalcRequiredFileExpirationDate() {
-    return GetTimeMillis() + REQUIRED_FILE_EXPIRATION_TIMEOUT;
+    return GetTimeMicros() + REQUIRED_FILE_EXPIRATION_TIMEOUT;
 }
 
 int64_t CalcFlightTimeout() {
-    return GetTimeMillis() + FLIGHT_FILE_EXPIRATION_TIMEOUT;
+    return GetTimeMicros() + FLIGHT_FILE_EXPIRATION_TIMEOUT;
 }
 
 bool CanRequestFile() {
@@ -6969,7 +6983,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 if (fileRequestedNodesMap.count(txHash)) {
                     LogPrint("file", "%s - MSG_FILE_REQUEST. file request found.\n", __func__);
 
-                    FileRequest *fileRequest = nullptr;
+                    SendFileRequest * fileRequest = nullptr;
 
                     //region Find file request by node
                     pair<FileRequestMap::iterator, FileRequestMap::iterator> range = fileRequestedNodesMap.equal_range(txHash);
@@ -7000,7 +7014,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                         // add new
                         auto anotherFileRequest = &range.first->second;
-                        fileRequestedNodesMap.insert(pair<uint256, FileRequest>(txHash, FileRequest(pfrom->id, GetTimeMicros(), anotherFileRequest->fileHash, anotherFileRequest->txFileHash)));
+                        fileRequestedNodesMap.insert(pair<uint256, FileRequest>(txHash, SendFileRequest(pfrom->id,
+                                                                                                        GetTimeMicros(),
+                                                                                                        anotherFileRequest->fileHash,
+                                                                                                        anotherFileRequest->txFileHash)));
                     }
                 } else {
                     LogPrint("file", "%s - MSG_FILE_REQUEST. file request not found. Validating.\n", __func__);
@@ -7031,7 +7048,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             LogPrint("file", "%s - MSG_FILE_REQUEST. Validate OK. Adding to file requests map.\n", __func__);
 
                             // all validation OK
-                            fileRequestedNodesMap.insert(pair<uint256, FileRequest>(txHash, FileRequest(pfrom->id, GetTimeMicros(), tx.vfiles[0].fileHash, txHash)));
+                            fileRequestedNodesMap.insert(pair<uint256, FileRequest>(txHash, SendFileRequest(pfrom->id,
+                                                                                                            GetTimeMicros(),
+                                                                                                            tx.vfiles[0].fileHash,
+                                                                                                            txHash)));
                         }
                     }
                 }

@@ -125,16 +125,16 @@ static const unsigned int MAX_FILE_SEND_COUNT = 5;
 static const unsigned int MAX_FILE_SIZE = 10 * 1000;
 
 //todo: change timeout
-/** Required file expiration date. Timeout in minutes. 1 hour */
-static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000;
+/** Required file expiration date. Timeout in micros. 1 hour */
+static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000 * 1000;
 
 //todo: change timeout
-/** Flight file expiration date. Timeout in minutes. 20 minutes */
+/** Flight file expiration date. Timeout in micros. 20 minutes */
 static const unsigned int FLIGHT_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 1000;
 
 //todo: change timeout
-/** Known file expiration date. Timeout in ms. 1 hour */
-static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000;
+/** Known file expiration date. Timeout in micros. 1 hour */
+static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000 * 1000;
 
 
 static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
