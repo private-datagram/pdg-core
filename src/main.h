@@ -119,23 +119,28 @@ static const int TOTAL_HASHES_PER_NODE_THRESHOLD = 5;
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
 static const unsigned int FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
 
+
+static const unsigned int MAX_FILE_SEND_COUNT = 5;
+
+static const unsigned int MAX_FILE_SIZE = 10 * 1000;
+
 //todo: change timeout
-/** Required file expiration date. Timeout in minutes. 20 minutes */
-static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+/** Required file expiration date. Timeout in minutes. 1 hour */
+static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000;
 
 //todo: change timeout
 /** Flight file expiration date. Timeout in minutes. 20 minutes */
-static const unsigned int FLIGHT_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+static const unsigned int FLIGHT_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 1000;
 
 //todo: change timeout
-/** Known file expiration date. Timeout in minutes. 20 minutes*/
-static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 60 * 1000 * 1000;
+/** Known file expiration date. Timeout in ms. 1 hour */
+static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000;
 
 
 static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
 
 /** Number of files that can be requested at any given time from a single peer. */
-static const int HAS_FILE_EVENTS_MAX_COUNT = 1000;
+static const int HAS_FILE_EVENTS_MAX_COUNT = 50;
 
 /** Number of hash file requests from a single peer. */
 static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 1000;
@@ -309,11 +314,17 @@ bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 
 /** Request a file notification */
-bool processFilesPendingScheduler();
+void ProcessFilesPendingScheduler();
+void ProcessHasFileRequests();
+void ProcessFileRequests();
+
+bool GetFile(CDBFile file, uint256& hash);
+bool IsFileRequestExpired(int64_t requestExpiredDate);
+
 int CountNotRequiredHashesByNode(uint256& hash, NodeId id);
 bool processRequiredFiles();
 bool processKnownHashes();
-void AddNewFileKnown(uint256& hash, NodeId id);
+void AddNewFileKnown(const uint256& hash, const NodeId id);
 int64_t CalcKnownExpirationDate();
 int64_t CalcRequiredFileExpirationDate();
 int64_t CalcFlightTimeout();
@@ -621,6 +632,7 @@ bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBloc
 
 
 bool IsMsgFile(int type);
+bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime);
 
 class CFileBlockFileInfo
 {

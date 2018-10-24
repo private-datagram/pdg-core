@@ -40,8 +40,11 @@
 // Dump addresses to peers.dat every 15 minutes (900s)
 #define DUMP_ADDRESSES_INTERVAL 900
 
-// Checking required files every 20 seconds
-#define CHECK_REQUIRED_FILES_INTERVAL 20
+// Checking pending files every 20 seconds
+#define CHECK_PENDING_FILES_INTERVAL 20
+
+// Checking request files every 20 seconds
+#define CHECK_REQUESTING_FILES_INTERVAL 20
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
@@ -1291,8 +1294,13 @@ void DumpAddresses()
 
 void FilesPendingHandle()
 {
-    //FileRequest(NULL);
-    g_signals.processFilesPendingScheduler();
+    g_signals.ProcessFilesPendingScheduler();
+}
+
+void ProcessFilesRequestsScheduler()
+{
+    g_signals.ProcessHasFileRequests();
+    g_signals.ProcessFileRequests();
 }
 
 void DumpData()
@@ -1511,6 +1519,41 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 //region file handle
 // TODO: select optimal nodes
 // TODO: include locks
+int GetAvailableToSendFilesCount() {
+    int available = MAX_FILE_SEND_COUNT; // MAX_FILE_SEND_COUNT = 5
+
+    vector<CNode *> vNodesCopy;
+    {
+        LOCK(cs_vNodes);
+        vNodesCopy = vNodes;
+        BOOST_FOREACH (CNode *pnode, vNodesCopy) {
+                        pnode->AddRef();
+                    }
+    }
+
+    BOOST_FOREACH (CNode *pnode, vNodesCopy) {
+                    if (pnode->fDisconnect)
+                        continue;
+
+                    //todo: PDG 5 nSendSize?
+            if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5) {
+                --available;
+                if (available <= 0) return 0;
+            };
+        }
+
+        {
+            LOCK(cs_vNodes);
+            BOOST_FOREACH (CNode *pnode, vNodesCopy)pnode->Release();
+        }
+
+    return available;
+}
+
+bool CanSendToNode(CNode *peer) {
+    return peer->nSendSize < MAX_FILE_SIZE * 1.5;
+}
+
 void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) {
     if (pto != nullptr) {
         pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
@@ -1570,28 +1613,28 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
     }
 }
 
-void BroadcastHasFileRequest(uint256 fileTxHash) {
+void BroadcastHasFileRequest(const uint256 &fileTxHash) {
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
         vNodesCopy = vNodes;
         BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-                        pnode->AddRef();
-                    }
+            pnode->AddRef();
+        }
     }
 
     BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-                    if (pnode->fDisconnect)
-                        continue;
+        if (pnode->fDisconnect)
+            continue;
 
-                    // Send message
-                    g_signals.SendHasFileRequest(pnode, fileTxHash);
-                }
+        // Send message
+        g_signals.SendHasFileRequest(pnode, fileTxHash);
+    }
 
     {
         LOCK(cs_vNodes);
         BOOST_FOREACH (CNode* pnode, vNodesCopy)
-                        pnode->Release();
+            pnode->Release();
     }
 }
 
@@ -1927,7 +1970,9 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
     // Dump network addresses
     scheduler.scheduleEvery(&DumpData, DUMP_ADDRESSES_INTERVAL);
 
-    scheduler.scheduleEvery(&FilesPendingHandle, CHECK_REQUIRED_FILES_INTERVAL);
+    scheduler.scheduleEvery(&FilesPendingHandle, CHECK_PENDING_FILES_INTERVAL);
+
+    scheduler.scheduleEvery(&ProcessFilesRequestsScheduler, CHECK_REQUESTING_FILES_INTERVAL);
 
     // ppcoin:mint proof-of-stake blocks in the background
     if (GetBoolArg("-staking", true))

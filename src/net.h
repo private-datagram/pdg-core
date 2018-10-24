@@ -74,7 +74,10 @@ typedef int NodeId;
 //file handle
 void FileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto);
 void BroadcastFileAvailable(uint256 fileTxHash);
-void BroadcastHasFileRequest(uint256 fileTxHash);
+void BroadcastHasFileRequest(const uint256 &fileTxHash);
+
+int GetAvailableToSendFilesCount();
+bool CanSendToNode(CNode *peer);
 
 void SendFile(uint256 fileHash);
 
@@ -97,7 +100,11 @@ struct CNodeSignals {
     boost::signals2::signal<int()> GetHeight;
     boost::signals2::signal<bool(CNode*)> ProcessMessages;
     boost::signals2::signal<bool(CNode*, bool, uint256)> SendFileMessages;
-    boost::signals2::signal<bool()> processFilesPendingScheduler;
+
+    boost::signals2::signal<void()> ProcessFilesPendingScheduler;
+    boost::signals2::signal<void()> ProcessHasFileRequests;
+    boost::signals2::signal<void()> ProcessFileRequests;
+
     boost::signals2::signal<bool(CNode*, uint256)> SendFileAvailable;
     boost::signals2::signal<bool(CNode*, uint256)> SendHasFileRequest;
     boost::signals2::signal<bool(CNode*, bool)> SendMessages;
