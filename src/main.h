@@ -140,6 +140,9 @@ static const int HAS_FILE_EVENTS_MAX_COUNT = 1000;
 /** Number of hash file requests from a single peer. */
 static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 1000;
 
+/** Max file requests events with one hash to ban */
+static const int FILE_REQUEST_EVENTS_BAN_THRESHOLD = 50;
+
 //end region
 
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
@@ -338,7 +341,10 @@ bool IsInitialBlockDownload();
 std::string GetWarnings(std::string strFor);
 
 /** Retrieve a file (from memory pool, or from disk, if possible) */
-bool GetFile(const uint256& hash, char& chars);
+bool GetFile(const uint256& fileHash, CDBFile& fileOut);
+
+/** Check if file exists */
+bool HasFile(const uint256& fileHash);
 
 /** Retrieve a transaction (from memory pool, or from disk, if possible) */
 bool GetTransaction(const uint256& hash, CTransaction& tx, uint256& hashBlock, bool fAllowSlow = false);
@@ -612,6 +618,9 @@ bool TestBlockValidity(CValidationState& state, const CBlock& block, CBlockIndex
 /** Store block on disk. If dbp is provided, the file is known to already reside on disk */
 bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** pindex, CDiskBlockPos* dbp = NULL, bool fAlreadyCheckedBlock = false);
 bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex** ppindex = NULL);
+
+
+bool IsMsgFile(int type);
 
 class CFileBlockFileInfo
 {

@@ -1556,12 +1556,12 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
     }
 
     BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                    if (pnode->fDisconnect)
-                        continue;
+        if (pnode->fDisconnect)
+            continue;
 
-                    // Send message
-                    g_signals.SendFileAvailable(pnode, fileTxHash);
-                }
+        // Send message
+        g_signals.SendFileAvailable(pnode, fileTxHash);
+    }
 
     {
         LOCK(cs_vNodes);
