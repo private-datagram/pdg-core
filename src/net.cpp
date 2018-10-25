@@ -1527,25 +1527,27 @@ int GetAvailableToSendFilesCount() {
         LOCK(cs_vNodes);
         vNodesCopy = vNodes;
         BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                        pnode->AddRef();
-                    }
+            pnode->AddRef();
+        }
     }
 
     BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                    if (pnode->fDisconnect)
-                        continue;
+        if (pnode->fDisconnect)
+            continue;
 
-                    //todo: PDG 5 nSendSize?
-            if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5) {
-                --available;
-                if (available <= 0) return 0;
-            };
-        }
+        //todo: PDG 5 nSendSize?
+        if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5) {
+            --available;
+            if (available <= 0)
+                return 0;
+        };
+    }
 
-        {
-            LOCK(cs_vNodes);
-            BOOST_FOREACH (CNode *pnode, vNodesCopy)pnode->Release();
-        }
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH (CNode *pnode, vNodesCopy)
+            pnode->Release();
+    }
 
     return available;
 }
