@@ -30,6 +30,7 @@
 #include "txmempool.h"
 #include "uint256.h"
 #include "undo.h"
+#include "files.h"
 
 #include <algorithm>
 #include <exception>
@@ -114,27 +115,30 @@ static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 /** Number of files that can be requested at any given time from a single peer. */
 static const int MAX_FILES_IN_TRANSIT_PER_PEER = 5;
 
-static const int TOTAL_HASHES_PER_NODE_THRESHOLD = 5;
+static const int TOTAL_HASHES_PER_NODE_THRESHOLD = 100;
 
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
-static const unsigned int FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
+static const int64_t FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
 
 
 static const unsigned int MAX_FILE_SEND_COUNT = 5;
 
-static const unsigned int MAX_FILE_SIZE = 10 * 1000;
+/* Max file at node send size buffer */
+static const unsigned int MAX_FILE_SIZE = 10 * 1000 * 1000;
 
 //todo: change timeout
 /** Required file expiration date. Timeout in micros. 1 hour */
-static const unsigned int REQUIRED_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000 * 1000;
+static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 60U * 60 * 1000 * 1000;
+
+
 
 //todo: change timeout
 /** Flight file expiration date. Timeout in micros. 20 minutes */
-static const unsigned int FLIGHT_FILE_EXPIRATION_TIMEOUT = 20 * 60 * 1000;
+static const int64_t FLIGHT_FILE_TIMEOUT = 20U * 60 * 1000 * 1000;
 
 //todo: change timeout
 /** Known file expiration date. Timeout in micros. 1 hour */
-static const unsigned int KNOWN_FILE_EXPIRATION_TIMEOUT = 60 * 60 * 1000 * 1000;
+static const int64_t KNOWN_FILE_TIMEOUT = 60U * 60 * 1000 * 1000;
 
 
 static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
@@ -143,7 +147,10 @@ static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
 static const int HAS_FILE_EVENTS_MAX_COUNT = 50;
 
 /** Number of hash file requests from a single peer. */
-static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 1000;
+static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 50;
+
+/** Known file expiration date. Timeout in micros. 1 hour */
+static const int64_t HAS_FILE_REQUEST_TIMEOUT = 60U * 60 * 1000 * 1000;
 
 /** Max file requests events with one hash to ban */
 static const int FILE_REQUEST_EVENTS_BAN_THRESHOLD = 50;
@@ -315,18 +322,19 @@ bool SendMessages(CNode* pto, bool fSendTrickle);
 
 /** Request a file notification */
 void ProcessFilesPendingScheduler();
+void ProcessFilesRequestsScheduler();
 void ProcessHasFileRequests();
 void ProcessFileRequests();
 
 bool GetFile(CDBFile file, uint256& hash);
 bool IsFileRequestExpired(int64_t requestExpiredDate);
 
-int CountNotRequiredHashesByNode(uint256& hash, NodeId id);
+int CountNotRequiredHashesByNode(const NodeId id);
 bool processRequiredFiles();
 bool processKnownHashes();
 void AddNewFileKnown(const uint256& hash, const NodeId id);
 int64_t CalcKnownExpirationDate();
-int64_t CalcRequiredFileExpirationDate();
+int64_t CalcRequiredFileRequestExpirationDate();
 int64_t CalcFlightTimeout();
 bool CanRequestFile();
 
@@ -335,9 +343,6 @@ bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
 
 /** Request file */
 bool SendHasFileRequest(CNode* pto, uint256 fileTxHash);
-
-/** Send a file */
-bool SendFileMessages(CNode* pto, bool fSendTrickele, uint256 fileHash);
 
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
@@ -391,11 +396,11 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
 void AddFileReceivePending(const uint256& fileTxhash, NodeId fromPeer = -1);
 
 
-void RemoveKnownFileHashesByHash(uint256& hash);
-void RemoveKnownFileHashesByNode(NodeId peer);
+void RemoveKnownFileHashesByHash(const uint256& hash);
+void RemoveKnownFileHashesByNode(const NodeId peer);
 
-void RemoveKnownHasFileRequestsByHash(uint256& hash);
-void RemoveKnownHasFileRequestsByHash(NodeId peer);
+void RemoveHasFileRequestsByHash(const uint256& hash);
+void RemoveHasFileRequestsByHash(const NodeId peer);
 
 int GetInputAge(CTxIn& vin);
 int GetInputAgeIX(uint256 nTXHash, CTxIn& vin);

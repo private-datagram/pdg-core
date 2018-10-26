@@ -41,10 +41,10 @@
 #define DUMP_ADDRESSES_INTERVAL 900
 
 // Checking pending files every 20 seconds
-#define CHECK_PENDING_FILES_INTERVAL 20
+#define CHECK_PENDING_FILES_INTERVAL 30
 
 // Checking request files every 20 seconds
-#define CHECK_REQUESTING_FILES_INTERVAL 20
+#define CHECK_REQUESTING_FILES_INTERVAL 30
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
@@ -1299,8 +1299,7 @@ void FilesPendingHandle()
 
 void ProcessFilesRequestsScheduler()
 {
-    g_signals.ProcessHasFileRequests();
-    g_signals.ProcessFileRequests();
+    g_signals.ProcessFilesRequestsScheduler();
 }
 
 void DumpData()
@@ -1522,70 +1521,28 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 int GetAvailableToSendFilesCount() {
     int available = MAX_FILE_SEND_COUNT; // MAX_FILE_SEND_COUNT = 5
 
-    vector<CNode *> vNodesCopy;
-    {
-        LOCK(cs_vNodes);
-        vNodesCopy = vNodes;
-        BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                        pnode->AddRef();
-                    }
+    LOCK(cs_vNodes);
+
+    BOOST_FOREACH (CNode *pnode, vNodes) {
+        if (pnode->fDisconnect)
+            continue;
+
+        if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5f) {
+            --available;
+            if (available <= 0)
+                return 0;
+        }
     }
-
-    BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-                    if (pnode->fDisconnect)
-                        continue;
-
-                    //todo: PDG 5 nSendSize?
-            if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5) {
-                --available;
-                if (available <= 0) return 0;
-            };
-        }
-
-        {
-            LOCK(cs_vNodes);
-            BOOST_FOREACH (CNode *pnode, vNodesCopy)pnode->Release();
-        }
 
     return available;
 }
 
-bool CanSendToNode(CNode *peer) {
+bool CanSendToNode(const CNode *peer) {
     return peer->nSendSize < MAX_FILE_SIZE * 1.5;
 }
 
-void SendFileRequest(uint256 fileHash, const vector<NodeId> &busyNodes, CNode *pto) {
-    if (pto != nullptr) {
-        pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
-        return;
-    }
-
-    vector<CNode *> vNodesCopy;
-    {
-        LOCK(cs_vNodes);
-        vNodesCopy = vNodes;
-        BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-            pnode->AddRef();
-        }
-    }
-
-    BOOST_FOREACH (CNode *pnode, vNodesCopy) {
-        if (pnode->fDisconnect)
-            continue;
-
-        // TODO: PDG 5 check first not busy
-        if (std::find(busyNodes.begin(), busyNodes.end(), pnode->id) != busyNodes.end())
-            continue;
-
-        //1 node or all not busy?
-        pnode->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
-        boost::this_thread::interruption_point();
-    }
-
-    {
-        LOCK(cs_vNodes);
-        BOOST_FOREACH (CNode *pnode, vNodesCopy)pnode->Release();
-    }
+void SendFileRequest(uint256 fileHash, CNode *pto) {
+    pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
 }
 
 void BroadcastFileAvailable(uint256 fileTxHash) {
@@ -1614,6 +1571,8 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
 }
 
 void BroadcastHasFileRequest(const uint256 &fileTxHash) {
+    LogPrint("file", "%s - Broadcasting has file request. txHash: %s\n", __func__, fileTxHash);
+
     vector<CNode*> vNodesCopy;
     {
         LOCK(cs_vNodes);
@@ -1629,57 +1588,6 @@ void BroadcastHasFileRequest(const uint256 &fileTxHash) {
 
         // Send message
         g_signals.SendHasFileRequest(pnode, fileTxHash);
-    }
-
-    {
-        LOCK(cs_vNodes);
-        BOOST_FOREACH (CNode* pnode, vNodesCopy)
-            pnode->Release();
-    }
-}
-
-void SendFile(uint256 fileHash) {
-    vector<CNode*> vNodesCopy;
-    {
-        LOCK(cs_vNodes);
-        vNodesCopy = vNodes;
-        BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-            pnode->AddRef();
-        }
-    }
-
-    // Poll the connected nodes for messages
-    CNode* pnodeTrickle = NULL;
-    if (!vNodesCopy.empty())
-        pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
-
-    BOOST_FOREACH (CNode* pnode, vNodesCopy) {
-        if (pnode->fDisconnect)
-            continue;
-
-        // Receive messages
-        {
-            TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
-            if (lockRecv) {
-                if (!g_signals.ProcessMessages(pnode))
-                    pnode->CloseSocketDisconnect();
-
-                if (pnode->nSendSize < SendBufferSize()) {
-                    //if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
-                     //   fSleep = false;
-                    //}
-                }
-            }
-        }
-        boost::this_thread::interruption_point();
-
-        // Send messages
-        {
-            TRY_LOCK(pnode->cs_vSend, lockSend);
-            if (lockSend)
-                g_signals.SendFileMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted, fileHash);
-        }
-        boost::this_thread::interruption_point();
     }
 
     {
