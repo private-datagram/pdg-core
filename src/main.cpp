@@ -112,6 +112,8 @@ void EraseOrphansFor(NodeId peer);
 
 static void CheckBlockIndex();
 CNode *FindFreeNode(const set<NodeId> &nodes);
+void RemoveHasFileRequestsByNode(const NodeId pNode);
+void RemoveFileRequestsByNode(const NodeId pNode);
 
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
@@ -194,7 +196,8 @@ struct QueuedFile {
     uint256 fileTxHash;
     int64_t nTime;              //! Time of file request in microseconds.
 
-    QueuedFile(const uint256 &fileTxHash, const NodeId nodeId, const int64_t nTime) : fileTxHash(fileTxHash), nodeId(nodeId), nTime(nTime) {}
+    QueuedFile(): nodeId(-1), fileTxHash(0), nTime(0) {}
+    QueuedFile(const uint256 &fileTxHash, const NodeId nodeId, const int64_t nTime): nodeId(nodeId), fileTxHash(fileTxHash), nTime(nTime) {}
 };
 
 struct FilePending {
@@ -217,15 +220,15 @@ struct FileKnown {
 
 struct FileRequest {
     NodeId node;
-
-    //how much this node informed us about this file.
-    int events;
     int64_t date;
 
     boost::optional<uint256> fileHash;
     boost::optional<uint256> fileTxHash;
 
-    FileRequest() : node(-1), events(1), date(0) {}
+    //how much this node informed us about this file.
+    int events;
+
+    FileRequest() : node(-1), date(0), events(1) {}
     FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
     FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) : node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
 };
@@ -234,6 +237,7 @@ struct RequiredFile {
     int64_t requestExpirationTime;              //! Time of file request expiration in microseconds.
     uint32_t fileExpirationTime;                //! Time of file storage expiration in seconds.
 
+    RequiredFile() : requestExpirationTime(0), fileExpirationTime(0) {}
     RequiredFile(const int64_t requestExpirationTime, const uint32_t fileExpirationTime) : requestExpirationTime(requestExpirationTime), fileExpirationTime(fileExpirationTime) {}
 };
 
@@ -260,9 +264,6 @@ list<pair<uint256, NodeId>> fileRequestsOrder;
 typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
 FileRequestMap fileRequestedNodesMap;
 CCriticalSection cs_FileRequestedNodesMap;
-
-//map<uint256, pair<NodeId,std::vector<QueuedFile>>> mapReceiveFilesInFlight;
-//map<uint256, pair<NodeId,std::vector<QueuedFile>>> mapSendFilesInFlight;
 
 /** Number of blocks in flight with validated headers. */
 int nQueuedValidatedHeaders = 0;
@@ -573,439 +574,6 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
             }
         }
     }
-}
-
-void RemoveKnownFileHashesByNode(const NodeId pNode) {
-    LogPrint("file", "%s - RemoveKnownFileHashesByNode. Remove File Known. nodeId: %d\n", __func__, pNode);
-    for (KnownHasFilesMap::iterator it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); ) {
-        vector<FileKnown> &vFileKnown = it->second.second;
-
-        vector<FileKnown>::iterator it2 = vFileKnown.begin();
-        while (it2 != vFileKnown.end()) {
-            if (it2->node == pNode) {
-                it2 = vFileKnown.erase(it2);
-                LogPrint("file", "%s - File Known found and remove. fileTxHash: %s\n", __func__, it->first);
-                continue;
-            }
-
-            it2++;
-        }
-
-        // if empty, remove from map
-        if (vFileKnown.empty()) {
-            LogPrint("file", "%s - vFileKnown is empty. Remove knownHasFilesMap. fileTxHash: %s\n", __func__, it->first);
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void RemoveKnownFileHashesByHash(uint256& hash) {
-    knownHasFilesMap.erase(hash);
-}
-
-void RemoveHasFileRequestsByNode(NodeId pNode) {
-    LogPrint("file", "%s - RemoveHasFileRequestsByNode. Remove Has File Request. nodeId: %d\n", __func__, pNode);
-    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end(); ) {
-        vector<FileRequest> &vHasFileRequests = it->second;
-
-        vector<FileRequest>::iterator it2 = vHasFileRequests.begin();
-        while (it2 != vHasFileRequests.end()) {
-            if (it2->node == pNode) {
-                it2 = vHasFileRequests.erase(it2);
-                LogPrint("file", "%s - Has File Requests found and remove. fileTxHash: %s\n", __func__, it->first);
-                continue;
-            }
-
-            it2++;
-        }
-
-        // if empty, remove from map
-        if (vHasFileRequests.empty()) {
-            LogPrint("file", "%s - vHasFileRequests is empty. Remove hasFileRequestedNodesMap. fileTxHash: %s\n", __func__, it->first);
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void RemoveFileRequestsByNode(const NodeId pNode) {
-    LogPrint("file", "%s - RemoveFileRequestsByNode. Remove File Request. nodeId: %d\n", __func__, pNode);
-    for (auto it = fileRequestedNodesMap.begin(); it != fileRequestedNodesMap.end(); ) {
-        if (it->second.count(pNode)) {
-            it->second.erase(pNode);
-
-            auto it2 = fileRequestsOrder.begin();
-            while (it2 != fileRequestsOrder.end()) {
-                pair<uint256, NodeId> order = &(*it2);
-                if (order.first == it->first && order.second == pNode) {
-                    it2 = fileRequestsOrder.erase(it2);
-                    LogPrint("file", "%s -File Requests found and remove. fileTxHash: %s\n", __func__, it->first);
-                    break;
-                }
-
-                it2++;
-            }
-
-            if (it->second.empty()) {
-                LogPrint("file", "%s -  map<NodeId, FileRequest> is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first);
-                it = fileRequestedNodesMap.erase(it);
-                continue;
-            }
-        }
-
-        ++it;
-    }
-}
-
-void RemoveHasFileRequestsByHash(const uint256 &hash) {
-    hasFileRequestedNodesMap.erase(hash);
-}
-
-bool IsFileRequestExpired(int64_t requestExpiredDate) {
-    //TODO PDG 5 init it
-    return true;
-}
-
-void ProcessFilesRequestsScheduler() {
-    ProcessHasFileRequests();
-    ProcessFileRequests();
-}
-
-void ProcessHasFileRequests() {
-    LogPrint("file", "%s - ProcessHasFileRequests.\n", __func__);
-    LOCK(cs_HasFileRequestedNodesMap);
-
-    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end();) {
-        vector<FileRequest> &vfileRequest = it->second;
-
-        auto it2 = vfileRequest.begin();
-        while (it2 != vfileRequest.end()) {
-            if (it2->date + HAS_FILE_REQUEST_TIMEOUT > GetTimeMicros()) {
-                it2 = vfileRequest.erase(it2);
-                LogPrint("file", "%s - HAS_FILE_REQUEST_TIMEOUT. Remove Has File Request. nodeId: %d\n", __func__, it->first);
-                continue;
-            }
-
-            it2++;
-        }
-
-        if (vfileRequest.empty()) {
-            LogPrint("file", "%s -  vfileRequest is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first);
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        const uint256 &fileTxHash = it->first;
-
-        // is file appeared
-        if (IsFileExistByTx(fileTxHash)) {
-            LogPrint("file", "%s -  IsFileExistByTx. Remove HasFileRequests. fileTxHash: %s\n", __func__, fileTxHash);
-            {
-                LOCK(cs_KnownFileTxesInDb);
-                knownFileTxesInDb.insert(fileTxHash);
-            }
-
-            auto it2 = vfileRequest.begin();
-            while (it2 != vfileRequest.end()) {
-                CNode *pNode = FindNode(it2->node);
-                if (pNode == NULL || pNode->fDisconnect) {
-                    LogPrint("file", "%s -  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, it2->node, fileTxHash);
-                    it2 = vfileRequest.erase(it2);
-                    continue;
-                }
-
-                LogPrint("file", "%s -  SendFileAvailable. pNode: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash);
-                SendFileAvailable(pNode, fileTxHash);
-                it2++;
-            }
-
-            LogPrint("file", "%s -  Remove Has File Request at map. fileTxHash: %s\n", __func__, fileTxHash);
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void ProcessFileRequests() {
-    LogPrint("file", "%s - ProcessFileRequests.\n", __func__);
-
-    LOCK(cs_FileRequestedNodesMap);
-
-    // проверка не привышел ли лимит на одновременную отправку файлов
-    int availableToSend = GetAvailableToSendFilesCount();
-    LogPrint("file", "%s -  Available to send file. count: %d\n", __func__, availableToSend);
-    if (availableToSend == 0)
-        return;
-
-    auto it = fileRequestsOrder.begin();
-    while (it != fileRequestsOrder.end()) {
-        const pair<uint256, NodeId> &pair = *it;
-        map<NodeId, FileRequest> &requestMap = fileRequestedNodesMap[pair.first];
-        FileRequest &fileRequest = requestMap[pair.second];
-
-        CNode *pNode = FindNode(fileRequest.node);
-
-        // if node already disconnected. remove it
-        if (pNode == NULL || pNode->fDisconnect || IsFileRequestExpired(fileRequest.date)) {
-            LogPrint("file", "%s -  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, fileRequest.node, pair.first);
-            requestMap.erase(pair.second);
-            if (requestMap.empty()) {
-                fileRequestedNodesMap.erase(pair.first);
-            }
-            it = fileRequestsOrder.erase(it);
-            continue;
-        }
-
-        // TODO: убедиться что запушенный файл тут же попадает в vSend и эта проверка сработает, чтобы не отправить несколько файлов подряд одному ноду
-        if (!CanSendToNode(pNode)) {
-            LogPrint("file", "%s -  pNode - Can send to node. pNode: %d.\n", __func__, pNode->id);
-            it++;
-            continue;
-        }
-
-        // достаем файл и отправляем
-        uint256& fileTxHash = it->first;
-
-        CTransaction tx;
-        uint256 hashBlock;
-        if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
-            LogPrint("file", "%s -  Tx not found. fileTxHash: %s.\n", __func__, fileTxHash);
-            it++;
-            continue;
-        }
-
-        CDBFile dbFile;
-        if (!GetFile(tx.vfiles[0].fileHash, dbFile)) {
-            LogPrint("file", "%s -  File not found in DB. fileTxHash: %s.\n", __func__, fileTxHash);
-            it++;
-            continue;
-        }
-
-        // send
-        LogPrint("file", "%s -  Send file. fileTxHash: %s.\n", __func__, fileTxHash);
-        pNode->PushMessage("file", fileTxHash, dbFile);
-
-        // remove
-        requestMap.erase(pair.second);
-        if (requestMap.empty()) {
-            fileRequestedNodesMap.erase(pair.first);
-        }
-        it = fileRequestsOrder.erase(it);
-
-        --availableToSend;
-        if (availableToSend <= 0)
-            break;
-    }
-}
-
-void ProcessFilesPendingScheduler() {
-    LogPrint("file", "%s - ProcessFilesPendingScheduler.\n", __func__);
-
-    {
-        LOCK(cs_FilesPendingMap, cs_FilesInFlightMap);
-
-        for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
-            const uint256 &fileTxHash = it->first;
-
-            // already in flight
-            if (filesInFlightMap.count(fileTxHash)) {
-                LogPrint("file", "%s - File in flight. fileTxHash: %s\n", __func__, fileTxHash);
-                QueuedFile &fileInFlight = filesInFlightMap[fileTxHash];
-                // if fail in flight and wait timeout
-                if (fileInFlight.nTime + FILE_STALLING_TIMEOUT > GetTimeMicros()) {
-                    LogPrint("file", "%s - FILE_STALLING_TIMEOUT. fileTxHash: %s\n", __func__, fileTxHash);
-
-                    // resend file, change node id
-                    it->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
-
-                    if (it->second.nodes.empty()) {
-                        it = filesPendingMap.erase(it);
-                        continue;
-                    }
-
-                    CNode *pNode = FindFreeNode(it->second.nodes);
-                    // if node not found (disconnected), remove it and then request for new nodes that have file
-                    if (pNode == nullptr || pNode->fDisconnect) {
-                        LogPrint("file", "%s - node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash);
-                        it = filesPendingMap.erase(it);
-                        continue;
-                    }
-
-                    LogPrint("file", "%s - Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash);
-                    SendFileRequest(fileTxHash, pNode);
-                    // update data
-                    fileInFlight.nodeId = pNode->id;
-                    fileInFlight.nTime = CalcFlightTimeout();
-                }
-
-                it++;
-                continue;
-            }
-
-            LogPrint("file", "%s - File not in flight. fileTxHash: %s\n", __func__, fileTxHash);
-            if (CanRequestFile()) {
-                CNode *pNode = FindFreeNode(it->second.nodes);
-                if (pNode == nullptr || pNode->fDisconnect) {
-                    LogPrint("file", "%s - node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash);
-                    it = filesPendingMap.erase(it);
-                    continue;
-                }
-
-                LogPrint("file", "%s - Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash);
-                SendFileRequest(fileTxHash, pNode);
-                filesInFlightMap[fileTxHash] = QueuedFile(fileTxHash, pNode->id, CalcFlightTimeout());
-            }
-
-            it++;
-        }
-    }
-
-    processRequiredFiles();
-    processKnownHashes();
-}
-
-void processRequiredFiles() {
-    LogPrint("file", "%s - processRequiredFiles.\n", __func__);
-    vector<uint256> vRequiredToBroadcast;
-
-    {
-        LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
-
-        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
-            if (it->second.fileExpirationTime > GetAdjustedTime()) {
-                LogPrint("file", "%s - Required file time expiration. txFileHash: %s \n", __func__, it->first);
-                it = requiredFilesMap.erase(it);
-                continue;
-            }
-
-            const uint256 &fileTxHash = it->first;
-
-            if (filesPendingMap.count(fileTxHash))
-                continue;
-
-            if (knownHasFilesMap.count(fileTxHash)) {
-                std::vector<FileKnown> &vFileKnown = knownHasFilesMap[fileTxHash].second;
-
-                LogPrint("file", "%s - Required file has known nodes. txFileHash: %s. nodes: %d \n", __func__, it->first, vFileKnown.size());
-
-                FilePending filePending;
-                filePending.fileTxHash = fileTxHash;
-
-                BOOST_FOREACH (const FileKnown &fileKnown, vFileKnown) {
-                    LogPrint("file", "%s - Adding file to pending, nodeId: %d from file Known. txFileHash: %s\n", __func__, fileKnown.node, fileTxHash);
-                    filePending.nodes.insert(fileKnown.node);
-                }
-
-                filesPendingMap[fileTxHash] = filePending;
-
-                knownHasFilesMap.erase(fileTxHash);
-                continue;
-            }
-
-            // если не получили ответ за заданное время,
-            // бродкастим сообщение всем еще раз, обновляем таймаут
-            if (it->second.requestExpirationTime > GetTimeMicros()) {
-                LogPrint("file", "%s - File request time expiration. Broadcast all nodes. txFileHash: %s \n", __func__, fileTxHash);
-                vRequiredToBroadcast.emplace_back(fileTxHash);
-                it->second.requestExpirationTime = CalcRequiredFileRequestExpirationDate();
-            }
-        }
-
-        // TODO: PDG 5 update requiredFilesMap in DB
-    }
-
-    BOOST_FOREACH(const uint256& fileTxHash, vRequiredToBroadcast) {
-        BroadcastHasFileRequest(fileTxHash);
-    }
-}
-
-void processKnownHashes() {
-    LogPrint("file", "%s - processKnownHashes.\n", __func__);
-
-    LOCK(cs_KnownHasFilesMap);
-
-    std::set<NodeId> misbehavingNodes;
-
-    int processed = 0;
-    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
-        if (++processed % 100 == 0) {
-            LogPrint("file", "%s - thread interruption point. Processed: %d\n", __func__, processed);
-            boost::this_thread::interruption_point();
-        }
-
-        BOOST_FOREACH (const FileKnown &fileKnown, it->second) {
-            if (CountNotRequiredHashesByNode(fileKnown.node) > TOTAL_HASHES_PER_NODE_THRESHOLD) {
-                LogPrint("file", "%s - TOTAL_HASHES_PER_NODE_THRESHOLD. node:%d  add to misbehaving nodes.\n", __func__, fileKnown.node);
-                misbehavingNodes.insert(fileKnown.node);
-            }
-        }
-
-        uint256 &fileTxHash = it->first;
-        if (it->second.first > GetTimeMicros()) {
-            LogPrint("file", "%s - Known file remove at map by time expired. time: %d fileTxHash: %s\n", __func__, fileTxHash, it->second.first);
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-
-        if (IsFileExistByTx(fileTxHash)) {
-            LogPrint("file", "%s - File exist at DB. fileTxHash: %s\n", __func__, fileTxHash);
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-    }
-
-    BOOST_FOREACH (const NodeId &nodeId, misbehavingNodes) {
-        LogPrint("file", "%s - Node:%d - misbehaving. \n", __func__, nodeId);
-        Misbehaving(nodeId, 10);
-        RemoveKnownFileHashesByNode(nodeId);
-    }
-}
-
-void AddNewFileKnown(const uint256& hash, const NodeId id) {
-    LogPrint("file", "%s - Add new known file: fileTxHash: %s\n", __func__, hash);
-    std::vector<FileKnown> vFileKnown;
-    vFileKnown.emplace_back(FileKnown(id, 1));
-
-    {
-        LOCK(cs_KnownHasFilesMap);
-        knownHasFilesMap[hash] = std::make_pair(CalcKnownExpirationDate(), vFileKnown);
-    }
-}
-
-int64_t CalcKnownExpirationDate() {
-    return GetTimeMicros() + KNOWN_FILE_TIMEOUT;
-}
-
-int64_t CalcRequiredFileRequestExpirationDate() {
-    return GetTimeMicros() + REQUIRED_FILE_REQUEST_TIMEOUT;
-}
-
-int64_t CalcFlightTimeout() {
-    return GetTimeMicros() + FLIGHT_FILE_TIMEOUT;
-}
-
-bool CanRequestFile() {
-    return filesInFlightMap.size() > MAX_FILES_IN_TRANSIT_PER_PEER;
-}
-
-int CountNotRequiredHashesByNode(const NodeId id) {
-    int count = 0;
-
-    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
-        BOOST_FOREACH(const FileKnown& fileKnown, it->second.second) {
-            if (fileKnown.node == id)
-                ++count;
-        }
-    }
-
-    return count;
 }
 
 } // anon namespace
@@ -5272,17 +4840,17 @@ bool IsFileExist(const uint256& fileHash) {
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     // TODO: PDG 5 check if my file or masternode
     if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime()) > GetTimeMicros()) {
-        LogPrint("file", "%s - File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash());
+        LogPrint("file", "%s - File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
         return false;
     }
 
     if (requiredFilesMap.count(tx.GetHash())) {
-        LogPrint("file", "%s - File receive don't required. txHash: %s\n", __func__, tx.GetHash());
+        LogPrint("file", "%s - File receive don't required. txHash: %s\n", __func__, tx.GetHash().ToString());
         return false;
     }
 
     if (IsFileExist(tx.vfiles[0].fileHash)) {
-        LogPrint("file", "%s - File already exists. txHash: %s\n", __func__, tx.GetHash());
+        LogPrint("file", "%s - File already exists. txHash: %s\n", __func__, tx.GetHash().ToString());
         return false;
     }
 
@@ -5586,15 +5154,16 @@ void HandleFileTransferTx(CBlock *pblock) {
 
         const uint256& txHash = tx.GetHash();
 
-        LogPrint("file", "%s - HandleFileTransferTx. Detected file transaction. txHash: %s\n", __func__, txHash);
+        LogPrint("file", "%s - HandleFileTransferTx. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
 
         {
             LOCK(cs_RequiredFilesMap);
 
-            if (!IsFileReceiveNeeded(tx, &pblock->GetBlockHeader()))
+            CBlockHeader blockHeader = pblock->GetBlockHeader();
+            if (!IsFileReceiveNeeded(tx, &blockHeader))
                 continue;
 
-            LogPrint("file", "%s - HandleFileTransferTx. File required, adding to map. txHash: %s\n", __func__, txHash);
+            LogPrint("file", "%s - HandleFileTransferTx. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
 
             requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), tx.vfiles[0].nLifeTime);
 
@@ -7053,17 +6622,17 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (inv.type == MSG_HAS_FILE_REQUEST) {
                 if (!fImporting && !fReindex) {
                     const uint256& fileTxHash = inv.hash;
-                    LogPrint("file", "%s - MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash);
+                    LogPrint("file", "%s - MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash.ToString());
 
                     if (knownFileTxesInDb.count(fileTxHash)) {
-                        LogPrint("file", "%s - SendFileAvailable: to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                        LogPrint("file", "%s - SendFileAvailable: to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                         SendFileAvailable(pfrom, fileTxHash);
                     } else {
                         LOCK(cs_HasFileRequestedNodesMap);
 
                         // если нод уже запрашивал этот хеш, проверяем на лимиты
                         if (hasFileRequestedNodesMap.count(fileTxHash)) {
-                            LogPrint("file", "%s - Node already request this file. Check limits. to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                            LogPrint("file", "%s - Node already request this file. Check limits. to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                             FileRequest *fileRequest = nullptr;
 
                             //region Find file request by node
@@ -7077,18 +6646,18 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             //endregion
 
                             if (fileRequest != nullptr) {
-                                LogPrint("file", "%s - File request found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                                LogPrint("file", "%s - File request found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                 if (fileRequest->events > HAS_FILE_REQUEST_EVENTS_MAX_COUNT) {
-                                    LogPrint("file", "%s - HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                                    LogPrint("file", "%s - HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                     Misbehaving(fileRequest->node, 10);
                                     RemoveHasFileRequestsByNode(fileRequest->node);
                                 } else {
-                                    LogPrint("file", "%s - update data at file request. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                                    LogPrint("file", "%s - update data at file request. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                     fileRequest->events++;
                                     fileRequest->date = GetTimeMicros(); // обновить дату
                                 }
                             } else {
-                                LogPrint("file", "%s - File request not found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash);
+                                LogPrint("file", "%s - File request not found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                 vfileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
                             }
                         } else {
@@ -7169,8 +6738,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                             // add new
                             auto anotherFileRequest = &nodesMap.begin()->second;
-                            nodesMap[pfrom->GetId()] = FileRequest(pfrom->GetId(), GetTimeMicros(), anotherFileRequest->fileHash, anotherFileRequest->fileTxHash);
-                            fileRequestsOrder.emplace_back(make_pair(txHash, pfrom->GetId()));
+                            nodesMap[pfrom->GetId()] = FileRequest(pfrom->GetId(), GetTimeMicros(), anotherFileRequest->fileHash.get(), anotherFileRequest->fileTxHash.get());
+                            fileRequestsOrder.push_back(make_pair(txHash, pfrom->GetId()));
                         }
                     } else {
                         LogPrint("file", "%s - MSG_FILE_REQUEST. file request not found. Validating.\n", __func__);
@@ -7535,7 +7104,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     //file region
     else if (strCommand == "file" && !fImporting && !fReindex) {
-    {
         CDBFile file;
         uint256 fileTxHash;
         vRecv >> fileTxHash >> file;
@@ -7605,8 +7173,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     //end fileregion
 
-    else if (strCommand == "block" && !fImporting && !fReindex) // Ignore blocks received while importing
-    {
+    else if (strCommand == "block" && !fImporting && !fReindex) {// Ignore blocks received while importing
         CBlock block;
         vRecv >> block;
         uint256 hashBlock = block.GetHash();
@@ -8252,6 +7819,440 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
     return true;
 }
 
+void RemoveKnownFileHashesByNode(const NodeId pNode) {
+    LogPrint("file", "%s - RemoveKnownFileHashesByNode. Remove File Known. nodeId: %d\n", __func__, pNode);
+    for (KnownHasFilesMap::iterator it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); ) {
+        vector<FileKnown> &vFileKnown = it->second.second;
+
+        vector<FileKnown>::iterator it2 = vFileKnown.begin();
+        while (it2 != vFileKnown.end()) {
+            if (it2->node == pNode) {
+                it2 = vFileKnown.erase(it2);
+                LogPrint("file", "%s - File Known found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
+                continue;
+            }
+
+            it2++;
+        }
+
+        // if empty, remove from map
+        if (vFileKnown.empty()) {
+            LogPrint("file", "%s - vFileKnown is empty. Remove knownHasFilesMap. fileTxHash: %s\n", __func__, it->first.ToString());
+            it = knownHasFilesMap.erase(it);
+            continue;
+        }
+
+        it++;
+    }
+}
+
+void RemoveKnownFileHashesByHash(uint256& hash) {
+    knownHasFilesMap.erase(hash);
+}
+
+void RemoveHasFileRequestsByNode(const NodeId pNode) {
+    LogPrint("file", "%s - RemoveHasFileRequestsByNode. Remove Has File Request. nodeId: %d\n", __func__, pNode);
+    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end(); ) {
+        vector<FileRequest> &vHasFileRequests = it->second;
+
+        vector<FileRequest>::iterator it2 = vHasFileRequests.begin();
+        while (it2 != vHasFileRequests.end()) {
+            if (it2->node == pNode) {
+                it2 = vHasFileRequests.erase(it2);
+                LogPrint("file", "%s - Has File Requests found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
+                continue;
+            }
+
+            it2++;
+        }
+
+        // if empty, remove from map
+        if (vHasFileRequests.empty()) {
+            LogPrint("file", "%s - vHasFileRequests is empty. Remove hasFileRequestedNodesMap. fileTxHash: %s\n", __func__, it->first.ToString());
+            it = hasFileRequestedNodesMap.erase(it);
+            continue;
+        }
+
+        it++;
+    }
+}
+
+void RemoveFileRequestsByNode(const NodeId pNode) {
+    LogPrint("file", "%s - RemoveFileRequestsByNode. Remove File Request. nodeId: %d\n", __func__, pNode);
+    for (auto it = fileRequestedNodesMap.begin(); it != fileRequestedNodesMap.end(); ) {
+        if (it->second.count(pNode)) {
+            it->second.erase(pNode);
+
+            auto it2 = fileRequestsOrder.begin();
+            while (it2 != fileRequestsOrder.end()) {
+                pair<uint256, NodeId> &pair = *it2;
+                if (pair.first == it->first && pair.second == pNode) {
+                    it2 = fileRequestsOrder.erase(it2);
+                    LogPrint("file", "%s -File Requests found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
+                    break;
+                }
+
+                it2++;
+            }
+
+            if (it->second.empty()) {
+                LogPrint("file", "%s -  map<NodeId, FileRequest> is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString());
+                it = fileRequestedNodesMap.erase(it);
+                continue;
+            }
+        }
+
+        ++it;
+    }
+}
+
+void RemoveHasFileRequestsByHash(const uint256 &hash) {
+    hasFileRequestedNodesMap.erase(hash);
+}
+
+bool IsFileRequestExpired(int64_t requestExpiredDate) {
+    //TODO PDG 5 init it
+    return true;
+}
+
+void ProcessFilesRequestsScheduler() {
+    ProcessHasFileRequests();
+    ProcessFileRequests();
+}
+
+void ProcessHasFileRequests() {
+    LogPrint("file", "%s - ProcessHasFileRequests.\n", __func__);
+    LOCK(cs_HasFileRequestedNodesMap);
+
+    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end();) {
+        vector<FileRequest> &vfileRequest = it->second;
+
+        auto it2 = vfileRequest.begin();
+        while (it2 != vfileRequest.end()) {
+            if (it2->date + HAS_FILE_REQUEST_TIMEOUT > GetTimeMicros()) {
+                it2 = vfileRequest.erase(it2);
+                LogPrint("file", "%s - HAS_FILE_REQUEST_TIMEOUT. Remove Has File Request. fileTxHash: %s\n", __func__, it->first.ToString());
+                continue;
+            }
+
+            it2++;
+        }
+
+        if (vfileRequest.empty()) {
+            LogPrint("file", "%s -  vfileRequest is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString());
+            it = hasFileRequestedNodesMap.erase(it);
+            continue;
+        }
+
+        const uint256 &fileTxHash = it->first;
+
+        // is file appeared
+        if (IsFileExistByTx(fileTxHash)) {
+            LogPrint("file", "%s -  IsFileExistByTx. Remove HasFileRequests. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            {
+                LOCK(cs_KnownFileTxesInDb);
+                knownFileTxesInDb.insert(fileTxHash);
+            }
+
+            auto it2 = vfileRequest.begin();
+            while (it2 != vfileRequest.end()) {
+                CNode *pNode = FindNode(it2->node);
+                if (pNode == NULL || pNode->fDisconnect) {
+                    LogPrint("file", "%s -  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, it2->node, fileTxHash.ToString());
+                    it2 = vfileRequest.erase(it2);
+                    continue;
+                }
+
+                LogPrint("file", "%s -  SendFileAvailable. pNode: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                SendFileAvailable(pNode, fileTxHash);
+                it2++;
+            }
+
+            LogPrint("file", "%s -  Remove Has File Request at map. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            it = hasFileRequestedNodesMap.erase(it);
+            continue;
+        }
+
+        it++;
+    }
+}
+
+void ProcessFileRequests() {
+    LogPrint("file", "%s - ProcessFileRequests.\n", __func__);
+
+    LOCK(cs_FileRequestedNodesMap);
+
+    // проверка не привышел ли лимит на одновременную отправку файлов
+    int availableToSend = GetAvailableToSendFilesCount();
+    LogPrint("file", "%s -  Available to send file. count: %d\n", __func__, availableToSend);
+    if (availableToSend == 0)
+        return;
+
+    auto it = fileRequestsOrder.begin();
+    while (it != fileRequestsOrder.end()) {
+        const pair<uint256, NodeId> &pair = *it;
+        map<NodeId, FileRequest> &requestMap = fileRequestedNodesMap[pair.first];
+        FileRequest &fileRequest = requestMap[pair.second];
+
+        CNode *pNode = FindNode(fileRequest.node);
+
+        // if node already disconnected. remove it
+        if (pNode == NULL || pNode->fDisconnect || IsFileRequestExpired(fileRequest.date)) {
+            LogPrint("file", "%s -  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, fileRequest.node, pair.first.ToString());
+            requestMap.erase(pair.second);
+            if (requestMap.empty()) {
+                fileRequestedNodesMap.erase(pair.first);
+            }
+            it = fileRequestsOrder.erase(it);
+            continue;
+        }
+
+        // TODO: убедиться что запушенный файл тут же попадает в vSend и эта проверка сработает, чтобы не отправить несколько файлов подряд одному ноду
+        if (!CanSendToNode(pNode)) {
+            LogPrint("file", "%s -  pNode - Can send to node. pNode: %d.\n", __func__, pNode->id);
+            it++;
+            continue;
+        }
+
+        // достаем файл и отправляем
+        const uint256& fileTxHash = it->first;
+
+        CTransaction tx;
+        uint256 hashBlock;
+        if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
+            LogPrint("file", "%s -  Tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            it++;
+            continue;
+        }
+
+        CDBFile dbFile;
+        if (!GetFile(tx.vfiles[0].fileHash, dbFile)) {
+            LogPrint("file", "%s -  File not found in DB. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            it++;
+            continue;
+        }
+
+        // send
+        LogPrint("file", "%s -  Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+        pNode->PushMessage("file", fileTxHash, dbFile);
+
+        // remove
+        requestMap.erase(pair.second);
+        if (requestMap.empty()) {
+            fileRequestedNodesMap.erase(pair.first);
+        }
+        it = fileRequestsOrder.erase(it);
+
+        --availableToSend;
+        if (availableToSend <= 0)
+            break;
+    }
+}
+
+void ProcessFilesPendingScheduler() {
+    LogPrint("file", "%s - ProcessFilesPendingScheduler.\n", __func__);
+
+    {
+        LOCK2(cs_FilesPendingMap, cs_FilesInFlightMap);
+
+        for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
+            const uint256 &fileTxHash = it->first;
+
+            // already in flight
+            if (filesInFlightMap.count(fileTxHash)) {
+                LogPrint("file", "%s - File in flight. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+                QueuedFile &fileInFlight = filesInFlightMap[fileTxHash];
+                // if fail in flight and wait timeout
+                if (fileInFlight.nTime + FILE_STALLING_TIMEOUT > GetTimeMicros()) {
+                    LogPrint("file", "%s - FILE_STALLING_TIMEOUT. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+
+                    // resend file, change node id
+                    it->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
+
+                    if (it->second.nodes.empty()) {
+                        it = filesPendingMap.erase(it);
+                        continue;
+                    }
+
+                    CNode *pNode = FindFreeNode(it->second.nodes);
+                    // if node not found (disconnected), remove it and then request for new nodes that have file
+                    if (pNode == nullptr || pNode->fDisconnect) {
+                        LogPrint("file", "%s - node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
+                        it = filesPendingMap.erase(it);
+                        continue;
+                    }
+
+                    LogPrint("file", "%s - Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                    SendFileRequest(fileTxHash, pNode);
+                    // update data
+                    fileInFlight.nodeId = pNode->id;
+                    fileInFlight.nTime = CalcFlightTimeout();
+                }
+
+                it++;
+                continue;
+            }
+
+            LogPrint("file", "%s - File not in flight. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            if (CanRequestFile()) {
+                CNode *pNode = FindFreeNode(it->second.nodes);
+                if (pNode == nullptr || pNode->fDisconnect) {
+                    LogPrint("file", "%s - node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
+                    it = filesPendingMap.erase(it);
+                    continue;
+                }
+
+                LogPrint("file", "%s - Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                SendFileRequest(fileTxHash, pNode);
+                filesInFlightMap[fileTxHash] = QueuedFile(fileTxHash, pNode->id, CalcFlightTimeout());
+            }
+
+            it++;
+        }
+    }
+
+    ProcessRequiredFiles();
+    ProcessKnownHashes();
+}
+
+void ProcessRequiredFiles() {
+    LogPrint("file", "%s - processRequiredFiles.\n", __func__);
+    vector<uint256> vRequiredToBroadcast;
+
+    {
+        LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
+
+        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+            if (it->second.fileExpirationTime > GetAdjustedTime()) {
+                LogPrint("file", "%s - Required file time expiration. txFileHash: %s \n", __func__, it->first.ToString());
+                it = requiredFilesMap.erase(it);
+                continue;
+            }
+
+            const uint256 &fileTxHash = it->first;
+
+            if (filesPendingMap.count(fileTxHash))
+                continue;
+
+            if (knownHasFilesMap.count(fileTxHash)) {
+                std::vector<FileKnown> &vFileKnown = knownHasFilesMap[fileTxHash].second;
+
+                LogPrint("file", "%s - Required file has known nodes. txFileHash: %s. nodes: %d \n", __func__, it->first.ToString(), vFileKnown.size());
+
+                FilePending filePending;
+                filePending.fileTxHash = fileTxHash;
+
+                BOOST_FOREACH (const FileKnown &fileKnown, vFileKnown) {
+                    LogPrint("file", "%s - Adding file to pending, nodeId: %d from file Known. txFileHash: %s\n", __func__, fileKnown.node, fileTxHash.ToString());
+                    filePending.nodes.insert(fileKnown.node);
+                }
+
+                filesPendingMap[fileTxHash] = filePending;
+
+                knownHasFilesMap.erase(fileTxHash);
+                continue;
+            }
+
+            // если не получили ответ за заданное время,
+            // бродкастим сообщение всем еще раз, обновляем таймаут
+            if (it->second.requestExpirationTime > GetTimeMicros()) {
+                LogPrint("file", "%s - File request time expiration. Broadcast all nodes. txFileHash: %s \n", __func__, fileTxHash.ToString());
+                vRequiredToBroadcast.emplace_back(fileTxHash);
+                it->second.requestExpirationTime = CalcRequiredFileRequestExpirationDate();
+            }
+        }
+
+        // TODO: PDG 5 update requiredFilesMap in DB
+    }
+
+    BOOST_FOREACH(const uint256& fileTxHash, vRequiredToBroadcast) {
+        BroadcastHasFileRequest(fileTxHash);
+    }
+}
+
+void ProcessKnownHashes() {
+    LogPrint("file", "%s - processKnownHashes.\n", __func__);
+
+    LOCK(cs_KnownHasFilesMap);
+
+    std::set<NodeId> misbehavingNodes;
+
+    int processed = 0;
+    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
+        if (++processed % 100 == 0) {
+            LogPrint("file", "%s - thread interruption point. Processed: %d\n", __func__, processed);
+            boost::this_thread::interruption_point();
+        }
+
+        BOOST_FOREACH (const FileKnown &fileKnown, it->second.second) {
+            if (CountNotRequiredHashesByNode(fileKnown.node) > TOTAL_HASHES_PER_NODE_THRESHOLD) {
+                LogPrint("file", "%s - TOTAL_HASHES_PER_NODE_THRESHOLD. node:%d  add to misbehaving nodes.\n", __func__, fileKnown.node);
+                misbehavingNodes.insert(fileKnown.node);
+            }
+        }
+
+        const uint256 &fileTxHash = it->first;
+        if (it->second.first > GetTimeMicros()) {
+            LogPrint("file", "%s - Known file remove at map by time expired. time: %d fileTxHash: %s\n", __func__, it->second.first, fileTxHash.ToString());
+            it = knownHasFilesMap.erase(it);
+            continue;
+        }
+
+        if (IsFileExistByTx(fileTxHash)) {
+            LogPrint("file", "%s - File exist at DB. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            it = knownHasFilesMap.erase(it);
+            continue;
+        }
+    }
+
+    BOOST_FOREACH (const NodeId &nodeId, misbehavingNodes) {
+        LogPrint("file", "%s - Node:%d - misbehaving. \n", __func__, nodeId);
+        Misbehaving(nodeId, 10);
+        RemoveKnownFileHashesByNode(nodeId);
+    }
+}
+
+void AddNewFileKnown(const uint256& hash, const NodeId id) {
+    LogPrint("file", "%s - Add new known file: fileTxHash: %s\n", __func__, hash.ToString());
+    std::vector<FileKnown> vFileKnown;
+    vFileKnown.emplace_back(FileKnown(id, 1));
+
+    {
+        LOCK(cs_KnownHasFilesMap);
+        knownHasFilesMap[hash] = std::make_pair(CalcKnownExpirationDate(), vFileKnown);
+    }
+}
+
+int64_t CalcKnownExpirationDate() {
+    return GetTimeMicros() + KNOWN_FILE_TIMEOUT;
+}
+
+int64_t CalcRequiredFileRequestExpirationDate() {
+    return GetTimeMicros() + REQUIRED_FILE_REQUEST_TIMEOUT;
+}
+
+int64_t CalcFlightTimeout() {
+    return GetTimeMicros() + FLIGHT_FILE_TIMEOUT;
+}
+
+bool CanRequestFile() {
+    return filesInFlightMap.size() > MAX_FILES_IN_TRANSIT_PER_PEER;
+}
+
+int CountNotRequiredHashesByNode(const NodeId id) {
+    int count = 0;
+
+    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
+        BOOST_FOREACH(const FileKnown& fileKnown, it->second.second) {
+            if (fileKnown.node == id)
+                ++count;
+        }
+    }
+
+    return count;
+}
+
+
 bool IsMsgFile(int type) {
     return type == MSG_HAS_FILE_REQUEST ||
            type == MSG_HAS_FILE ||
@@ -8268,6 +8269,38 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
     return nullptr;
 }
 
+bool SaveFileDB(CDBFile& file) {
+    unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+    CDiskFileBlockPos filePos;
+    CValidationState state;
+    if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+        return error("%s : Failed to find file block pos with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!WriteFileBlockToDisk(file, filePos))
+        return error("%s : Failed to write file block to disk with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!pblockfiletree->WriteFileIndex(file.CalcFileHash(), filePos))
+        return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    UpdateFileBlockPosData(filePos);
+
+    return true;
+}
+
+bool EraseFileDB(CDBFile& file) {
+    CDiskFileBlockPos pos;
+    if (!pblockfiletree->ReadFileIndex(file.fileHash, pos))
+        return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!pblockfiletree->EraseFileIndex(file.fileHash))
+        return error("%s : Failed to delete file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!RemoveFileBlockFromDisk(pos))
+        return error("%s : Failed to remove file from blocks with fileHash - %s", __func__, file.fileHash.ToString());
+
+    return true;
+}
+
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
     return (blockTime + tx.vfiles[0].nLifeTime) > GetAdjustedTime();
 }
@@ -8278,7 +8311,7 @@ CNode *FindFreeNode(const set<NodeId> &nodes) {
     BOOST_FOREACH(const NodeId& nodeId, nodes) {
         // region Check if this node in use
         bool alreadyUse = false;
-        for (auto it = filesInFlightMap.begin(); it != filesPendingMap.end(); ) {
+        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ) {
             if (nodeId == it->second.nodeId) {
                 alreadyUse = true;
                 break;

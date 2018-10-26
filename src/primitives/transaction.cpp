@@ -286,7 +286,7 @@ CPaymentRequest::CPaymentRequest(): CTransactionMeta(TX_META_FILE), sComment(), 
 CPaymentConfirm::CPaymentConfirm(): CTransactionMeta(TX_META_FILE), requestTxid(), nLifeTime(0), vfPublicKey() {
 }
 
-CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const uint32_t nLifeTime, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), nLifeTime(nLifeTime), requestTxid(requestTxid), vfPublicKey(vfPublicKey) {
+CPaymentConfirm::CPaymentConfirm(const uint256& requestTxid, const uint32_t nLifeTime, const std::vector<char>& vfPublicKey): CTransactionMeta(TX_META_FILE), requestTxid(requestTxid), nLifeTime(nLifeTime), vfPublicKey(vfPublicKey) {
 }
 
 CFileMeta::CFileMeta(): CTransactionMeta(TX_META_FILE) {

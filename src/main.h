@@ -330,13 +330,17 @@ bool GetFile(CDBFile file, uint256& hash);
 bool IsFileRequestExpired(int64_t requestExpiredDate);
 
 int CountNotRequiredHashesByNode(const NodeId id);
-bool processRequiredFiles();
-bool processKnownHashes();
+void ProcessRequiredFiles();
+void ProcessKnownHashes();
 void AddNewFileKnown(const uint256& hash, const NodeId id);
 int64_t CalcKnownExpirationDate();
 int64_t CalcRequiredFileRequestExpirationDate();
 int64_t CalcFlightTimeout();
 bool CanRequestFile();
+
+// TODO: PDG 2 move to file
+bool SaveFileDB(CDBFile& file);
+bool EraseFileDB(CDBFile& file);
 
 /** Request info about available file */
 bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
@@ -516,7 +520,7 @@ bool IsTransactionInChain(const uint256& txId, int& nHeightTx, CTransaction& tx)
 bool IsTransactionInChain(const uint256& txId, int& nHeightTx);
 bool IsBlockHashInChain(const uint256& hashBlock);
 bool IsFileExist(const uint256& fileHash);
-bool IsFileReceiveNeeded(const uint256& fileTxHash);
+bool IsFileReceiveNeeded(const uint256& fileTxHash, const CBlockHeader* blockHeader);
 bool IsFileExistByTx(const uint256& fileTxHash);
 bool ValidOutPoint(const COutPoint out, int nHeight);
 void RecalculateZPIVSpent();

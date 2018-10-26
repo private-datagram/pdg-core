@@ -1297,7 +1297,7 @@ void FilesPendingHandle()
     g_signals.ProcessFilesPendingScheduler();
 }
 
-void ProcessFilesRequestsScheduler()
+void ProcessFilesRequestsSchedulerHandler()
 {
     g_signals.ProcessFilesRequestsScheduler();
 }
@@ -1571,7 +1571,7 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
 }
 
 void BroadcastHasFileRequest(const uint256 &fileTxHash) {
-    LogPrint("file", "%s - Broadcasting has file request. txHash: %s\n", __func__, fileTxHash);
+    LogPrint("file", "%s - Broadcasting has file request. txHash: %s\n", __func__, fileTxHash.ToString());
 
     vector<CNode*> vNodesCopy;
     {
@@ -1880,7 +1880,7 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     scheduler.scheduleEvery(&FilesPendingHandle, CHECK_PENDING_FILES_INTERVAL);
 
-    scheduler.scheduleEvery(&ProcessFilesRequestsScheduler, CHECK_REQUESTING_FILES_INTERVAL);
+    scheduler.scheduleEvery(&ProcessFilesRequestsSchedulerHandler, CHECK_REQUESTING_FILES_INTERVAL);
 
     // ppcoin:mint proof-of-stake blocks in the background
     if (GetBoolArg("-staking", true))

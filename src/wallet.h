@@ -193,7 +193,7 @@ private:
 
     bool ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
     bool OnPaymentConfirmed(const CTransaction& tx);
-    bool EraseFileDB(CDBFile& file);
+
     bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest, uint256& outFileTxHash);
 
 public:

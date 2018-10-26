@@ -17,13 +17,9 @@
 #include "crypto/rsa.h"
 #include "primitives/transaction.h"
 #include "streams.h"
-#include "chain.h"
 
 using namespace crypto::aes;
 using namespace crypto::rsa;
-
-bool SaveFileDB(CDBFile& file);
-bool EraseFileDB(CDBFile& file);
 
 template <typename Stream>
 bool PrepareMeta(Stream& inputFile, const std::string filename, const AESKey& key, const vector<char> vfPublicKey, const uint256& confirmTxHash, CFileMeta& outFileMeta) {
