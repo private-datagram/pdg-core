@@ -3695,7 +3695,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    pwalletMain->ProcessFileContract(&block);
+    pwalletMain->ProcessFileContract(&block); // TODO: find best place
 
     return true;
 }
@@ -6680,11 +6680,22 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                 LogPrint("file", "%s - MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
                                 Misbehaving(pfrom->GetId(), 50);
                             } else {
-                                int64_t blockTime = mapBlockIndex[blockHash]->GetBlockTime();
+
+                                int64_t blockTime;
+                                bool hasBlock = false;
+                                if(mapBlockIndex.count(blockHash)) {
+                                    blockTime = mapBlockIndex[blockHash]->GetBlockTime();
+                                    hasBlock = true;
+                                }
+
+                                if (!hasBlock) {
+                                    LogPrint("file", "%s - MSG_HAS_FILE_REQUEST. FileTx block not found. Block hash: %s.\n", __func__, blockHash.ToString());
+                                    blockTime = GetAdjustedTime();
+                                }
 
                                 LogPrint("file", "%s - MSG_HAS_FILE_REQUEST. FileTx block time: %d.\n", __func__, blockTime);
 
-                                if (IsFileTransactionExpired(tx, blockTime)) {
+                                if (hasBlock && IsFileTransactionExpired(tx, blockTime)) {
                                     LogPrint("file", "%s - MSG_HAS_FILE_REQUEST. File expired. Misbehaving.\n", __func__);
                                     Misbehaving(pfrom->GetId(), 5);
                                 } else
@@ -7829,8 +7840,9 @@ void RemoveKnownFileHashesByNode(const NodeId pNode) {
         vector<FileKnown>::iterator it2 = vFileKnown.begin();
         while (it2 != vFileKnown.end()) {
             if (it2->node == pNode) {
-                it2 = vFileKnown.erase(it2);
                 LogPrint("file", "%s - File Known found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
+
+                it2 = vFileKnown.erase(it2);
                 continue;
             }
 
@@ -7860,8 +7872,8 @@ void RemoveHasFileRequestsByNode(const NodeId pNode) {
         vector<FileRequest>::iterator it2 = vHasFileRequests.begin();
         while (it2 != vHasFileRequests.end()) {
             if (it2->node == pNode) {
-                it2 = vHasFileRequests.erase(it2);
                 LogPrint("file", "%s - Has File Requests found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
+                it2 = vHasFileRequests.erase(it2);
                 continue;
             }
 
@@ -8052,7 +8064,7 @@ void ProcessFileRequests() {
 }
 
 void ProcessFilesPendingScheduler() {
-    LogPrint("file", "%s - ProcessFilesPendingScheduler.\n", __func__);
+    LogPrint("file", "%s - ProcessFilesPendingScheduler. Files pending: %d\n", __func__, filesPendingMap.size());
 
     {
         LOCK2(cs_FilesPendingMap, cs_FilesInFlightMap);
@@ -8124,17 +8136,19 @@ void ProcessRequiredFiles() {
     {
         LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
 
-        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); ) {
             if (GetAdjustedTime() > it->second.fileExpirationTime) {
-                LogPrint("file", "%s - Required file time expiration. txFileHash: %s \n", __func__, it->first.ToString());
+                LogPrint("file", "%s - Required file expired. File not required anymore. Deleting from list. txFileHash: %s \n", __func__, it->first.ToString());
                 it = requiredFilesMap.erase(it);
                 continue;
             }
 
             const uint256 &fileTxHash = it->first;
 
-            if (filesPendingMap.count(fileTxHash))
+            if (filesPendingMap.count(fileTxHash)) {
+                it++;
                 continue;
+            }
 
             if (knownHasFilesMap.count(fileTxHash)) {
                 std::vector<FileKnown> &vFileKnown = knownHasFilesMap[fileTxHash].second;
@@ -8152,16 +8166,20 @@ void ProcessRequiredFiles() {
                 filesPendingMap[fileTxHash] = filePending;
 
                 knownHasFilesMap.erase(fileTxHash);
+
+                it++;
                 continue;
             }
 
             // если не получили ответ за заданное время,
             // бродкастим сообщение всем еще раз, обновляем таймаут
             if (GetTimeMicros() > it->second.requestExpirationTime) {
-                LogPrint("file", "%s - File request time expiration. Broadcast all nodes. txFileHash: %s \n", __func__, fileTxHash.ToString());
+                LogPrint("file", "%s - File request time expiration. Broadcast new request to every node. txFileHash: %s\n", __func__, fileTxHash.ToString());
                 vRequiredToBroadcast.emplace_back(fileTxHash);
                 it->second.requestExpirationTime = CalcRequiredFileRequestExpirationDate();
             }
+
+            it++;
         }
 
         // TODO: PDG 5 update requiredFilesMap in DB
@@ -8180,7 +8198,7 @@ void ProcessKnownHashes() {
     std::set<NodeId> misbehavingNodes;
 
     int processed = 0;
-    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
+    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); ) {
         if (++processed % 100 == 0) {
             LogPrint("file", "%s - thread interruption point. Processed: %d\n", __func__, processed);
             boost::this_thread::interruption_point();
@@ -8205,6 +8223,8 @@ void ProcessKnownHashes() {
             it = knownHasFilesMap.erase(it);
             continue;
         }
+
+        it++;
     }
 
     BOOST_FOREACH (const NodeId &nodeId, misbehavingNodes) {
@@ -8272,6 +8292,8 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
 }
 
 bool SaveFileDB(CDBFile& file) {
+    LogPrint("file", "%s : Saving file to db. filehash: %s, filesize: %d\n", __func__, file.fileHash.ToString(), file.vBytes.size());
+
     unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
     CDiskFileBlockPos filePos;
     CValidationState state;
@@ -8285,6 +8307,8 @@ bool SaveFileDB(CDBFile& file) {
         return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
 
     UpdateFileBlockPosData(filePos);
+
+    LogPrint("file", "%s : File saved at position %d/%d\n", __func__, filePos.numberDiskFile, filePos.numberPosition);
 
     return true;
 }

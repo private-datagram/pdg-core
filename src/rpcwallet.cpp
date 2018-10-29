@@ -549,7 +549,7 @@ UniValue sendfilepayment(const UniValue& params, bool fHelp)
     crypto::rsa::KeypairToDER(keypair, publicKey, privateKey);
 
     wtx.type = TX_FILE_PAYMENT_CONFIRM;
-    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), 30*60*60, publicKey);
+    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), 30 * 24 * 60 * 60, publicKey); // TODO: PDG 2 change lifetime
 
     EnsureWalletIsUnlocked();
 
@@ -560,6 +560,30 @@ UniValue sendfilepayment(const UniValue& params, bool fHelp)
 
     return wtx.GetHash().GetHex();
 }
+
+//// TODO: remove
+//UniValue debug_addrequiredfile(const UniValue& params, bool fHelp)
+//{
+//    if (fHelp || params.size() < 1 || params.size() > 1)
+//        throw runtime_error(
+//                "debugaddrequiredfile \"file transaction hash\"\n");
+//
+//    uint256 txHash;
+//    txHash.SetHex(params[0].get_str());
+//
+//    CTransaction tx;
+//    uint256 blockHash;
+//    if (!GetTransaction(txHash, tx, blockHash, true)) {
+//        throw runtime_error("Invalid hash. Transaction not found");
+//    }
+//
+//    {
+//        LOCK(cs_RequiredFilesMap);
+//        requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), tx.vfiles[0].nLifeTime);
+//    }
+//
+//    return "OK";
+//}
 
 UniValue listaddressgroupings(const UniValue& params, bool fHelp)
 {

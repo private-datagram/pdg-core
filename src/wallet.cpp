@@ -5405,6 +5405,8 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
     }
 
+    LogPrint("file", "%s : Payment confirmed: %s\n", __func__, tx.GetHash().ToString());
+
     // TODO: check transaction valid
 
     // prepare data
