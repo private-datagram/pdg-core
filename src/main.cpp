@@ -4839,7 +4839,7 @@ bool IsFileExist(const uint256& fileHash) {
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     // TODO: PDG 5 check if my file or masternode
-    if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime()) > GetTimeMicros()) {
+    if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime())) {
         LogPrint("file", "%s - File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
         return false;
     }
@@ -6625,10 +6625,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                     LogPrint("file", "%s - MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash.ToString());
 
                     if (knownFileTxesInDb.count(fileTxHash)) {
-                        LogPrint("file", "%s - SendFileAvailable: to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                        LogPrint("file", "%s - File known in DB. SendFileAvailable to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                         SendFileAvailable(pfrom, fileTxHash);
                     } else {
                         LOCK(cs_HasFileRequestedNodesMap);
+
+                        LogPrint("file", "%s - File unknown in DB\n", __func__);
 
                         // если нод уже запрашивал этот хеш, проверяем на лимиты
                         if (hasFileRequestedNodesMap.count(fileTxHash)) {
@@ -6729,7 +6731,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                 Misbehaving(fileRequest->node, 50);
                                 RemoveFileRequestsByNode(fileRequest->node);
                             } else {
-                                // update datem increment counter
+                                // update date and increment counter
                                 fileRequest->date = GetTimeMicros();
                                 fileRequest->events++;
                             }
@@ -7929,7 +7931,7 @@ void ProcessHasFileRequests() {
 
         auto it2 = vfileRequest.begin();
         while (it2 != vfileRequest.end()) {
-            if (it2->date + HAS_FILE_REQUEST_TIMEOUT > GetTimeMicros()) {
+            if (GetTimeMicros() > (it2->date + HAS_FILE_REQUEST_TIMEOUT)) {
                 it2 = vfileRequest.erase(it2);
                 LogPrint("file", "%s - HAS_FILE_REQUEST_TIMEOUT. Remove Has File Request. fileTxHash: %s\n", __func__, it->first.ToString());
                 continue;
@@ -8063,7 +8065,7 @@ void ProcessFilesPendingScheduler() {
                 LogPrint("file", "%s - File in flight. fileTxHash: %s\n", __func__, fileTxHash.ToString());
                 QueuedFile &fileInFlight = filesInFlightMap[fileTxHash];
                 // if fail in flight and wait timeout
-                if (fileInFlight.nTime + FILE_STALLING_TIMEOUT > GetTimeMicros()) {
+                if (GetTimeMicros() > fileInFlight.nTime + FILE_STALLING_TIMEOUT) {
                     LogPrint("file", "%s - FILE_STALLING_TIMEOUT. fileTxHash: %s\n", __func__, fileTxHash.ToString());
 
                     // resend file, change node id
@@ -8123,7 +8125,7 @@ void ProcessRequiredFiles() {
         LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
 
         for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
-            if (it->second.fileExpirationTime > GetAdjustedTime()) {
+            if (GetAdjustedTime() > it->second.fileExpirationTime) {
                 LogPrint("file", "%s - Required file time expiration. txFileHash: %s \n", __func__, it->first.ToString());
                 it = requiredFilesMap.erase(it);
                 continue;
@@ -8155,7 +8157,7 @@ void ProcessRequiredFiles() {
 
             // если не получили ответ за заданное время,
             // бродкастим сообщение всем еще раз, обновляем таймаут
-            if (it->second.requestExpirationTime > GetTimeMicros()) {
+            if (GetTimeMicros() > it->second.requestExpirationTime) {
                 LogPrint("file", "%s - File request time expiration. Broadcast all nodes. txFileHash: %s \n", __func__, fileTxHash.ToString());
                 vRequiredToBroadcast.emplace_back(fileTxHash);
                 it->second.requestExpirationTime = CalcRequiredFileRequestExpirationDate();
@@ -8192,7 +8194,7 @@ void ProcessKnownHashes() {
         }
 
         const uint256 &fileTxHash = it->first;
-        if (it->second.first > GetTimeMicros()) {
+        if (GetTimeMicros() > it->second.first) {
             LogPrint("file", "%s - Known file remove at map by time expired. time: %d fileTxHash: %s\n", __func__, it->second.first, fileTxHash.ToString());
             it = knownHasFilesMap.erase(it);
             continue;
@@ -8302,7 +8304,7 @@ bool EraseFileDB(CDBFile& file) {
 }
 
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
-    return (blockTime + tx.vfiles[0].nLifeTime) > GetAdjustedTime();
+    return GetAdjustedTime() > (blockTime + tx.vfiles[0].nLifeTime);
 }
 
 CNode *FindFreeNode(const set<NodeId> &nodes) {

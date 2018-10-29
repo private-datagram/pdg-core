@@ -236,11 +236,11 @@ extern std::map<uint256, int64_t> mapRejectedBlocks;
 extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
-extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
+extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: save state to DB
 
 //extern std::vector<FilePending> vPendingReceiveFile;                                // TODO: PDG 3 make limit or queue
 
-extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;; // TODO: PDG make beautiful
+extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
