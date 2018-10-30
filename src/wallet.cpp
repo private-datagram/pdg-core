@@ -5468,6 +5468,8 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     txFile.fileHash = dbFile.fileHash;
     txFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
 
+    LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, txFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
+
     if (!SaveFileDB(dbFile))
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
 
@@ -5483,6 +5485,11 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     //notification about available file
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
         LogPrintStr("Failed to delete wallet file tx");
+
+    // TODO: PDG 4 remove after debug
+    if (!IsFileExist(dbFile.fileHash)) {
+        LogPrint("file", "%s - FILES. Saved file doesn't found. File hash: %s\n", __func__, dbFile.fileHash.ToString());
+    }
 
     return true;
 }
