@@ -5405,7 +5405,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
     }
 
-    LogPrint("file", "%s : Payment confirmed: %s\n", __func__, tx.GetHash().ToString());
+    LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
 
     // TODO: check transaction valid
 
@@ -5455,7 +5455,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     // fill file
     CFile txFile;
     txFile.fileHash = dbFile.fileHash;
-    txFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: check lifetime and fee before
+    txFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
 
     if (!SaveFileDB(dbFile))
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
@@ -5477,6 +5477,8 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 }
 
 bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest, uint256& outFileTxHash) {
+    LogPrint("file", "%s - FILES. Sending file transaction\n", __func__);
+
     LogPrintStr(std::string("address: ") + CBitcoinAddress(dest).ToString());
 
     // fill transaction
@@ -5521,6 +5523,8 @@ bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestin
     }
 
     outFileTxHash = newTx.GetHash();
+
+    LogPrint("file", "%s - FILES. File transaction sent. Tx hash: %s\n", __func__, outFileTxHash.ToString());
 
     // accept transaction
     /**

@@ -1541,8 +1541,8 @@ bool CanSendToNode(const CNode *peer) {
     return peer->nSendSize < MAX_FILE_SIZE * 1.5;
 }
 
-void SendFileRequest(uint256 fileHash, CNode *pto) {
-    pto->PushInventory(CInv(MSG_FILE_REQUEST, fileHash));
+void SendFileRequest(const uint256 &fileTxHash, CNode *pto) {
+    pto->PushInventory(CInv(MSG_FILE_REQUEST, fileTxHash));
 }
 
 void BroadcastFileAvailable(uint256 fileTxHash) {
@@ -1571,7 +1571,7 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
 }
 
 void BroadcastHasFileRequest(const uint256 &fileTxHash) {
-    LogPrint("file", "%s - Broadcasting has file request. txHash: %s\n", __func__, fileTxHash.ToString());
+    LogPrint("file", "%s - FILES. Broadcasting has file request. txHash: %s\n", __func__, fileTxHash.ToString());
 
     vector<CNode*> vNodesCopy;
     {
