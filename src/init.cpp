@@ -1448,10 +1448,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
-                LogPrint("file", "%s - Loading required files from DB.\n", __func__);
+                LogPrint("file", "%s - FILES. Loading required files from DB.\n", __func__);
                 uiInterface.InitMessage(_("Loading required files..."));
                 if (!LoadFilesData()) {
-                    LogPrint("file", "%s - Error loading required files from DB.\n", __func__);
+                    LogPrint("file", "%s - FILES. Error loading required files from DB.\n", __func__);
                     strLoadError = _("Error loading required file database");
                     break;
                 }
@@ -1697,11 +1697,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pindexRescan = chainActive.Genesis();
 
             //Inititalize PDG Wallet
-            LogPrint("file", "%s - Loading maturation payment confirm transactions from DB.\n", __func__);
+            LogPrint("file", "%s - FILES. Loading maturation payment confirm transactions from DB.\n", __func__);
             uiInterface.InitMessage(_("Loading files data wallet..."));
             if (!walletdb.ReadMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
                 strErrors << _("Error loading maturation payment confirm transactions database") << "\n";
-                LogPrint("file", "%s - Error loading maturation payment confirm transactions database.\n", __func__);
+                LogPrint("file", "%s - FILES. Error loading maturation payment confirm transactions database.\n", __func__);
                 return InitError(strErrors.str());
             }
         }

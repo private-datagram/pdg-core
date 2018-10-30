@@ -3767,18 +3767,18 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblockfiletree->Sync();
 
             //write required files
-            LogPrint("file", "%s - Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
+            LogPrint("file", "%s - FILES. Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
             if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap)) {
-                LogPrint("file", "%s - Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
+                LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
                 return state.Abort("Failed to write required files in db. ");
             }
 
             //write maturation payment confirm transactions
             if (pwalletMain != NULL) {
-                LogPrint("file", "%s - Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+                LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
                 CWalletDB walletdb(pwalletMain->strWalletFile);
                 if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
-                    LogPrint("file", "%s - Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+                    LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
                     return state.Abort("Failed to write maturation payment confirm transactions in db.\n");
                 }
             }
@@ -4459,7 +4459,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
 {
     LOCK(cs_LastFileBlockFile);
     pos.numberDiskFile = nLastFileDiskFile;
-    LogPrint("file", "%s - FindFileBlockPos. Number last fileblock disk file: %d\n", __func__, nLastFileDiskFile);
+    LogPrint("file", "%s - FILES. FindFileBlockPos. Number last fileblock disk file: %d\n", __func__, nLastFileDiskFile);
 
     if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
         vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
@@ -4468,7 +4468,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
     //Flush file after filled
     // TODO: aseert addSize < MAX_FILEBLOCKFILE_SIZE
     while (vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
-        LogPrint("file", "%s - MAX_FILEBLOCKFILE_SIZE. Flush fileblock disk file.\n", __func__);
+        LogPrint("file", "%s - FILES. MAX_FILEBLOCKFILE_SIZE. Flush fileblock disk file.\n", __func__);
         FlushFileBlockFile(true);
         ++pos.numberDiskFile;
         if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
@@ -4478,7 +4478,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
 
     //update meta data
     nLastFileDiskFile = pos.numberDiskFile;
-    LogPrint("file", "%s - Updated meta data. Number last file disk file: %d\n", __func__, nLastFileDiskFile);
+    LogPrint("file", "%s - FILES. Updated meta data. Number last file disk file: %d\n", __func__, nLastFileDiskFile);
 
     pos.numberPosition = vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize;
     pos.fileSize = nAddSize;
@@ -4487,15 +4487,15 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
     vinfoFileBlockFile[nLastFileDiskFile].AddBlock(nTime);
 
     unsigned int nOldChunks = (pos.numberPosition + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
-    LogPrint("file", "%s - Old chunks: %d\n", __func__, nOldChunks);
+    LogPrint("file", "%s - FILES. Old chunks: %d\n", __func__, nOldChunks);
 
     unsigned int nNewChunks = (vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
-    LogPrint("file", "%s - New chunks: %d\n", __func__, nNewChunks);
+    LogPrint("file", "%s - FILES. New chunks: %d\n", __func__, nNewChunks);
 
     if (nNewChunks > nOldChunks) {
         if (CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition)) {
             FILE* file = OpenFileBlockFile(pos);
-            LogPrint("file", "%s - Open fileblock disk file. number position: %d\n", __func__, pos.numberPosition);
+            LogPrint("file", "%s - FILES. Open fileblock disk file. number position: %d\n", __func__, pos.numberPosition);
             if (file) {
                 LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.numberPosition);
                 AllocateFileRange(file, pos.numberPosition, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition);
@@ -4509,16 +4509,16 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
 }
 
 void UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
-    LogPrint("file", "%s - Update file block pos data \n", __func__);
+    LogPrint("file", "%s - FILES. Update file block pos data \n", __func__);
     unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
-    LogPrint("file", "%s - Meta data. Disk file bytes size: %d\n", __func__, diskFileBytesSize);
+    LogPrint("file", "%s - FILES. Meta data. Disk file bytes size: %d\n", __func__, diskFileBytesSize);
 
     unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
-    LogPrint("file", "%s - pos. End file position: %d\n", __func__, endFilePosition);
+    LogPrint("file", "%s - FILES. pos. End file position: %d\n", __func__, endFilePosition);
 
     unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize); // TODO: figure out
     vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize = maxValue;
-    LogPrint("file", "%s - Meta data. Updated number bytes size max value: %d\n", __func__, maxValue);
+    LogPrint("file", "%s - FILES. Meta data. Updated number bytes size max value: %d\n", __func__, maxValue);
 
     nLastFileDiskFile = pos.numberDiskFile;
 }
@@ -4857,11 +4857,12 @@ bool IsFileExist(const uint256& fileHash) {
 }
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
-    LogPrint("file", "%s - File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
-    if (!fMasterNode || !pwalletMain->IsMine(tx)) {
-        LogPrint("file", "%s - This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
-        return false;
-    }
+    LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
+//    TODO: PDG 5 enable after debug
+//    if (!fMasterNode || !pwalletMain->IsMine(tx)) {
+//        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
+//        return false;
+//    }
 
     if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime())) {
         LogPrint("file", "%s - FILES. File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
