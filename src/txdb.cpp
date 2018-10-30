@@ -78,15 +78,17 @@ CBlockFileTreeDB::CBlockFileTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) 
 {
 }
 
-bool CBlockFileTreeDB::ReadFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos) {
+bool CBlockFileTreeDB::ReadFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos)
+{
     return Read(make_pair('d', fileHash), pos);
 }
 
-bool CBlockFileTreeDB::WriteFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos) {
+bool CBlockFileTreeDB::WriteFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos)
+{
     return Write(make_pair('d', fileHash), pos);
 }
 
-bool CBlockFileTreeDB::EraseFileIndex(const uint256& fileHash)
+bool CBlockFileTreeDB::EraseFileIndex(const uint256 &fileHash)
 {
     return Erase(make_pair('d', fileHash));
 }
@@ -96,42 +98,38 @@ bool CBlockFileTreeDB::WriteLastFileBlockFile(int nFile)
     return Write('n', nFile);
 }
 
-bool CBlockFileTreeDB::ReadLastFileBlockFile(int& nFile)
+bool CBlockFileTreeDB::ReadLastFileBlockFile(int &nFile)
 {
     return Read('n', nFile);
 }
 
-bool CBlockFileTreeDB::ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo)
+bool CBlockFileTreeDB::ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo &fileinfo)
 {
     return Read(make_pair('k', nFile), fileinfo);
 }
 
-bool CBlockFileTreeDB::WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo)
+bool CBlockFileTreeDB::WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo &fileinfo)
 {
     return Write(make_pair('k', nFile), fileinfo);
 }
 
-bool CBlockFileTreeDB::WriteRequiredFiles(const std::map<uint256, RequiredFile>& requiredFilesMap) {
-    //TODO: PDG 5 - erase old?
-//    Erase(make_pair('q', uint256(0)));
-    std::vector<pair<uint256, RequiredFile>> dbFiles;
-    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
-        dbFiles.emplace_back(make_pair(it->first, it->second));
-    }
-
-    return Write(make_pair('q', uint256(0)), dbFiles);
+bool CBlockFileTreeDB::WriteRequiredFiles(const std::map<uint256, RequiredFile> &requiredFilesMap)
+{
+    vector<pair<uint256, RequiredFile>> flatData;
+    flatData.reserve(requiredFilesMap.size());
+    mapToVectorPair(requiredFilesMap, flatData);
+    return Write('q', flatData);
 }
 
-bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap) {
-    std::vector<pair<uint256, RequiredFile>> dbFiles;
-    if (!Read(make_pair('q', uint256(0)), dbFiles)) {
+bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile> &requiredFilesMap)
+{
+    std::vector<pair<uint256, RequiredFile>> flatData;
+    if (!Read('q', flatData)) {
         //create new and return true.
-        return Write(make_pair('q', uint256(0)), dbFiles);
+        return Write('q', flatData);
     }
 
-    for (auto it = dbFiles.begin(); it != dbFiles.end(); it++) {
-        requiredFilesMap[it->first] = it->second;
-    }
+    vectorPairToMap(flatData, requiredFilesMap);
 
     return true;
 }

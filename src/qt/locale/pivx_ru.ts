@@ -2156,7 +2156,7 @@ https://www.transifex.com/pivx-project/pivx-project-translations</translation>
     </message>
     <message>
         <source>Your current PIVX balance, unconfirmed and immature transactions included</source>
-        <translation>Ваш текущий PIVX  баланс, включая неподтвержденные и незрелые транзакции</translation>
+        <translation>Ваш текущий PIVX баланс, включая неподтвержденные и незрелые транзакции</translation>
     </message>
     <message>
         <source>zPIV Balance</source>

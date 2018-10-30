@@ -230,4 +230,42 @@ void TraceThread(const char* name, Callable func)
     }
 }
 
+/*
+ bool CBlockFileTreeDB::WriteRequiredFiles(const std::map<uint256, RequiredFile>& requiredFilesMap) {
+    std::vector<pair<uint256, RequiredFile>> dbFiles;
+    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        dbFiles.emplace_back(make_pair(it->first, it->second));
+    }
+
+    return Write('q', dbFiles);
+}
+
+bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap) {
+    std::vector<pair<uint256, RequiredFile>> dbFiles;
+    if (!Read('q', dbFiles)) {
+        //create new and return true.
+        return Write('q', dbFiles);
+    }
+
+    for (auto it = dbFiles.begin(); it != dbFiles.end(); it++) {
+        requiredFilesMap[it->first] = it->second;
+    }
+
+    return true;
+}
+ */
+template <typename K, typename V>
+inline void mapToVectorPair(const std::map<K, V> &map, std::vector<std::pair<K, V>> &vector) {
+    for (auto it = map.begin(); it != map.end(); it++) {
+        vector.emplace_back(std::make_pair(it->first, it->second));
+    }
+}
+
+template <typename K, typename V>
+inline void vectorPairToMap(const std::vector<std::pair<K, V>> &vector, std::map<K, V> &map) {
+    for (auto it = vector.begin(); it != vector.end(); it++) {
+        map[it->first] = it->second;
+    }
+}
+
 #endif // BITCOIN_UTIL_H

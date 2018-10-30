@@ -5372,7 +5372,7 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
 
 
         // TODO: check in walletdb before
-        CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
+        CBlockIndex *blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
             mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
@@ -5390,8 +5390,7 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
     CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
     int blockHeight = blockIndex->nHeight;
 
-    for (auto it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end();) {
-
+    for (auto it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); ) {
         // is the payment transaction confirmed
         if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
             // TODO: implement statuses, if state_error don't remove transaction from map

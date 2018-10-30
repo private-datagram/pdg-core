@@ -5180,7 +5180,7 @@ void HandleFileTransferTx(CBlock *pblock) {
 
             //TODO: PDG 3 Optimize
             if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap))
-                LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
+                LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
 
         }
 
@@ -5635,18 +5635,13 @@ void UnloadBlockIndex()
 
 bool LoadFilesData()
 {
-    if (!fReindex && !pblockfiletree->ReadRequiredFiles(requiredFilesMap))
-        return false;
-
-    return true;
+    return !fReindex && pblockfiletree->ReadRequiredFiles(requiredFilesMap);
 }
 
 bool LoadBlockIndex(string& strError)
 {
     // Load block index from databases
-    if (!fReindex && !LoadBlockIndexDB(strError))
-        return false;
-    return true;
+    return !fReindex && LoadBlockIndexDB(strError);
 }
 
 
@@ -8110,11 +8105,12 @@ void ProcessRequiredFiles() {
         LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
 
         bool requiredFilesChange = false;
-        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); ) {
             if (GetAdjustedTime() > it->second.fileExpirationTime) {
                 LogPrint("file", "%s - FILES. Required file expired. File not required anymore. Deleting from list. txFileHash: %s, expiration date: %d, now: %d\n", __func__, it->first.ToString(), it->second.fileExpirationTime, GetAdjustedTime());
-                it = requiredFilesMap.erase(it);
                 requiredFilesChange = true;
+
+                it = requiredFilesMap.erase(it);
                 continue;
             }
 
@@ -8159,7 +8155,7 @@ void ProcessRequiredFiles() {
         }
 
         //TODO: PDG 3 Optimize
-        if (requiredFilesChange && pblockfiletree->WriteRequiredFiles(requiredFilesMap))
+        if (requiredFilesChange && !pblockfiletree->WriteRequiredFiles(requiredFilesMap))
             LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
     }
 
