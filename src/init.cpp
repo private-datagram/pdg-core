@@ -1448,12 +1448,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
-               /* string strFileIndexError = "";
-                if (!LoadFileIndex(strFileIndexError)) {
-                    strLoadError = _("Error loading index file database");
-                    strLoadError = strprintf("%s : %s", strLoadError, strFileIndexError);
+                LogPrint("file", "%s - Loading required files from DB.\n", __func__);
+                uiInterface.InitMessage(_("Loading required files..."));
+                if (!LoadFilesData()) {
+                    LogPrint("file", "%s - Error loading required files from DB.\n", __func__);
+                    strLoadError = _("Error loading required file database");
                     break;
-                }*/
+                }
 
                 // Populate list of invalid/fraudulent outpoints that are banned from the chain
                 invalid_out::LoadOutpoints();
@@ -1694,6 +1695,15 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pindexRescan = FindForkInGlobalIndex(chainActive, locator);
             else
                 pindexRescan = chainActive.Genesis();
+
+            //Inititalize PDG Wallet
+            LogPrint("file", "%s - Loading maturation payment confirm transactions from DB.\n", __func__);
+            uiInterface.InitMessage(_("Loading files data wallet..."));
+            if (!walletdb.ReadMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
+                strErrors << _("Error loading maturation payment confirm transactions database") << "\n";
+                LogPrint("file", "%s - Error loading maturation payment confirm transactions database.\n", __func__);
+                return InitError(strErrors.str());
+            }
         }
         if (chainActive.Tip() && chainActive.Tip() != pindexRescan) {
             uiInterface.InitMessage(_("Rescanning..."));

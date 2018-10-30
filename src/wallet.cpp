@@ -5357,7 +5357,10 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
     // remove already processed transactions
     if (tx.type == TX_FILE_TRANSFER) {
         CFileMeta *meta = &tx.meta.get<CFileMeta>();
-        mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxId);
+        {
+            LOCK(cs_MapMaturationPaymentConfirmTransactions);
+            mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxId);
+        }
 
         return false;
     }
@@ -5367,9 +5370,13 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
             return true;
 
+
         // TODO: check in walletdb before
         CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
-        mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
+        {
+            LOCK(cs_MapMaturationPaymentConfirmTransactions);
+            mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
+        }
         return true;
     }
 
@@ -5383,8 +5390,7 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
     CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
     int blockHeight = blockIndex->nHeight;
 
-    for (auto it = mapMaturationPaymentConfirmTransactions.begin(), next_it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); it = next_it) {
-        next_it = it; ++next_it;
+    for (auto it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end();) {
 
         // is the payment transaction confirmed
         if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
@@ -5393,8 +5399,14 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
                 error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
             }
 
-            mapMaturationPaymentConfirmTransactions.erase(it);
+            {
+                LOCK(cs_MapMaturationPaymentConfirmTransactions);
+                it = mapMaturationPaymentConfirmTransactions.erase(it);
+                continue;
+            }
         }
+
+        it++;
     }
 
     return false;

@@ -28,6 +28,7 @@
 #include "sporkdb.h"
 #include "swifttx.h"
 #include "txdb.h"
+#include "db.h"
 #include "txmempool.h"
 #include "ui_interface.h"
 #include "util.h"
@@ -102,7 +103,10 @@ map<uint256, COrphanTx> mapOrphanTransactions;
 map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
+
 map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG 5 save state to DB
+CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
+
 
 //std::vector<FilePending> vPendingReceiveFile;
 
@@ -231,14 +235,6 @@ struct FileRequest {
     FileRequest() : node(-1), date(0), events(1) {}
     FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
     FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) : node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
-};
-
-struct RequiredFile {
-    int64_t requestExpirationTime;              //! Time of file request expiration in microseconds.
-    uint32_t fileExpirationTime;                //! Time of file storage expiration in seconds.
-
-    RequiredFile() : requestExpirationTime(0), fileExpirationTime(0) {}
-    RequiredFile(const int64_t requestExpirationTime, const uint32_t fileExpirationTime) : requestExpirationTime(requestExpirationTime), fileExpirationTime(fileExpirationTime) {}
 };
 
 map<uint256, FilePending> filesPendingMap;
@@ -3770,6 +3766,23 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             }
             pblockfiletree->Sync();
 
+            //write required files
+            LogPrint("file", "%s - Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
+            if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap)) {
+                LogPrint("file", "%s - Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
+                return state.Abort("Failed to write required files in db. ");
+            }
+
+            //write maturation payment confirm transactions
+            if (pwalletMain != NULL) {
+                LogPrint("file", "%s - Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+                CWalletDB walletdb(pwalletMain->strWalletFile);
+                if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
+                    LogPrint("file", "%s - Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+                    return state.Abort("Failed to write maturation payment confirm transactions in db.\n");
+                }
+            }
+
             // Finally flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
                 return state.Abort("Failed to write to coin database");
@@ -4835,6 +4848,8 @@ bool IsFileExist(const uint256& fileHash) {
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     // TODO: PDG 5 check if my file or masternode
+//    if (fMasterNode && *my file*)
+
     if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime())) {
         LogPrint("file", "%s - FILES. File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
         return false;
@@ -5163,7 +5178,10 @@ void HandleFileTransferTx(CBlock *pblock) {
 
             requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), (uint32_t)blockHeader.GetBlockTime() + tx.vfiles[0].nLifeTime);
 
-            // TODO: save map to DB
+            //TODO: PDG 3 Optimize
+            if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap))
+                LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
+
         }
 
         if (!knownHasFilesMap.count(txHash)) {
@@ -5615,14 +5633,13 @@ void UnloadBlockIndex()
     pindexBestInvalid = NULL;
 }
 
-
-/*
- bool LoadFileIndex(string& strError)
+bool LoadFilesData()
 {
-    //todo: продолжить..
+    if (!fReindex && !pblockfiletree->ReadRequiredFiles(requiredFilesMap))
+        return false;
 
+    return true;
 }
- */
 
 bool LoadBlockIndex(string& strError)
 {
@@ -5671,53 +5688,6 @@ bool InitBlockIndex()
 
     return true;
 }
-
-// TODO: remove
-/*bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
-{
-    CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
-    uint64_t nRewind = blkdat.GetPos();
-    while (!blkdat.eof()) {
-        boost::this_thread::interruption_point();
-
-        blkdat.SetPos(nRewind);
-        nRewind++;         // start one byte further next time, in case of failure
-        blkdat.SetLimit(); // remove former limit
-        unsigned int nSize = 0;
-        try {
-            // locate a header
-            unsigned char buf[MESSAGE_START_SIZE];
-            blkdat.FindByte(Params().MessageStart()[0]);
-            nRewind = blkdat.GetPos() + 1;
-            blkdat >> FLATDATA(buf);
-            if (memcmp(buf, Params().MessageStart(), MESSAGE_START_SIZE))
-                continue;
-            // read size
-            blkdat >> nSize;
-            if (nSize < 80 || nSize > MAX_BLOCK_SIZE_CURRENT)
-                continue;
-        } catch (const std::exception&) {
-            // no valid fileBlock header found; don't complain
-            break;
-        }
-
-        // read block
-        uint64_t nBlockPos = blkdat.GetPos();
-        if (dbp)
-            dbp->numberPosition = nBlockPos;
-        blkdat.SetLimit(nBlockPos + nSize);
-        blkdat.SetPos(nBlockPos);
-        CFile file;
-        blkdat >> file;
-        nRewind = blkdat.GetPos();
-
-        if (file.fileHash == file.CalcFileHash()) {
-
-        }
-    }
-
-    return true;
-}*/
 
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp)
 {
@@ -8139,10 +8109,12 @@ void ProcessRequiredFiles() {
     {
         LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
 
-        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); ) {
+        bool requiredFilesChange = false;
+        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
             if (GetAdjustedTime() > it->second.fileExpirationTime) {
                 LogPrint("file", "%s - FILES. Required file expired. File not required anymore. Deleting from list. txFileHash: %s, expiration date: %d, now: %d\n", __func__, it->first.ToString(), it->second.fileExpirationTime, GetAdjustedTime());
                 it = requiredFilesMap.erase(it);
+                requiredFilesChange = true;
                 continue;
             }
 
@@ -8186,7 +8158,9 @@ void ProcessRequiredFiles() {
             it++;
         }
 
-        // TODO: PDG 5 update requiredFilesMap in DB
+        //TODO: PDG 3 Optimize
+        if (requiredFilesChange && pblockfiletree->WriteRequiredFiles(requiredFilesMap))
+            LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
     }
 
     BOOST_FOREACH(const uint256& fileTxHash, vRequiredToBroadcast) {

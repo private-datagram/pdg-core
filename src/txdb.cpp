@@ -111,6 +111,31 @@ bool CBlockFileTreeDB::WriteFileBlockFileInfo(int nFile, const CFileBlockFileInf
     return Write(make_pair('k', nFile), fileinfo);
 }
 
+bool CBlockFileTreeDB::WriteRequiredFiles(const std::map<uint256, RequiredFile>& requiredFilesMap) {
+    //TODO: PDG 5 - erase old?
+//    Erase(make_pair('q', uint256(0)));
+    std::vector<pair<uint256, RequiredFile>> dbFiles;
+    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        dbFiles.emplace_back(make_pair(it->first, it->second));
+    }
+
+    return Write(make_pair('q', uint256(0)), dbFiles);
+}
+
+bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap) {
+    std::vector<pair<uint256, RequiredFile>> dbFiles;
+    if (!Read(make_pair('q', uint256(0)), dbFiles)) {
+        //create new and return true.
+        return Write(make_pair('q', uint256(0)), dbFiles);
+    }
+
+    for (auto it = dbFiles.begin(); it != dbFiles.end(); it++) {
+        requiredFilesMap[it->first] = it->second;
+    }
+
+    return true;
+}
+
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)
 {
 }
