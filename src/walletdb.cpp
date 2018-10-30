@@ -1619,6 +1619,31 @@ bool CWalletDB::EraseWalletFileTx(const uint256& hashPaymentRequestTx) {
     return Erase(make_pair(string("wftx"), hashPaymentRequestTx));
 }
 
+bool CWalletDB::WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx) {
+    //TODO: PDG 5 - erase old?
+    Erase(make_pair('wmpct', uint256(0)));
+    std::vector<pair<uint256, CPaymentMatureTx>> dbComfirmTxes;
+    for (auto it = mapMaturationPaymentConfirmTx.begin(); it != mapMaturationPaymentConfirmTx.end(); it++) {
+        dbComfirmTxes.emplace_back(make_pair(it->first, it->second));
+    }
+
+    return Write(make_pair(string("wmpct"), uint256(0)), dbComfirmTxes);
+}
+
+bool CWalletDB::ReadMaturationPaymentConfirmTx(map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx) {
+    std::vector<pair<uint256, CPaymentMatureTx>> dbComfirmTxes;
+    if (!Read(make_pair(string("wmpct"), uint256(0)), dbComfirmTxes)) {
+        //create new and return true.
+        return Write(make_pair('q', uint256(0)), dbComfirmTxes);
+    }
+
+    for (auto it = dbComfirmTxes.begin(); it != dbComfirmTxes.end(); it++) {
+        mapMaturationPaymentConfirmTx[it->first] = it->second;
+    }
+
+    return true;
+}
+
 bool CWalletDB::WriteFileEncryptKeys(const uint256& hashPaymentRequestTx, const vector<char>& vchPublicKey, const vector<char>& vchPrivateKey) {
     if (!Write(make_pair(string("fkeypub"), hashPaymentRequestTx.GetHex()), vchPublicKey))
         return false;

@@ -192,9 +192,52 @@ struct CPaymentMatureTx {
     CTransaction tx;
     int blockHeight;
 
-    CPaymentMatureTx(CTransaction tx, int blockHeight): tx(tx), blockHeight(blockHeight) {}
+    ADD_SERIALIZE_METHODS;
 
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(tx);
+        READWRITE(VARINT(blockHeight));
+    }
+
+
+    CPaymentMatureTx(CTransaction tx, int blockHeight): tx(tx), blockHeight(blockHeight) {}
     CPaymentMatureTx() : tx(), blockHeight(0) {}
+};
+
+struct RequiredFile {
+    int64_t requestExpirationTime;              //! Time of file request expiration in microseconds.
+    uint32_t fileExpirationTime;                //! Time of file storage expiration in seconds.
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(requestExpirationTime));
+        READWRITE(VARINT(fileExpirationTime));
+    }
+
+    RequiredFile() : requestExpirationTime(0), fileExpirationTime(0) {}
+    RequiredFile(const int64_t requestExpirationTime, const uint32_t fileExpirationTime) : requestExpirationTime(requestExpirationTime), fileExpirationTime(fileExpirationTime) {}
+
+    friend bool operator==(const RequiredFile& a, const RequiredFile& b)
+    {
+        return (a.requestExpirationTime == b.requestExpirationTime && a.fileExpirationTime == b.fileExpirationTime);
+    }
+
+    friend bool operator!=(const RequiredFile& a, const RequiredFile& b)
+    {
+        return !(a == b);
+    }
+
+    void SetNull()
+    {
+        requestExpirationTime = 0;
+        fileExpirationTime = 0;
+    }
+    bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
 extern CScript COINBASE_FLAGS;
@@ -236,7 +279,9 @@ extern std::map<uint256, int64_t> mapRejectedBlocks;
 extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
+
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
+extern CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
@@ -299,6 +344,8 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp = NULL);
 /** Initialize a new block tree database + block data on disk */
 bool InitBlockIndex();
+/** Load the required files from database */
+bool LoadFilesData();
 /** Load the block tree and coins database from disk */
 bool LoadBlockIndex(std::string& strError);
 /** Unload database information */
@@ -441,7 +488,6 @@ struct CDiskTxPos : public CDiskBlockPos {
         nTxOffset = 0;
     }
 };
-
 
 CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowFree);
 bool MoneyRange(CAmount nValueOut);

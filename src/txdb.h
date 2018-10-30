@@ -87,6 +87,8 @@ public:
     bool ReadLastFileBlockFile(int& nFile);
     bool ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo);
     bool WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo);
+    bool WriteRequiredFiles(const map<uint256, RequiredFile>& requiredFilesMap);
+    bool ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap);
 };
 
 class CZerocoinDB : public CLevelDBWrapper

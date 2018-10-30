@@ -2156,7 +2156,7 @@ https://www.transifex.com/pivx-project/pivx-project-translations</translation>
     </message>
     <message>
         <source>Your current PIVX balance, unconfirmed and immature transactions included</source>
-        <translation>Ваш текущий PIVX  баланс, включая неподтвержденные и незрелые транзакции</translation>
+        <translation>Ваш текущий PIVX  баланс, включая неподтвержденные и незрелые транзакции</translation>
     </message>
     <message>
         <source>zPIV Balance</source>
@@ -2411,7 +2411,7 @@ To enable AutoMint change 'enablezeromint=0' to 'enablezeromint=1' in pivx.conf<
     </message>
     <message>
         <source>Rescan the complete blockchain for  Zerocoin mints and their meta-data.</source>
-        <translation>Пересканировать  завершенную блокчейн для Zerocoin  чеканки и мета данных</translation>
+        <translation>Пересканировать  завершенную блокчейн для Zerocoin  чеканки и мета данных</translation>
     </message>
     <message>
         <source>ReScan</source>
@@ -3743,7 +3743,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Paying only the minimum fee is just fine as long as there is less transaction volume than space in the blocks.&lt;br /&gt;But be aware that this can end up in a never confirming transaction once there is more demand for PIVX transactions than the network can process.</source>
-        <translation>Платить только минимальную плату просто отлично, если в блоке меньше объема транзакции, чем места в блоке.&lt;br /&gt; Но имейте в виду, что это может закончиться никогда не подтверждающей транзакцией, если будет больше спроса на транзакции PIVX, чем сеть может обрабатывать.</translation>
+        <translation>Платить только минимальную плату просто отлично, если в блоке меньше объема транзакции, чем места в блоке.&lt;br /&gt; Но имейте в виду, что это может закончиться никогда не подтверждающей транзакцией, если будет больше спроса на транзакции PIVX, чем сеть может обрабатывать.</translation>
     </message>
     <message>
         <source>normal</source>
@@ -5605,6 +5605,10 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Loading block index...</source>
         <translation>Загружается индекс блока ...</translation>
+    </message>
+    <message>
+        <source>Loading required files...</source>
+        <translation>Загрузка запрашиваемых файлов...</translation>
     </message>
     <message>
         <source>Loading budget cache...</source>

@@ -9,6 +9,7 @@
 
 #include "amount.h"
 #include "db.h"
+#include "main.h"
 #include "key.h"
 #include "keystore.h"
 #include "primitives/zerocoin.h"
@@ -190,6 +191,9 @@ public:
     bool WriteWalletFileTx(const CWalletFileTx& fileTx);
     bool ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFileTx& outWalletFileTx);
     bool EraseWalletFileTx(const uint256& hashPaymentRequestTx);
+
+    bool WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
+    bool ReadMaturationPaymentConfirmTx(map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
 
     bool WriteFileEncryptKeys(const uint256& hashPaymentRequestTx, const vector<char>& publicKey, const vector<char>& privateKey);
     bool ReadFileEncryptKeys(const uint256& hashPaymentRequestTx, vector<char>& outvchPublicKey, vector<char>& outvchPrivateKey);
