@@ -126,17 +126,13 @@ static const unsigned int MAX_FILE_SEND_COUNT = 5;
 /* Max file at node send size buffer */
 static const unsigned int MAX_FILE_SIZE = 10 * 1000 * 1000;
 
-//todo: change timeout
-/** Required file expiration date. Timeout in micros. 1 hour */
-static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 60U * 60 * 1000 * 1000;
 
+/** Required file expiration date. Timeout in micros. 0.5 hour */
+static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 30U * 60 * 1000 * 1000;
 
-
-//todo: change timeout
 /** Flight file expiration date. Timeout in micros. 20 minutes */
 static const int64_t FLIGHT_FILE_TIMEOUT = 20U * 60 * 1000 * 1000;
 
-//todo: change timeout
 /** Known file expiration date. Timeout in micros. 1 hour */
 static const int64_t KNOWN_FILE_TIMEOUT = 60U * 60 * 1000 * 1000;
 
@@ -149,8 +145,11 @@ static const int HAS_FILE_EVENTS_MAX_COUNT = 50;
 /** Number of hash file requests from a single peer. */
 static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 50;
 
-/** Known file expiration date. Timeout in micros. 1 hour */
-static const int64_t HAS_FILE_REQUEST_TIMEOUT = 60U * 60 * 1000 * 1000;
+/** Known file expiration date. Timeout in micros. 5 min */
+static const int64_t HAS_FILE_REQUEST_TIMEOUT = 5U * 60 * 1000 * 1000;
+
+/** Known file expiration date. Timeout in micros. 10 min */
+static const int64_t FILE_REQUEST_TIMEOUT = 10U * 60 * 1000 * 1000;
 
 /** Max file requests events with one hash to ban */
 static const int FILE_REQUEST_EVENTS_BAN_THRESHOLD = 50;
@@ -370,7 +369,7 @@ void ProcessHasFileRequests();
 void ProcessFileRequests();
 
 bool GetFile(CDBFile file, uint256& hash);
-bool IsFileRequestExpired(int64_t requestExpiredDate);
+bool IsFileRequestExpired(int64_t requestDate);
 
 int CountNotRequiredHashesByNode(const NodeId id);
 void ProcessRequiredFiles();
