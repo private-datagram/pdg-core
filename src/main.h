@@ -684,6 +684,8 @@ bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBloc
 bool IsMsgFile(int type);
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime);
 
+bool SaveMaturationTransactions();
+
 class CFileBlockFileInfo
 {
 public:

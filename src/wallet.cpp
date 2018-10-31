@@ -5360,6 +5360,7 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
             mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxId);
+            SaveMaturationTransactions();
         }
 
         return false;
@@ -5370,12 +5371,12 @@ bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
             return true;
 
-
         // TODO: check in walletdb before
         CBlockIndex *blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
             mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
+            SaveMaturationTransactions();
         }
         return true;
     }
@@ -5387,28 +5388,35 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
     if (pblock == nullptr || mapMaturationPaymentConfirmTransactions.empty())
         return false;
 
+    LOCK(cs_MapMaturationPaymentConfirmTransactions);
+
     CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
     int blockHeight = blockIndex->nHeight;
+
+    bool hasUpdates = false;
 
     for (auto it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); ) {
         // is the payment transaction confirmed
         if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
-            // TODO: implement statuses, if state_error don't remove transaction from map
+            // TODO: PDG 3 implement statuses, if state_error don't remove transaction from map
             if (!OnPaymentConfirmed(it->second.tx)) {
-                error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
+                if (hasUpdates)
+                    SaveMaturationTransactions();
+                return error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
             }
 
-            {
-                LOCK(cs_MapMaturationPaymentConfirmTransactions);
-                it = mapMaturationPaymentConfirmTransactions.erase(it);
-                continue;
-            }
+            hasUpdates = true;
+            it = mapMaturationPaymentConfirmTransactions.erase(it);
+            continue;
         }
 
         it++;
     }
 
-    return false;
+    if (hasUpdates)
+        SaveMaturationTransactions();
+
+    return true;
 }
 
 bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
@@ -5417,8 +5425,6 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     }
 
     LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
-
-    // TODO: check transaction valid
 
     // prepare data
     CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
@@ -5486,7 +5492,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
         LogPrintStr("Failed to delete wallet file tx");
 
-    // TODO: PDG 4 remove after debug
+    // TODO: PDG 3 remove after debug
     if (!IsFileExist(dbFile.fileHash)) {
         LogPrint("file", "%s - FILES. Saved file doesn't found. File hash: %s\n", __func__, dbFile.fileHash.ToString());
     }

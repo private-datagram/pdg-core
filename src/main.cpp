@@ -3773,16 +3773,6 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 return state.Abort("Failed to write required files in db. ");
             }
 
-            //write maturation payment confirm transactions
-            if (pwalletMain != NULL) {
-                LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-                CWalletDB walletdb(pwalletMain->strWalletFile);
-                if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
-                    LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-                    return state.Abort("Failed to write maturation payment confirm transactions in db.\n");
-                }
-            }
-
             // Finally flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
                 return state.Abort("Failed to write to coin database");
@@ -5199,7 +5189,7 @@ void HandleFileTransferTx(CBlock *pblock) {
         }
 
         if (!knownHasFilesMap.count(txHash)) {
-            BroadcastHasFileRequest(txHash);
+            BroadcastHasFileRequest(txHash); // TODO: PDG 2 think about to do it in a new thread?
         } else {
             LogPrint("file", "%s - FILES. File known. Broadcast not required. txHash: %s\n", __func__, txHash.ToString());
         }
@@ -5649,13 +5639,29 @@ void UnloadBlockIndex()
 
 bool LoadFilesData()
 {
-    return !fReindex && pblockfiletree->ReadRequiredFiles(requiredFilesMap);
+    if (fReindex)
+        return true;
+
+    LOCK(cs_RequiredFilesMap);
+
+    if (!pblockfiletree->ReadRequiredFiles(requiredFilesMap))
+        return false;
+
+    LogPrint("file", "%s - FILES. %d loaded required files.\n", __func__, requiredFilesMap.size()); // TODO: PDG 2 remove after debug
+    // clear request expiration time to request at once on scheduler start
+    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        it->second.requestExpirationTime = GetTimeMicros();
+    }
+
+    return true;
 }
 
 bool LoadBlockIndex(string& strError)
 {
     // Load block index from databases
-    return !fReindex && LoadBlockIndexDB(strError);
+    if (!fReindex && !LoadBlockIndexDB(strError))
+        return false;
+    return true;
 }
 
 
@@ -8056,7 +8062,7 @@ void ProcessFilesPendingScheduler() {
 
                     CNode *pNode = FindFreeNode(it->second.nodes);
                     // if node not found (disconnected), remove it and then request for new nodes that have file
-                    if (pNode == nullptr || pNode->fDisconnect) {
+                    if (pNode == nullptr) {
                         LogPrint("file", "%s - FILES. node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
                         it = filesPendingMap.erase(it);
                         continue;
@@ -8267,6 +8273,21 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
     }
 
     return nullptr;
+}
+
+bool SaveMaturationTransactions() {
+    if (pwalletMain == nullptr)
+        return true;
+
+    LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+
+    CWalletDB walletdb(pwalletMain->strWalletFile);
+    if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
+        LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+        return error("Failed to write maturation payment confirm transactions in db.\n");
+    }
+
+    return true;
 }
 
 bool SaveFileDB(CDBFile& file) {
