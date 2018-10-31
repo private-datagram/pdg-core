@@ -25,6 +25,7 @@ struct CDBFile
     std::vector<char> vBytes;
     // Encrypted file hash
     uint256 fileHash;
+    uint64_t nLifeTime;
     bool removed;
 
     CDBFile();
@@ -41,6 +42,7 @@ struct CDBFile
 
         READWRITE(*const_cast<std::vector<char>*>(&vBytes));
         READWRITE(fileHash);
+        READWRITE(VARINT(nLifeTime));
         READWRITE(removed);
     }
 

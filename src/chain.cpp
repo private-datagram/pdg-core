@@ -96,8 +96,9 @@ uint256 CDBFile::UpdateFileHash()
 std::string CDBFile::ToString() const
 {
     std::string str;
-    str += strprintf("DBCFile(vBytes.size=%u, hash=%s)\n",
+    str += strprintf("DBCFile(vBytes.size=%u, hash=%s, lifeTime=%d)\n",
                      vBytes.size(),
-                     fileHash.ToString());
+                     fileHash.ToString(),
+                     nLifeTime);
     return str;
 }

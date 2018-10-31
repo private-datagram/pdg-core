@@ -107,8 +107,7 @@ map<uint256, int64_t> mapZerocoinspends; //txid, time received
 map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
 CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
 
-
-//std::vector<FilePending> vPendingReceiveFile;
+CDBFileBlockFilesState cdbFileBlockFilesState;
 
 template <typename Item> Item* FindByNodeIn(const vector<Item> &items, const NodeId nodeId);
 
@@ -598,6 +597,7 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals)
 
     nodeSignals.ProcessFilesPendingScheduler.connect(&ProcessFilesPendingScheduler);
     nodeSignals.ProcessFilesRequestsScheduler.connect(&ProcessFilesRequestsScheduler);
+    nodeSignals.ProcessFilesEraseScheduler.connect(&ProcessFilesEraseScheduler);
 
     nodeSignals.SendFileAvailable.connect(&SendFileAvailable);
     nodeSignals.SendHasFileRequest.connect(&SendHasFileRequest);
@@ -613,6 +613,7 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
 
     nodeSignals.ProcessFilesPendingScheduler.disconnect(&ProcessFilesPendingScheduler);
     nodeSignals.ProcessFilesRequestsScheduler.disconnect(&ProcessFilesRequestsScheduler);
+    nodeSignals.ProcessFilesEraseScheduler.disconnect(&ProcessFilesEraseScheduler);
 
     nodeSignals.SendFileAvailable.disconnect(&SendFileAvailable);
     nodeSignals.SendHasFileRequest.disconnect(&SendHasFileRequest);
@@ -3766,12 +3767,20 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             }
             pblockfiletree->Sync();
 
+            LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, cdbFileBlockFilesState.ToString());
+            if (!pblockfiletree->WriteCDBFileBlockFilesState(cdbFileBlockFilesState)) {
+                LogPrint("file", "%s - FILES. Error write file blockfiles state in db.", __func__);
+                return state.Abort("Failed to write file blockfiles state in db.");
+            }
+            pblockfiletree->Sync();
+
             //write required files
             LogPrint("file", "%s - FILES. Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
             if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap)) {
                 LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
                 return state.Abort("Failed to write required files in db. ");
             }
+            pblockfiletree->Sync();
 
             //write maturation payment confirm transactions
             if (pwalletMain != NULL) {
@@ -4473,6 +4482,7 @@ bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned
         ++pos.numberDiskFile;
         if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
             vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
+            cdbFileBlockFilesState.AddDiskFile();
         }
     }
 
@@ -5649,13 +5659,19 @@ void UnloadBlockIndex()
 
 bool LoadFilesData()
 {
-    return !fReindex && pblockfiletree->ReadRequiredFiles(requiredFilesMap);
+    if (fReindex)
+        return true;
+
+    return pblockfiletree->ReadRequiredFiles(requiredFilesMap) && pblockfiletree->ReadCDBFileBlockFilesState(cdbFileBlockFilesState);
 }
 
 bool LoadBlockIndex(string& strError)
 {
+    if (fReindex)
+        return true;
+
     // Load block index from databases
-    return !fReindex && LoadBlockIndexDB(strError);
+    return LoadBlockIndexDB(strError);
 }
 
 
@@ -6674,6 +6690,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block time: %d.\n", __func__, blockTime);
 
+                                //todo: PDG 5 blockTime - GetAdjustedTime?
                                 if (hasBlock && IsFileTransactionExpired(tx, blockTime)) {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Misbehaving.\n", __func__);
                                     Misbehaving(pfrom->GetId(), 5);
@@ -7904,6 +7921,23 @@ void RemoveHasFileRequestsByHash(const uint256 &hash) {
     hasFileRequestedNodesMap.erase(hash);
 }
 
+void ProcessFilesEraseScheduler() {
+
+    CDBFile& file;
+
+    //get CFile .nLifeTime = micros end file time
+    if (!pblockfiletree->EraseExpiredFiles(file.fileHash, pos))
+        return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+//    if (!EraseFileDB(dbFile))
+//        LogPrintf("Remove file in DB failed\n");
+
+//    uint256 fileTxHash;
+//    if (!SendFileTx(txFile, fileMeta, fileDestination, fileTxHash)) {
+//        return false;
+//    }
+}
+
 void ProcessFilesRequestsScheduler() {
     ProcessHasFileRequests();
     ProcessFileRequests();
@@ -8293,6 +8327,7 @@ bool SaveFileDB(CDBFile& file) {
     if (!pblockfiletree->WriteFileIndex(file.CalcFileHash(), filePos))
         return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
 
+    cdbFileBlockFilesState.AddFile(file.vBytes.size());
     UpdateFileBlockPosData(filePos);
 
     LogPrint("file", "%s - FILES. File saved at position %d/%d\n", __func__, filePos.numberDiskFile, filePos.numberPosition);
@@ -8301,15 +8336,21 @@ bool SaveFileDB(CDBFile& file) {
 }
 
 bool EraseFileDB(CDBFile& file) {
+    LogPrint("file", "%s : Erase file from DB %s\n", __func__, file.fileHash.ToString());
+
     CDiskFileBlockPos pos;
     if (!pblockfiletree->ReadFileIndex(file.fileHash, pos))
         return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    LogPrint("file", "%s : Erased file position: %d/%d\n", __func__, pos.numberDiskFile, pos.numberPosition);
 
     if (!pblockfiletree->EraseFileIndex(file.fileHash))
         return error("%s : Failed to delete file index with fileHash - %s", __func__, file.fileHash.ToString());
 
     if (!RemoveFileBlockFromDisk(pos))
         return error("%s : Failed to remove file from blocks with fileHash - %s", __func__, file.fileHash.ToString());
+
+    cdbFileBlockFilesState.RemoveFile(file.vBytes.size());
 
     return true;
 }
@@ -8407,6 +8448,16 @@ std::string CFileBlockFileInfo::ToString() const
     return strprintf("CFileBlockFileInfo(numberBytesSize=%u, numberFiles=%u, time=%s...%s)", numberBytesSize, numberFiles, DateTimeStrFormat("%Y-%m-%d", firstRecordTime), DateTimeStrFormat("%Y-%m-%d", lastRecordTime));
 }
 
+std::string CDBFileBlockFilesState::ToString() const
+{
+    return strprintf(
+            "CDBFileBlockFilesState(TotalByteSize:%d. Count files:%d. Mark remov bytes:%d. Count mark remove: %d)",
+            numberBytesSize,
+            countFiles,
+            markRemovedNumberBytesSize,
+            countMarkRemovedFiles
+    );
+}
 
 class CMainCleanup
 {

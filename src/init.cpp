@@ -1448,11 +1448,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
-                LogPrint("file", "%s - FILES. Loading required files from DB.\n", __func__);
-                uiInterface.InitMessage(_("Loading required files..."));
+                LogPrint("file", "%s - FILES. Loading meta files data from DB.\n", __func__);
+                uiInterface.InitMessage(_("Loading meta files data..."));
                 if (!LoadFilesData()) {
-                    LogPrint("file", "%s - FILES. Error loading required files from DB.\n", __func__);
-                    strLoadError = _("Error loading required file database");
+                    LogPrint("file", "%s - FILES. Error loading meta files data from DB.\n", __func__);
+                    strLoadError = _("Error loading meta files data from database");
                     break;
                 }
 

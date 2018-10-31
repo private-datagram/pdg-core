@@ -40,11 +40,14 @@
 // Dump addresses to peers.dat every 15 minutes (900s)
 #define DUMP_ADDRESSES_INTERVAL 900
 
-// Checking pending files every 20 seconds
+// Checking pending files every 30 seconds
 #define CHECK_PENDING_FILES_INTERVAL 30
 
-// Checking request files every 20 seconds
+// Checking request files every 30 seconds
 #define CHECK_REQUESTING_FILES_INTERVAL 30
+
+// Erase expired file at DB every 1 hour (3600s)
+#define ERASE_FILES_INTERVAL 3600
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
@@ -1302,6 +1305,11 @@ void ProcessFilesRequestsSchedulerHandler()
     g_signals.ProcessFilesRequestsScheduler();
 }
 
+void ProcessFilesEraseSchedulerHandler()
+{
+    g_signals.ProcessFilesEraseScheduler();
+}
+
 void DumpData()
 {
     DumpAddresses();
@@ -1881,6 +1889,8 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
     scheduler.scheduleEvery(&FilesPendingHandle, CHECK_PENDING_FILES_INTERVAL);
 
     scheduler.scheduleEvery(&ProcessFilesRequestsSchedulerHandler, CHECK_REQUESTING_FILES_INTERVAL);
+
+    scheduler.scheduleEvery(&ProcessFilesEraseSchedulerHandler, ERASE_FILES_INTERVAL);
 
     // ppcoin:mint proof-of-stake blocks in the background
     if (GetBoolArg("-staking", true))

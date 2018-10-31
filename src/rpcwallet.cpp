@@ -549,7 +549,7 @@ UniValue sendfilepayment(const UniValue& params, bool fHelp)
     crypto::rsa::KeypairToDER(keypair, publicKey, privateKey);
 
     wtx.type = TX_FILE_PAYMENT_CONFIRM;
-    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), 30 * 24 * 60 * 60, publicKey); // TODO: PDG 2 change lifetime
+    wtx.meta = CPaymentConfirm(paymentRequestWtx.GetHash(), FILES_STORAGE_LIFETIME, publicKey); // TODO: PDG 2 change lifetime
 
     EnsureWalletIsUnlocked();
 

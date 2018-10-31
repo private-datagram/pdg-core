@@ -5460,13 +5460,14 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     CDBFile dbFile;
     dbFile.vBytes.reserve(encryptedFile.size());
     dbFile.vBytes.assign(encryptedFile.begin(), encryptedFile.end());
+    dbFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
     dbFile.UpdateFileHash();
     encryptedFile.clear();
 
     // fill file
     CFile txFile;
     txFile.fileHash = dbFile.fileHash;
-    txFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
+    txFile.nLifeTime = dbFile.nLifeTime;
 
     if (!SaveFileDB(dbFile))
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());

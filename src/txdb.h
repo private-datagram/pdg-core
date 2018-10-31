@@ -9,6 +9,7 @@
 
 #include "leveldbwrapper.h"
 #include "main.h"
+#include "timedata.h"
 #include "primitives/zerocoin.h"
 
 #include <map>
@@ -82,13 +83,21 @@ private:
 public:
     bool ReadFileIndex(const uint256& fileHash, CDiskFileBlockPos& pos);
     bool WriteFileIndex(const uint256& fileHash, CDiskFileBlockPos& pos);
-    bool WriteLastFileBlockFile(int nFile);
     bool EraseFileIndex(const uint256& fileHash);
+
     bool ReadLastFileBlockFile(int& nFile);
+    bool WriteLastFileBlockFile(int nFile);
+
     bool ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo);
     bool WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo);
+
     bool WriteRequiredFiles(const map<uint256, RequiredFile>& requiredFilesMap);
     bool ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap);
+
+    bool WriteCDBFileBlockFilesState(const CDBFileBlockFilesState& diskFileState);
+    bool ReadCDBFileBlockFilesState(CDBFileBlockFilesState& diskFileState);
+
+    bool EraseExpiredFiles();
 };
 
 class CZerocoinDB : public CLevelDBWrapper

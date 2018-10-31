@@ -5607,8 +5607,8 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Загружается индекс блока ...</translation>
     </message>
     <message>
-        <source>Loading required files...</source>
-        <translation>Загрузка запрашиваемых файлов...</translation>
+        <source>Loading meta files data...</source>
+        <translation>Загрузка мета данных файлов...</translation>
     </message>
     <message>
         <source>Loading budget cache...</source>

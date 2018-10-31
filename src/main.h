@@ -136,6 +136,8 @@ static const int64_t FLIGHT_FILE_TIMEOUT = 20U * 60 * 1000 * 1000;
 /** Known file expiration date. Timeout in micros. 1 hour */
 static const int64_t KNOWN_FILE_TIMEOUT = 60U * 60 * 1000 * 1000;
 
+/** Percent filled DB(disk space) with mark as removed. 10%*/
+static const int MARK_AS_REMOVE_FILL_LIMIT_PERCENT = 10;
 
 static const unsigned int KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT = 1000;
 
@@ -239,6 +241,64 @@ struct RequiredFile {
     bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
+class CDBFileBlockFilesState {
+public:
+    unsigned int numberBytesSize;        //!number of bytes of all files stored
+    unsigned int countFiles;      //! number of all files stored
+
+    unsigned int markRemovedNumberBytesSize; //! number of bytes of all mark remove files in db
+    unsigned int countMarkRemovedFiles; //! number of mark removed files in db
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(numberBytesSize));
+        READWRITE(VARINT(countFiles));
+        READWRITE(VARINT(markRemovedNumberBytesSize));
+        READWRITE(VARINT(countMarkRemovedFiles));
+    }
+
+    void SetNull()
+    {
+        numberBytesSize = 0;
+        countFiles = 0;
+        markRemovedAtDBnumberBytesSize = 0;
+        countMarkRemovedFiles = 0;
+    }
+
+    CDBFileBlockFilesState()
+    {
+        SetNull();
+    }
+
+    std::string ToString() const;
+
+    /** update statistics (does not update countFiles) */
+    void AddFile(int nFileSize)
+    {
+        numberBytesSize += nFileSize;
+    }
+
+    void AddDiskFile()
+    {
+        countFiles++;
+    }
+
+    /** update statistics (does not update numberBytesSize) */
+    void RemoveFile(int nFileSize)
+    {
+        markRemovedNumberBytesSize += nFileSize;
+        countMarkRemovedFiles++;
+    }
+
+    bool isClearDiskSpaceNeeded() {
+        //marked remove byte size more than limit relatively total size.
+        return markRemovedNumberBytesSize >= (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * numberBytesSize / 100);
+    }
+};
+
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
@@ -281,6 +341,8 @@ extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
 extern CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
+
+extern CDBFileBlockFilesState cdbFileBlockFilesState;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
@@ -365,6 +427,8 @@ bool SendMessages(CNode* pto, bool fSendTrickle);
 /** Request a file notification */
 void ProcessFilesPendingScheduler();
 void ProcessFilesRequestsScheduler();
+void ProcessFilesEraseScheduler();
+
 void ProcessHasFileRequests();
 void ProcessFileRequests();
 
