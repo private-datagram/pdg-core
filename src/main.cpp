@@ -3782,16 +3782,6 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             }
             pblockfiletree->Sync();
 
-            //write maturation payment confirm transactions
-            if (pwalletMain != NULL) {
-                LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-                CWalletDB walletdb(pwalletMain->strWalletFile);
-                if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
-                    LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-                    return state.Abort("Failed to write maturation payment confirm transactions in db.\n");
-                }
-            }
-
             // Finally flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
                 return state.Abort("Failed to write to coin database");
@@ -5209,7 +5199,7 @@ void HandleFileTransferTx(CBlock *pblock) {
         }
 
         if (!knownHasFilesMap.count(txHash)) {
-            BroadcastHasFileRequest(txHash);
+            BroadcastHasFileRequest(txHash); // TODO: PDG 2 think about to do it in a new thread?
         } else {
             LogPrint("file", "%s - FILES. File known. Broadcast not required. txHash: %s\n", __func__, txHash.ToString());
         }
@@ -5662,7 +5652,20 @@ bool LoadFilesData()
     if (fReindex)
         return true;
 
-    return pblockfiletree->ReadRequiredFiles(requiredFilesMap) && pblockfiletree->ReadCDBFileBlockFilesState(cdbFileBlockFilesState);
+    if (!pblockfiletree->ReadRequiredFiles(requiredFilesMap))
+        return false;
+
+    LogPrint("file", "%s - FILES. %d loaded required files.\n", __func__, requiredFilesMap.size()); // TODO: PDG 2 remove after debug
+    // clear request expiration time to request at once on scheduler start
+    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
+        it->second.requestExpirationTime = GetTimeMicros();
+    }
+
+    LogPrint("file", "%s - FILES. Loaded file blockFiles State.%s\n", __func__, cdbFileBlockFilesState.ToString()); // TODO: PDG 2 remove after debug
+    if (!pblockfiletree->ReadCDBFileBlockFilesState(cdbFileBlockFilesState))
+        return false;
+
+    return true;
 }
 
 bool LoadBlockIndex(string& strError)
@@ -6620,7 +6623,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash.ToString());
 
                     if (knownFileTxesInDb.count(fileTxHash)) {
-                        LogPrint("file", "%s - FILES. File known in DB. SendFileAvailable to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                        LogPrint("file", "%s - FILES. File known in DB. SendFileAvailable to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                         SendFileAvailable(pfrom, fileTxHash);
                     } else {
                         LOCK(cs_HasFileRequestedNodesMap);
@@ -6629,7 +6632,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                         // если нод уже запрашивал этот хеш, проверяем на лимиты
                         if (hasFileRequestedNodesMap.count(fileTxHash)) {
-                            LogPrint("file", "%s - FILES. Node already request this file. Check limits. to node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                            LogPrint("file", "%s - FILES. Node already request this file. Check limits. to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                             FileRequest *fileRequest = nullptr;
 
                             //region Find file request by node
@@ -6643,22 +6646,22 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             //endregion
 
                             if (fileRequest != nullptr) {
-                                LogPrint("file", "%s - FILES. File request found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                                LogPrint("file", "%s - FILES. File request found. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                 if (fileRequest->events > HAS_FILE_REQUEST_EVENTS_MAX_COUNT) {
-                                    LogPrint("file", "%s - FILES. HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                                    LogPrint("file", "%s - FILES. HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                     Misbehaving(fileRequest->node, 10);
                                     RemoveHasFileRequestsByNode(fileRequest->node);
                                 } else {
-                                    LogPrint("file", "%s - FILES. update data at file request. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                                    LogPrint("file", "%s - FILES. update data at file request. node: %d, fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                     fileRequest->events++;
                                     fileRequest->date = GetTimeMicros(); // обновить дату
                                 }
                             } else {
-                                LogPrint("file", "%s - FILES. File request not found. node:%d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
+                                LogPrint("file", "%s - FILES. File request not found. node: %d, fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                 vfileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
                             }
                         } else {
-                            // позже ввести проверку всех запросов по ноду, если их больше порога, банить
+                            // TODO: PDG 3 позже ввести проверку всех запросов по ноду, если их больше порога, банить
 
                             // TODO: PDG 3 refactor
                             //region Check and response or add to map
@@ -6675,24 +6678,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
                                 Misbehaving(pfrom->GetId(), 50);
                             } else {
-
-                                int64_t blockTime;
-                                bool hasBlock = false;
-                                if(mapBlockIndex.count(blockHash)) {
-                                    blockTime = mapBlockIndex[blockHash]->GetBlockTime();
-                                    hasBlock = true;
-                                }
-
+                                bool hasBlock = (bool) mapBlockIndex.count(blockHash);
                                 if (!hasBlock) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. Block hash: %s.\n", __func__, blockHash.ToString());
-                                    blockTime = GetAdjustedTime();
+                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
                                 }
 
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block time: %d.\n", __func__, blockTime);
-
-                                //todo: PDG 5 blockTime - GetAdjustedTime?
-                                if (hasBlock && IsFileTransactionExpired(tx, blockTime)) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Misbehaving.\n", __func__);
+                                //TODO: PDG 5 blockTime - GetAdjustedTime?
+                                if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
+                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                     Misbehaving(pfrom->GetId(), 5);
                                 } else
                                 if (!IsFileExist(tx.vfiles[0].fileHash)) {
@@ -6725,13 +6718,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                     LOCK(cs_FileRequestedNodesMap);
 
                     if (fileRequestedNodesMap.count(txHash)) {
-                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. file request found.\n", __func__);
+                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File already requested by another node.\n", __func__);
 
-                        auto nodesMap = fileRequestedNodesMap[txHash];
+                        map<NodeId, FileRequest> &nodesMap = fileRequestedNodesMap[txHash];
 
                         if (nodesMap.count(pfrom->GetId())) {
                             FileRequest *fileRequest = &nodesMap[pfrom->GetId()];
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. file request found by node. events: %d.\n", __func__, fileRequest->events);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File request found by this node. events: %d.\n", __func__, fileRequest->events);
 
                             if (fileRequest->events > FILE_REQUEST_EVENTS_BAN_THRESHOLD) {
                                 // ban
@@ -6743,35 +6736,36 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                 fileRequest->events++;
                             }
                         } else {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File request not found by node. Adding.\n", __func__);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Adding new node to requested file map.\n", __func__);
 
                             // add new
-                            auto anotherFileRequest = &nodesMap.begin()->second;
+                            FileRequest *anotherFileRequest = &nodesMap.begin()->second;
                             nodesMap[pfrom->GetId()] = FileRequest(pfrom->GetId(), GetTimeMicros(), anotherFileRequest->fileHash.get(), anotherFileRequest->fileTxHash.get());
                             fileRequestsOrder.push_back(make_pair(txHash, pfrom->GetId()));
                         }
                     } else {
-                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. file request not found. Validating.\n", __func__);
+                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File doesn't requested before. Validating.\n", __func__);
 
                         //region Validation
                         CTransaction tx;
                         uint256 blockHash;
 
                         if (!GetTransaction(txHash, tx, blockHash, true)) { // TODO: optimize, make caching
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Transaction not found. Misbehaving.\n", __func__);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Transaction by fileTxHash not found. Misbehaving.\n", __func__);
                             Misbehaving(pfrom->GetId(), 20);
                         } else
                         if (tx.type != TX_FILE_TRANSFER) {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", tx.type, __func__);
                             Misbehaving(pfrom->GetId(), 50);
                         } else {
-                            int64_t blockTime = mapBlockIndex[blockHash]->GetBlockTime();
                             const uint256 &fileHash = tx.vfiles[0].fileHash;
+                            bool hasBlock = (bool) mapBlockIndex.count(blockHash);
+                            if (!hasBlock) {
+                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
+                            }
 
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. FileTx block time: %d. File hash: %s\n", __func__, blockTime, fileHash.ToString());
-
-                            if (IsFileTransactionExpired(tx, blockTime)) {
-                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File expired. Misbehaving.\n", __func__);
+                            if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
+                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                 Misbehaving(pfrom->GetId(), 5);
                             } else if (!IsFileExist(fileHash)) {
                                 LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File not found. Misbehaving.\n", __func__);
@@ -7944,7 +7938,7 @@ void ProcessFilesRequestsScheduler() {
 }
 
 void ProcessHasFileRequests() {
-    LogPrint("file", "%s - FILES. ProcessHasFileRequests.\n", __func__);
+    LogPrint("file", "%s - FILES. ProcessHasFileRequests: %d.\n", __func__, hasFileRequestedNodesMap.size());
     LOCK(cs_HasFileRequestedNodesMap);
 
     for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end();) {
@@ -7962,7 +7956,7 @@ void ProcessHasFileRequests() {
         }
 
         if (vfileRequest.empty()) {
-            LogPrint("file", "%s - FILES.  vfileRequest is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString());
+            LogPrint("file", "%s - FILES. vfileRequest is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString());
             it = hasFileRequestedNodesMap.erase(it);
             continue;
         }
@@ -7971,7 +7965,7 @@ void ProcessHasFileRequests() {
 
         // is file appeared
         if (IsFileExistByTx(fileTxHash)) {
-            LogPrint("file", "%s - FILES.  IsFileExistByTx. Remove HasFileRequests. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. IsFileExistByTx. Remove HasFileRequests. fileTxHash: %s\n", __func__, fileTxHash.ToString());
             {
                 LOCK(cs_KnownFileTxesInDb);
                 knownFileTxesInDb.insert(fileTxHash);
@@ -7981,17 +7975,17 @@ void ProcessHasFileRequests() {
             while (it2 != vfileRequest.end()) {
                 CNode *pNode = FindNode(it2->node);
                 if (pNode == NULL || pNode->fDisconnect) {
-                    LogPrint("file", "%s - FILES.  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, it2->node, fileTxHash.ToString());
+                    LogPrint("file", "%s - FILES. pNode is NULL or Disconnected. Remove HasFileRequest. pNode: %d, fileTxHash: %s\n", __func__, it2->node, fileTxHash.ToString());
                     it2 = vfileRequest.erase(it2);
                     continue;
                 }
 
-                LogPrint("file", "%s - FILES.  SendFileAvailable. pNode: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                LogPrint("file", "%s - FILES. SendFileAvailable. pNode: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
                 SendFileAvailable(pNode, fileTxHash);
                 it2++;
             }
 
-            LogPrint("file", "%s - FILES.  Remove Has File Request at map. fileTxHash: %s\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. Remove Has File Request at map. fileTxHash: %s\n", __func__, fileTxHash.ToString());
             it = hasFileRequestedNodesMap.erase(it);
             continue;
         }
@@ -8007,7 +8001,7 @@ void ProcessFileRequests() {
 
     // проверка не привышел ли лимит на одновременную отправку файлов
     int availableToSend = GetAvailableToSendFilesCount();
-    LogPrint("file", "%s - FILES.  Available to send file. count: %d\n", __func__, availableToSend);
+    LogPrint("file", "%s - FILES. Available to send file. count: %d\n", __func__, availableToSend);
     if (availableToSend == 0)
         return;
 
@@ -8021,7 +8015,7 @@ void ProcessFileRequests() {
 
         // if node already disconnected. remove it
         if (pNode == NULL || pNode->fDisconnect || IsFileRequestExpired(fileRequest.date)) {
-            LogPrint("file", "%s - FILES.  pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, fileRequest.node, pair.first.ToString());
+            LogPrint("file", "%s - FILES. pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, fileRequest.node, pair.first.ToString());
             requestMap.erase(pair.second);
             if (requestMap.empty()) {
                 fileRequestedNodesMap.erase(pair.first);
@@ -8032,7 +8026,7 @@ void ProcessFileRequests() {
 
         // TODO: убедиться что запушенный файл тут же попадает в vSend и эта проверка сработает, чтобы не отправить несколько файлов подряд одному ноду
         if (!CanSendToNode(pNode)) {
-            LogPrint("file", "%s - FILES.  pNode - Can send to node. pNode: %d.\n", __func__, pNode->id);
+            LogPrint("file", "%s - FILES. pNode - Can send to node. pNode: %d.\n", __func__, pNode->id);
             it++;
             continue;
         }
@@ -8043,20 +8037,20 @@ void ProcessFileRequests() {
         CTransaction tx;
         uint256 hashBlock;
         if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
-            LogPrint("file", "%s - FILES.  Tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. Tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
             it++;
             continue;
         }
 
         CDBFile dbFile;
         if (!GetFile(tx.vfiles[0].fileHash, dbFile)) {
-            LogPrint("file", "%s - FILES.  File not found in DB. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. File not found in DB. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
             it++;
             continue;
         }
 
         // send
-        LogPrint("file", "%s - FILES.  Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
         pNode->PushMessage("file", fileTxHash, dbFile);
 
         // remove
@@ -8099,7 +8093,7 @@ void ProcessFilesPendingScheduler() {
 
                     CNode *pNode = FindFreeNode(it->second.nodes);
                     // if node not found (disconnected), remove it and then request for new nodes that have file
-                    if (pNode == nullptr || pNode->fDisconnect) {
+                    if (pNode == nullptr) {
                         LogPrint("file", "%s - FILES. node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
                         it = filesPendingMap.erase(it);
                         continue;
@@ -8141,7 +8135,7 @@ void ProcessFilesPendingScheduler() {
 }
 
 void ProcessRequiredFiles() {
-    LogPrint("file", "%s - FILES. processRequiredFiles. Files required: %d\n", __func__, requiredFilesMap.size());
+    LogPrint("file", "%s - FILES. ProcessRequiredFiles. Files required: %d\n", __func__, requiredFilesMap.size());
     vector<uint256> vRequiredToBroadcast;
 
     {
@@ -8208,7 +8202,7 @@ void ProcessRequiredFiles() {
 }
 
 void ProcessKnownHashes() {
-    LogPrint("file", "%s - FILES. processKnownHashes.\n", __func__);
+    LogPrint("file", "%s - FILES. processKnownHashes: %d.\n", __func__, knownHasFilesMap.size());
 
     LOCK(cs_KnownHasFilesMap);
 
@@ -8312,6 +8306,21 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
     return nullptr;
 }
 
+bool SaveMaturationTransactions() {
+    if (pwalletMain == nullptr)
+        return true;
+
+    LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+
+    CWalletDB walletdb(pwalletMain->strWalletFile);
+    if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
+        LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
+        return error("Failed to write maturation payment confirm transactions in db.\n");
+    }
+
+    return true;
+}
+
 bool SaveFileDB(CDBFile& file) {
     LogPrint("file", "%s - FILES. Saving file to db. filehash: %s, filesize: %d\n", __func__, file.fileHash.ToString(), file.vBytes.size());
 
@@ -8324,7 +8333,7 @@ bool SaveFileDB(CDBFile& file) {
     if (!WriteFileBlockToDisk(file, filePos))
         return error("%s : Failed to write file block to disk with fileHash - %s", __func__, file.fileHash.ToString());
 
-    if (!pblockfiletree->WriteFileIndex(file.CalcFileHash(), filePos))
+    if (!pblockfiletree->WriteFileIndex(file.fileHash, filePos))
         return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
 
     cdbFileBlockFilesState.AddFile(file.vBytes.size());

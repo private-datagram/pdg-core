@@ -516,7 +516,7 @@ WId BitcoinApplication::getMainWinId() const
 
 //**********************//
 
-// TODO: remove after debug
+// TODO: PDG 5 remove after debug
 void CalcHash() {
     printf("CalcHash\n");
 
@@ -581,7 +581,7 @@ int main(int argc, char* argv[])
     // Command-line options take precedence:
     ParseParameters(argc, argv);
 
-    // TODO: remove after debug
+    // TODO: PDG 5 remove after debug
     if (GetArg("-calchash", 0) != 0) {
         CalcHash();
         printf("Calc done. Exit.\n");
