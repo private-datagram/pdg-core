@@ -264,7 +264,7 @@ public:
     {
         numberBytesSize = 0;
         countFiles = 0;
-        markRemovedAtDBnumberBytesSize = 0;
+        markRemovedNumberBytesSize = 0;
         countMarkRemovedFiles = 0;
     }
 
@@ -276,9 +276,9 @@ public:
     std::string ToString() const;
 
     /** update statistics (does not update countFiles) */
-    void AddFile(int nFileSize)
+    void AddFile(unsigned int nByteSize)
     {
-        numberBytesSize += nFileSize;
+        numberBytesSize += nByteSize;
     }
 
     void AddDiskFile()
@@ -287,15 +287,94 @@ public:
     }
 
     /** update statistics (does not update numberBytesSize) */
-    void RemoveFile(int nFileSize)
+    void RemoveFile(unsigned int nByteSize)
     {
-        markRemovedNumberBytesSize += nFileSize;
+        markRemovedNumberBytesSize += nByteSize;
         countMarkRemovedFiles++;
     }
 
     bool isClearDiskSpaceNeeded() {
         //marked remove byte size more than limit relatively total size.
         return markRemovedNumberBytesSize >= (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * numberBytesSize / 100);
+    }
+};
+
+class CFileBlockFileInfo
+{
+public:
+    unsigned int numberBytesSize;        //! number of used bytes of block file
+    unsigned int numberFiles;      //! number of files stored in file
+//    unsigned int nUndoSize;    //! number of used bytes in the undo file
+    uint64_t firstRecordTime;       //! earliest time of block in file
+    uint64_t lastRecordTime;        //! latest time of block in file
+    bool isFill;                    //! file is fill
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(numberBytesSize));
+        READWRITE(VARINT(numberFiles));
+//        READWRITE(VARINT(nUndoSize));
+        READWRITE(VARINT(firstRecordTime));
+        READWRITE(VARINT(lastRecordTime));
+        READWRITE(isFill);
+    }
+
+    void SetNull()
+    {
+        numberFiles = 0;
+        numberBytesSize = 0;
+//        nUndoSize = 0;
+        firstRecordTime = 0;
+        lastRecordTime = 0;
+        isFill = false;
+    }
+
+    CFileBlockFileInfo()
+    {
+        SetNull();
+    }
+
+    bool IsDiskFileEmpty() {
+        LogPrint("file", "%s - FILES. Check diskFile empty. Meta data: numberFiles: %d, byteSize: %d\n", __func__, numberFiles, numberBytesSize); //TODO: PDG 2 remove after debug
+        if ((numberBytesSize == 0 && numberFiles != 0) || (numberBytesSize != 0 && numberFiles == 0)) {
+            LogPrint("file", "%s - FILES. ERROR. Meta data blockfile info not valid.\n", __func__);
+        }
+
+        return numberBytesSize == 0 && numberFiles == 0;
+    }
+
+    std::string ToString() const;
+
+    /** update statistics (does not update numberBytesSize) */
+    void AddFile(uint64_t nTimeIn, unsigned int nBytesSize)
+    {
+        if (numberFiles == 0 || firstRecordTime > nTimeIn)
+            firstRecordTime = nTimeIn;
+
+        numberFiles++;
+
+        if (nTimeIn > lastRecordTime)
+            lastRecordTime = nTimeIn;
+
+        numberBytesSize = numberBytesSize + nBytesSize;
+    }
+
+    void RemoveFile(unsigned int nBytesSize)
+    {
+        if (numberFiles == 0 || numberBytesSize < nBytesSize) {
+            LogPrint("file", "%s - FILES. ERROR - remove file failed. Number files:%d, bytes size total: %d, remove bytes:%d\n",
+                    __func__,
+                    numberFiles,
+                    numberBytesSize,
+                    nBytesSize); //TODO: PDG 2 remove after debug
+        }
+
+        //TODO: PDG 5 check file.vBytes.size() or something else (bytes header)
+        numberBytesSize = numberBytesSize - nBytesSize;
+        numberFiles--;
     }
 };
 
@@ -390,13 +469,17 @@ FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 
 bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
+bool FindFileBlockPosByStructure(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime, int lastDiskFile, vector<CFileBlockFileInfo>& infoFileBlockFile, bool isTmp = false);
 
 void UpdateFileBlockPosData(CDiskFileBlockPos& pos);
 
-/** Open a data file (blk?????.dat) */
-FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false);
+/** Open a data file (blk?????.dat). isTmp - open a data file (blk?????_tmp.dat) */
+FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false, bool isTmp = false);
 /** File to a filesystem path */
-boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const char* prefix);
+boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix);
+
+/** Tmp file to a filesystem path */
+boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix);
 
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
@@ -427,6 +510,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle);
 /** Request a file notification */
 void ProcessFilesPendingScheduler();
 void ProcessFilesRequestsScheduler();
+void ProcessMarkRemoveFilesScheduler();
 void ProcessFilesEraseScheduler();
 
 void ProcessHasFileRequests();
@@ -447,6 +531,8 @@ bool CanRequestFile();
 // TODO: PDG 2 move to file
 bool SaveFileDB(CDBFile& file);
 bool EraseFileDB(CDBFile& file);
+
+bool SaveFileBlockFileState();
 
 /** Request info about available file */
 bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
@@ -704,9 +790,13 @@ public:
 };
 
 /** File region */
-bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos);
-bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos);
+bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos, bool isTmp = false);
+bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos, bool isTmp = false);
 bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos);
+
+bool RemoveFileBlockFromDisk(int fileNumber, bool isTmp = false);
+bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber);
+bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
@@ -749,56 +839,6 @@ bool IsMsgFile(int type);
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime);
 
 bool SaveMaturationTransactions();
-
-class CFileBlockFileInfo
-{
-public:
-    unsigned int numberBytesSize;        //! number of used bytes of block file
-    unsigned int numberFiles;      //! number of files stored in file
-//    unsigned int nUndoSize;    //! number of used bytes in the undo file
-    uint64_t firstRecordTime;       //! earliest time of block in file
-    uint64_t lastRecordTime;        //! latest time of block in file
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
-    {
-        READWRITE(VARINT(numberBytesSize));
-        READWRITE(VARINT(numberFiles));
-//        READWRITE(VARINT(nUndoSize));
-        READWRITE(VARINT(firstRecordTime));
-        READWRITE(VARINT(lastRecordTime));
-    }
-
-    void SetNull()
-    {
-        numberFiles = 0;
-        numberBytesSize = 0;
-//        nUndoSize = 0;
-        firstRecordTime = 0;
-        lastRecordTime = 0;
-    }
-
-    CFileBlockFileInfo()
-    {
-        SetNull();
-    }
-
-    std::string ToString() const;
-
-    /** update statistics (does not update nSize) */
-    void AddBlock(uint64_t nTimeIn)
-    {
-        if (numberFiles == 0 || firstRecordTime > nTimeIn)
-            firstRecordTime = nTimeIn;
-
-        numberFiles++;
-
-        if (nTimeIn > lastRecordTime)
-            lastRecordTime = nTimeIn;
-    }
-};
 
 class CBlockFileInfo
 {

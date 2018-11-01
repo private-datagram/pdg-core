@@ -102,6 +102,7 @@ struct CNodeSignals {
 
     boost::signals2::signal<void()> ProcessFilesPendingScheduler;
     boost::signals2::signal<void()> ProcessFilesRequestsScheduler;
+    boost::signals2::signal<void()> ProcessMarkRemoveFilesScheduler;
     boost::signals2::signal<void()> ProcessFilesEraseScheduler;
 
     boost::signals2::signal<bool(CNode*, uint256)> SendFileAvailable;

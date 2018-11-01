@@ -96,8 +96,6 @@ public:
 
     bool WriteCDBFileBlockFilesState(const CDBFileBlockFilesState& diskFileState);
     bool ReadCDBFileBlockFilesState(CDBFileBlockFilesState& diskFileState);
-
-    bool EraseExpiredFiles();
 };
 
 class CZerocoinDB : public CLevelDBWrapper

@@ -144,61 +144,6 @@ bool CBlockFileTreeDB::ReadCDBFileBlockFilesState(CDBFileBlockFilesState& diskFi
     return Read(string("dfs"), diskFileState);
 }
 
-bool CBlockFileTreeDB::EraseExpiredFiles() {
-    LogPrint("file", "%s - Erase expired files.\n", __func__);
-    boost::scoped_ptr<leveldb::Iterator> pcursor(NewIterator());
-
-    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
-    ssKeySet << string("flindex");
-    pcursor->Seek(ssKeySet.str());
-
-    // Load file position
-    while (pcursor->Valid()) {
-        boost::this_thread::interruption_point();
-        try {
-            leveldb::Slice sliceKey = pcursor->key();
-            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
-            string stType;
-            ssKey >> stType;
-            if (stType == "flindex") {
-                leveldb::Slice sliceValue = pcursor->value();
-                CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
-                CDiskFileBlockPos pos;
-                ssValue >> pos;
-
-                LogPrint("file", "%s - Cursor on file index. file position: %d/%d .\n", __func__, pos.numberDiskFile, pos.numberPosition);
-
-                CDBFile file;
-                if (!ReadFileBlockFromDisk(file, pos))
-                    return error("RemoveFileBlockFromDisk : read file block failed");
-
-                //todo: PDG 5 nLifeTime относительно блока?
-//                if (GetAdjustedTime() > (blockTime + file.nLifeTime) {
-                LogPrint("file", "%s - DB file load. fileHash: %s. File life time: %d/%d.\n", __func__, file.fileHash.ToString(), file.nLifeTime);
-                if (GetAdjustedTime() > file.nLifeTime) {
-                    file.removed = true;
-                    if (!WriteFileBlockToDisk(file, pos))
-                        return error("RemoveFileBlockFromDisk : write updated(removed) file failed");
-
-                    // long or int?
-                    cdbFileBlockFilesState.RemoveFile(file.vBytes.size());
-
-                    LogPrint("file", "%s - File expired. DB file mark as remove and save at db.\n", __func__);
-                }
-
-                pcursor->Next();
-            } else {
-                break; // if shutdown requested or finished inter on file pos.
-            }
-
-        } catch (std::exception& e) {
-            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-        }
-    }
-
-    return true;
-}
-
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)
 {
 }

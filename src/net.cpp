@@ -47,7 +47,10 @@
 #define CHECK_REQUESTING_FILES_INTERVAL 30
 
 // Erase expired file at DB every 1 hour (3600s)
-#define ERASE_FILES_INTERVAL 3600
+#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
+
+// Erase expired file at DB every 2 hours (1 hour - 3600s)
+#define ERASE_FILES_INTERVAL 2 * 3600
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
@@ -1305,6 +1308,11 @@ void ProcessFilesRequestsSchedulerHandler()
     g_signals.ProcessFilesRequestsScheduler();
 }
 
+void ProcessMarkRemoveFilesSchedulerHandler()
+{
+    g_signals.ProcessFilesEraseScheduler();
+}
+
 void ProcessFilesEraseSchedulerHandler()
 {
     g_signals.ProcessFilesEraseScheduler();
@@ -1889,6 +1897,8 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
     scheduler.scheduleEvery(&FilesPendingHandle, CHECK_PENDING_FILES_INTERVAL);
 
     scheduler.scheduleEvery(&ProcessFilesRequestsSchedulerHandler, CHECK_REQUESTING_FILES_INTERVAL);
+
+    scheduler.scheduleEvery(&ProcessMarkRemoveFilesSchedulerHandler, MARK_REMOVE_EXPIRED_FILES_INTERVAL);
 
     scheduler.scheduleEvery(&ProcessFilesEraseSchedulerHandler, ERASE_FILES_INTERVAL);
 

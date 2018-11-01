@@ -159,12 +159,13 @@ int nSyncStarted = 0;
 /** All pairs A->B, where A (or one if its ancestors) misses transactions, but B has transactions. */
 multimap<CBlockIndex*, CBlockIndex*> mapBlocksUnlinked;
 
+//TODO: PDG 5 cs_LastBlockFile and vinfoBlockFile???
 CCriticalSection cs_LastBlockFile;
 std::vector<CBlockFileInfo> vinfoBlockFile;
 int nLastBlockFile = 0;
 
 // FileBlock meta
-CCriticalSection cs_LastFileBlockFile;
+CCriticalSection cs_VinfoFileBlockFile;
 std::vector<CFileBlockFileInfo> vinfoFileBlockFile;
 int nLastFileDiskFile = 0;
 
@@ -597,6 +598,7 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals)
 
     nodeSignals.ProcessFilesPendingScheduler.connect(&ProcessFilesPendingScheduler);
     nodeSignals.ProcessFilesRequestsScheduler.connect(&ProcessFilesRequestsScheduler);
+    nodeSignals.ProcessMarkRemoveFilesScheduler.connect(&ProcessMarkRemoveFilesScheduler);
     nodeSignals.ProcessFilesEraseScheduler.connect(&ProcessFilesEraseScheduler);
 
     nodeSignals.SendFileAvailable.connect(&SendFileAvailable);
@@ -613,6 +615,7 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
 
     nodeSignals.ProcessFilesPendingScheduler.disconnect(&ProcessFilesPendingScheduler);
     nodeSignals.ProcessFilesRequestsScheduler.disconnect(&ProcessFilesRequestsScheduler);
+    nodeSignals.ProcessMarkRemoveFilesScheduler.disconnect(&ProcessMarkRemoveFilesScheduler);
     nodeSignals.ProcessFilesEraseScheduler.disconnect(&ProcessFilesEraseScheduler);
 
     nodeSignals.SendFileAvailable.disconnect(&SendFileAvailable);
@@ -2149,10 +2152,10 @@ bool GetFile(const uint256& fileHash, CDBFile& fileOut) {
 // File region
 //
 // TODO: figure out with locks
-bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos)
+bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos, bool isTmp)
 {
     // Open history file to append
-    CAutoFile fileout(OpenFileBlockFile(pos), SER_DISK, CLIENT_VERSION);
+    CAutoFile fileout(OpenFileBlockFile(pos, false, isTmp), SER_DISK, CLIENT_VERSION);
     if (fileout.IsNull())
         return error("WriteFileBlockToDisk : OpenFileBlockFile failed");
 
@@ -2185,10 +2188,10 @@ bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos)
 }
 
 // TODO: figure out with locks
-bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos)
+bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos, bool isTmp)
 {
     // Open history file to read
-    CAutoFile filein(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    CAutoFile filein(OpenFileBlockFile(pos, true, isTmp), SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
         return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
 
@@ -2199,6 +2202,49 @@ bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos)
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());
     }
 
+    return true;
+}
+
+bool RemoveFileBlockFromDisk(int fileNumber, bool isTmp)
+{
+    boost::filesystem::path path;
+    if (isTmp) {
+        path = GetTmpFilePosFilename(fileNumber, "blk");
+    } else {
+        path = GetFilePosFilename(fileNumber, "blk");
+    }
+
+    LogPrint("file", "%s - FILES. Remove file from disk. path: %s\n", __func__, path);
+
+    if (!remove(path)) {
+        LogPrint("file", "%s - FILES. Remove file from disk failed.\n", __func__);
+        return false;
+    }
+
+    return true;
+}
+
+bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber)
+{
+    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
+    boost::filesystem::path path = GetFilePosFilename(originalFileNumber, "blk");
+
+    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
+
+    //remove original file
+    RemoveFileBlockFromDisk(originalFileNumber, false);
+    rename(tmpPath, path);
+    return true;
+}
+
+bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
+{
+    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
+    boost::filesystem::path path = GetFilePosFilename(tmpFileNumber, "blk");
+    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
+
+    //remove original file
+    rename(tmpPath, path);
     return true;
 }
 
@@ -3070,17 +3116,16 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     }
 }
 
-void static FlushFileBlockFile(bool fFinalize = false) {
-    LOCK(cs_LastFileBlockFile);
+void static FlushFileBlockFile(std::vector<CFileBlockFileInfo>& vFileBlockFile, int lastFileDiskFile, bool fFinalize = false, bool isTmp = false) {
+    //in order to open last disk file
+    CDiskFileBlockPos posLast(lastFileDiskFile, 0, 0);
 
-    CDiskBlockPos posOld(nLastFileDiskFile, 0);
-
-    FILE* fileOld = OpenBlockFile(posOld);
-    if (fileOld) {
+    FILE* fileLast = OpenFileBlockFile(posLast, false, isTmp);
+    if (fileLast) {
         if (fFinalize)
-            TruncateFile(fileOld, vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize);
-        FileCommit(fileOld);
-        fclose(fileOld);
+            TruncateFile(fileLast, vFileBlockFile[lastFileDiskFile].numberBytesSize);
+        FileCommit(fileLast);
+        fclose(fileLast);
     }
 }
 
@@ -3725,7 +3770,11 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 return state.Error("out of disk space");
             // First make sure all block and undo data is flushed to disk.
             FlushBlockFile();
-            FlushFileBlockFile();
+
+            {
+                LOCK(cs_VinfoFileBlockFile);
+                FlushFileBlockFile(vinfoFileBlockFile, nLastFileDiskFile);
+            }
 
             // Then update all block file information (which may refer to block and undo files).
 
@@ -3752,27 +3801,9 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            bool fileBlockFileChanged = false;
-            for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
-                unsigned long nFile = it - vinfoFileBlockFile.begin();
-                if (!pblockfiletree->WriteFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
-                    return state.Abort("Failed to write to fileBlock index");
-                }
-                fileBlockFileChanged = true;
-                ++it;
+            if (!SaveFileBlockFileState()) {
+                return state.Abort("Failed to save fileblock file state");
             }
-
-            if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
-                return state.Abort("Failed to write to file block index");
-            }
-            pblockfiletree->Sync();
-
-            LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, cdbFileBlockFilesState.ToString());
-            if (!pblockfiletree->WriteCDBFileBlockFilesState(cdbFileBlockFilesState)) {
-                LogPrint("file", "%s - FILES. Error write file blockfiles state in db.", __func__);
-                return state.Abort("Failed to write file blockfiles state in db.");
-            }
-            pblockfiletree->Sync();
 
             //write required files
             LogPrint("file", "%s - FILES. Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
@@ -4454,42 +4485,53 @@ bool ReceivedBlockTransactions(const CBlock& block, CValidationState& state, CBl
     return true;
 }
 
-bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime)
-{
-    LOCK(cs_LastFileBlockFile);
-    pos.numberDiskFile = nLastFileDiskFile;
-    LogPrint("file", "%s - FILES. FindFileBlockPos. Number last fileblock disk file: %d\n", __func__, nLastFileDiskFile);
+bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime) {
+    LogPrint("file", "%s - FILES. Find file block pos. %d\n", __func__);
+    LOCK(cs_VinfoFileBlockFile);
+    return FindFileBlockPosByStructure(state, pos, nAddSize, nTime, nLastFileDiskFile, vinfoFileBlockFile);
+}
 
-    if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
-        vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
+bool FindFileBlockPosByStructure(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int& nAddSize, uint64_t nTime, int& lastDiskFile, vector<CFileBlockFileInfo>& infoFileBlockFile, bool isTmp)
+{
+    pos.numberDiskFile = lastDiskFile;
+    LogPrint("file", "%s - FILES. Number last fileblock disk file: %d\n", __func__, lastDiskFile);
+
+    if (infoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
+        infoFileBlockFile.resize(pos.numberDiskFile + 1);
     }
 
     //Flush file after filled
     // TODO: aseert addSize < MAX_FILEBLOCKFILE_SIZE
-    while (vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
+    while (infoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
         LogPrint("file", "%s - FILES. MAX_FILEBLOCKFILE_SIZE. Flush fileblock disk file.\n", __func__);
-        FlushFileBlockFile(true);
+        FlushFileBlockFile(infoFileBlockFile, lastDiskFile, true, isTmp);
+
+        //update meta previous diskfile
+        infoFileBlockFile[pos.numberDiskFile].isFill = true;
+
+        //position this file
         ++pos.numberDiskFile;
-        if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
-            vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
+        if (infoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
+            infoFileBlockFile.resize(pos.numberDiskFile + 1);
+            //todo: проверить.
             cdbFileBlockFilesState.AddDiskFile();
         }
     }
 
     //update meta data
-    nLastFileDiskFile = pos.numberDiskFile;
-    LogPrint("file", "%s - FILES. Updated meta data. Number last file disk file: %d\n", __func__, nLastFileDiskFile);
+    lastDiskFile = pos.numberDiskFile;
+    LogPrint("file", "%s - FILES. Updated meta data. Number last file disk file: %d\n", __func__, lastDiskFile);
 
-    pos.numberPosition = vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize;
+    pos.numberPosition = infoFileBlockFile[lastDiskFile].numberBytesSize;
     pos.fileSize = nAddSize;
 
-    vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize += nAddSize;
-    vinfoFileBlockFile[nLastFileDiskFile].AddBlock(nTime);
+//    infoFileBlockFile[lastDiskFile].numberBytesSize += nAddSize;
+    infoFileBlockFile[lastDiskFile].AddFile(nTime, nAddSize);
 
     unsigned int nOldChunks = (pos.numberPosition + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
     LogPrint("file", "%s - FILES. Old chunks: %d\n", __func__, nOldChunks);
 
-    unsigned int nNewChunks = (vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    unsigned int nNewChunks = (infoFileBlockFile[lastDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
     LogPrint("file", "%s - FILES. New chunks: %d\n", __func__, nNewChunks);
 
     if (nNewChunks > nOldChunks) {
@@ -5385,9 +5427,16 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char
 }
 
 //file region
-FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly)
+FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly, bool isTmp)
 {
-    boost::filesystem::path path = GetFilePosFilename(pos, "blk");
+    boost::filesystem::path path;
+    if (isTmp) {
+        path = GetTmpFilePosFilename(pos.numberDiskFile, "blk");
+    } else {
+        path = GetFilePosFilename(pos.numberDiskFile, "blk");
+    }
+
+    LogPrintf("Open fileblock file: %s\n", path.string());
 
     if (pos.IsNull())
         return NULL;
@@ -5395,9 +5444,14 @@ FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly)
     return OpenDiskFile(pos.numberPosition, path, fReadOnly);
 }
 
-boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const char* prefix)
+boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix)
 {
-    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, pos.numberDiskFile);
+    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, numberDiskFile);
+}
+
+boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix)
+{
+    return GetDataDir() / "files" / strprintf("%s%05u_tmp.dat", prefix, numberDiskFile);
 }
 //end region
 
@@ -7915,21 +7969,183 @@ void RemoveHasFileRequestsByHash(const uint256 &hash) {
     hasFileRequestedNodesMap.erase(hash);
 }
 
+void ProcessMarkRemoveFilesScheduler() {
+    LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
+    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
+
+    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
+    ssKeySet << string("flindex");
+    pcursor->Seek(ssKeySet.str());
+
+    // Load file position
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        try {
+            leveldb::Slice sliceKey = pcursor->key();
+            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
+            string stType;
+            ssKey >> stType;
+            if (stType == "flindex") {
+                leveldb::Slice sliceValue = pcursor->value();
+                CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
+                CDiskFileBlockPos pos;
+                ssValue >> pos;
+
+                LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.numberDiskFile, pos.numberPosition);
+
+                CDBFile file;
+                if (!ReadFileBlockFromDisk(file, pos)) {
+                    LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
+                    return;
+                }
+
+                //todo: PDG 5 nLifeTime относительно блока?
+//                if (GetAdjustedTime() > (blockTime + file.nLifeTime) {
+                LogPrint("file", "%s - FILES. DB file load. fileHash: %s. File life time: %d/%d.\n", __func__, file.fileHash.ToString(), file.nLifeTime);
+                if (GetAdjustedTime() > file.nLifeTime) {
+                    file.removed = true;
+                    if (!WriteFileBlockToDisk(file, pos)) {
+                        LogPrint("file", "%s - FILES. Write updated(removed) file failed. \n", __func__);
+                        return;
+                    }
+
+                    cdbFileBlockFilesState.RemoveFile(pos.fileSize);
+                    LogPrint("file", "%s - FILES. File expired. DB file mark as remove and save at db.\n", __func__);
+                }
+
+                pcursor->Next();
+            } else {
+                break; // if shutdown requested or finished inter on file pos.
+            }
+
+        } catch (std::exception& e) {
+            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
+            return;
+        }
+    }
+}
+
+//todo: PDG 5 remove
+void ClearFileMetaData() {
+    nLastFileDiskFile = 0;
+
+    //erase info file BlockFile
+    for (auto it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
+        it = vinfoFileBlockFile.erase(it);
+    }
+}
+
 void ProcessFilesEraseScheduler() {
+    LogPrint("file", "%s - FILES. Process diskfile erase scheduler: %s.\n", __func__, cdbFileBlockFilesState.ToString());
+    LOCK2(cs_main, cs_VinfoFileBlockFile);
 
-    CDBFile& file;
+    if (!cdbFileBlockFilesState.isClearDiskSpaceNeeded()) {
+        LogPrint("file", "%s - FILES. diskfile do't need cleaning.\n", __func__);
+        return;
+    }
 
-    //get CFile .nLifeTime = micros end file time
-    if (!pblockfiletree->EraseExpiredFiles(file.fileHash, pos))
-        return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
+    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
 
-//    if (!EraseFileDB(dbFile))
-//        LogPrintf("Remove file in DB failed\n");
+    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
+    ssKeySet << string("flindex");
+    pcursor->Seek(ssKeySet.str());
 
-//    uint256 fileTxHash;
-//    if (!SendFileTx(txFile, fileMeta, fileDestination, fileTxHash)) {
-//        return false;
-//    }
+    vector<CFileBlockFileInfo> vTmpInfoFileBlockFile;
+    int lastTempDiskFile = 0;
+
+    //TODO: PDG 5 lock?
+    cdbFileBlockFilesState.SetNull();
+
+    // Load file position
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        try {
+            leveldb::Slice sliceKey = pcursor->key();
+            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
+            string stType;
+            ssKey >> stType;
+            if (stType == "flindex") {
+                leveldb::Slice sliceValue = pcursor->value();
+                CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
+                CDiskFileBlockPos pos;
+                ssValue >> pos;
+
+                LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.numberDiskFile, pos.numberPosition);
+
+                CDBFile file;
+                if (!ReadFileBlockFromDisk(file, pos)) {
+                    LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
+                    return;
+                }
+
+                if (file.removed) {
+                    CFileBlockFileInfo &diskFileInfo = vinfoFileBlockFile[pos.numberDiskFile];
+                    vinfoFileBlockFile[pos.numberDiskFile].RemoveFile(pos.fileSize);
+                    LogPrint("file", "%s - FILES. File mark as removed, don't rewrite at new diskfile. Removed file hash: s%\n", __func__, file.fileHash.ToString());
+                    pcursor->Next();
+                    continue;
+                }
+
+                unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+                CDiskFileBlockPos newPosAtTmpFile;
+                CValidationState state;
+                if (!FindFileBlockPosByStructure(state, newPosAtTmpFile, nFileSize + 8, 0, lastTempDiskFile, vTmpInfoFileBlockFile, true)) {
+                    LogPrint("file", "%s - FILES. Find file position at temp fileblock from disk failed.\n", __func__);
+                    return;
+                }
+
+                //remove old blk by id and if copy fill - rename copy.
+                if (vinfoFileBlockFile[pos.numberDiskFile].IsDiskFileEmpty() && vTmpInfoFileBlockFile[newPosAtTmpFile.numberDiskFile].isFill) {
+                    ReplaceTmpToOriginalFileBlockFromDisk(pos.numberDiskFile, newPosAtTmpFile.numberDiskFile);
+                }
+
+                pcursor->Next();
+            } else {
+                break; // if shutdown requested or finished inter on file pos.
+            }
+
+        } catch (std::exception& e) {
+            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
+            return;
+        }
+    }
+
+    if (!vTmpInfoFileBlockFile[lastTempDiskFile].isFill) {
+        RenameTmpOriginalFileBlockDisk(lastTempDiskFile);
+    }
+
+    vinfoFileBlockFile = vTmpInfoFileBlockFile;
+    nLastFileDiskFile = lastTempDiskFile;
+
+    SaveFileBlockFileState();
+    //save new state
+
+}
+
+bool SaveFileBlockFileState() {
+    bool fileBlockFileChanged = false;
+    for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
+        unsigned long nFile = it - vinfoFileBlockFile.begin();
+        if (!pblockfiletree->WriteFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
+            LogPrint("file", "%s - FILES. Failed to write to fileBlock index", __func__);
+            return false;
+        }
+        fileBlockFileChanged = true;
+        ++it;
+    }
+
+    if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
+        LogPrint("file", "%s - FILES. Failed to write to file block index", __func__);
+        return false;
+    }
+    pblockfiletree->Sync();
+
+    LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, cdbFileBlockFilesState.ToString());
+    if (!pblockfiletree->WriteCDBFileBlockFilesState(cdbFileBlockFilesState)) {
+        LogPrint("file", "%s - FILES. Error write file blockfiles state in db.", __func__);
+        return false;
+    }
+    pblockfiletree->Sync();
 }
 
 void ProcessFilesRequestsScheduler() {
@@ -8336,7 +8552,7 @@ bool SaveFileDB(CDBFile& file) {
     if (!pblockfiletree->WriteFileIndex(file.fileHash, filePos))
         return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
 
-    cdbFileBlockFilesState.AddFile(file.vBytes.size());
+    cdbFileBlockFilesState.AddFile(filePos.fileSize);
     UpdateFileBlockPosData(filePos);
 
     LogPrint("file", "%s - FILES. File saved at position %d/%d\n", __func__, filePos.numberDiskFile, filePos.numberPosition);
@@ -8359,7 +8575,7 @@ bool EraseFileDB(CDBFile& file) {
     if (!RemoveFileBlockFromDisk(pos))
         return error("%s : Failed to remove file from blocks with fileHash - %s", __func__, file.fileHash.ToString());
 
-    cdbFileBlockFilesState.RemoveFile(file.vBytes.size());
+    cdbFileBlockFilesState.RemoveFile(pos.fileSize);
 
     return true;
 }
