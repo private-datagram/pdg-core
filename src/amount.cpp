@@ -30,3 +30,27 @@ std::string CFeeRate::ToString() const
 {
     return strprintf("%d.%08d PIV/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
 }
+
+
+CFileFeeRate::CFileFeeRate(const CAmount& nFeePaid, size_t nSize, uint32_t days)
+{
+    if (nSize > 0)
+        nSatoshisPerKPerM = nFeePaid * 1000 / nSize;
+    else
+        nSatoshisPerKPerM = 0;
+}
+
+CAmount CFileFeeRate::GetFee(size_t nSize, uint32_t nDays) const
+{
+    CAmount nFee = nSatoshisPerKPerM * nSize / 1000 * nDays;
+
+    if (nFee == 0 && nSatoshisPerKPerM > 0)
+        nFee = nSatoshisPerKPerM;
+
+    return nFee;
+}
+
+std::string CFileFeeRate::ToString() const
+{
+    return strprintf("%d.%08d PIV/kB/month", nSatoshisPerKPerM / COIN, nSatoshisPerKPerM % COIN);
+}

@@ -55,11 +55,11 @@ void MetaToJSON(const PtrContainer<CTransactionMeta>& meta, UniValue& entry)
     if (meta.IsInstanceOf<CPaymentRequest>()) {
         CPaymentRequest pr = meta.get<CPaymentRequest>();
         metaEntry.push_back(Pair("price", ValueFromAmount(pr.nPrice)));
+        metaEntry.push_back(Pair("fileSize", pr.nFileSize));
     } else if (meta.IsInstanceOf<CPaymentConfirm>()) {
         CPaymentConfirm pc = meta.get<CPaymentConfirm>();
         metaEntry.push_back(Pair("requestTxid", pc.requestTxid.GetHex()));
         metaEntry.push_back(Pair("lifeTime", (int64_t) pc.nLifeTime));
-        metaEntry.push_back(Pair("publicKey", &pc.vfPublicKey[0]));
     } if (meta.IsInstanceOf<CFileMeta>()) {
         CFileMeta fm = meta.get<CFileMeta>();
         metaEntry.push_back(Pair("confirmTxId", fm.confirmTxId.GetHex()));

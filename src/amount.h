@@ -49,4 +49,36 @@ public:
     }
 };
 
+/** Type-safe wrapper class to for fee rates
+ * (how much to pay based on transaction size)
+ */
+class CFileFeeRate
+{
+private:
+    CAmount nSatoshisPerKPerM; // unit is satoshis-per-1,000-bytes per month of storage
+public:
+    CFileFeeRate() : nSatoshisPerKPerM(0) {}
+    explicit CFileFeeRate(const CAmount& _nSatoshisPerKPerM) : nSatoshisPerKPerM(_nSatoshisPerKPerM) {}
+    CFileFeeRate(const CAmount& nFeePaid, size_t nSize, uint32_t days);
+    CFileFeeRate(const CFileFeeRate& other) { nSatoshisPerKPerM = other.nSatoshisPerKPerM; }
+
+    CAmount GetFee(size_t size, uint32_t days) const;                  // unit returned is satoshis
+    CAmount GetFeePerKPerM() const { return GetFee(1000, 30); } // satoshis-per-1000-bytes
+
+    friend bool operator<(const CFileFeeRate& a, const CFileFeeRate& b) { return a.nSatoshisPerKPerM < b.nSatoshisPerKPerM; }
+    friend bool operator>(const CFileFeeRate& a, const CFileFeeRate& b) { return a.nSatoshisPerKPerM > b.nSatoshisPerKPerM; }
+    friend bool operator==(const CFileFeeRate& a, const CFileFeeRate& b) { return a.nSatoshisPerKPerM == b.nSatoshisPerKPerM; }
+    friend bool operator<=(const CFileFeeRate& a, const CFileFeeRate& b) { return a.nSatoshisPerKPerM <= b.nSatoshisPerKPerM; }
+    friend bool operator>=(const CFileFeeRate& a, const CFileFeeRate& b) { return a.nSatoshisPerKPerM >= b.nSatoshisPerKPerM; }
+    std::string ToString() const;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(nSatoshisPerKPerM);
+    }
+};
+
 #endif //  BITCOIN_AMOUNT_H

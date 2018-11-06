@@ -112,6 +112,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
 
     meta.sComment = ui->descriptionField->text().toStdString();
     meta.nPrice = ui->priceField->value();
+    meta.nFileSize = CalcEncodedFileSize(recipient.vchFile.size());
 
     CPubKey pubKey;
     if (!pwalletMain->GetKeyFromPool(pubKey)) {
@@ -149,32 +150,8 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         QString address = "<span style='font-family: monospace;'>" + rcp.address;
         address.append("</span>");
 
-        QString recipientElement;
-
-        if (!rcp.paymentRequest.IsInitialized()) // normal payment
-        {
-            if (rcp.label.length() > 0) // label with address
-            {
-                recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.label));
-                recipientElement.append(QString(" (%1)").arg(address));
-            } else // just address
-            {
-                recipientElement = tr("%1 to %2").arg(amount, address);
-            }
-        } else if (!rcp.authenticatedMerchant.isEmpty()) // secure payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
-        } else // insecure payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, address);
-        }
-
-        if (CoinControlDialog::coinControl->fSplitBlock) {
-            recipientElement.append(tr(" split into %1 outputs using the UTXO splitter.").arg(
-                    CoinControlDialog::coinControl->nSplitBlock));
-        }
-
-        formatted.append(recipientElement);
+        formatted.append(tr("Filename") + ": " + fileInfo.fileName());
+        formatted.append(tr("File price") + ": " + BitcoinUnits::formatHtmlWithUnit(BitcoinUnits::PIV, ui->priceField->value()));
     }
 
     fNewRecipientAllowed = false;
@@ -254,7 +231,7 @@ SendCoinsRecipient SendFilesDialog::getValue()
 
     // Normal payment
     recipient.address = ui->addressField->text();
-    recipient.amount = 1 * CENT; // TODO: fix it
+    recipient.amount = 0; // TODO: PDG1 ?
     recipient.useSwiftTX = false;
 
     return recipient;
@@ -271,6 +248,8 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
 {
     // prepare transaction for getting txFee earlier
     WalletModelTransaction currentTransaction(recipients, meta);
+    currentTransaction.getTransaction()->type = TX_FILE_PAYMENT_REQUEST; // TODO: PDG2 make it definitely
+
     WalletModel::SendCoinsReturn prepareStatus;
     if (model->getOptionsModel()->getCoinControlFeatures()) // coin control enabled
         prepareStatus = model->prepareTransaction(currentTransaction, CoinControlDialog::coinControl);
@@ -285,7 +264,7 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
     }
 
     CAmount txFee = currentTransaction.getTransactionFee();
-    QString questionString = tr("Are you sure you want to send?");
+    QString questionString = tr("Are you sure you want to send payment request for file?");
     questionString.append("<br /><br />%1");
 
     if (txFee > 0) {
@@ -293,7 +272,7 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
         questionString.append("<hr /><span style='color:#aa0000;'>");
         questionString.append(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), txFee));
         questionString.append("</span> ");
-        questionString.append(tr("are added as transaction fee"));
+        questionString.append(tr("are file transaction extra fee"));
         questionString.append(" ");
         questionString.append(strFee);
 
@@ -482,13 +461,13 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
         return;
     }
 
-    CPaymentConfirm paymentConfirm = paymentTx.meta.get<CPaymentConfirm>();
+    const uint256 &requestTxid = paymentTx.meta.get<CPaymentConfirm>().requestTxid;
 
     // red key from wallet db
     CWalletDB wdb(pwalletMain->strWalletFile, "r+");
     vector<char> publicKey;
     vector<char> privateKey;
-    wdb.ReadFileEncryptKeys(paymentConfirm.requestTxid, publicKey, privateKey);
+    wdb.ReadFileEncryptKeys(requestTxid, publicKey, privateKey);
     RSA* privKey = crypto::rsa::PrivateDERToKey(privateKey);
     unique_ptr<RSA> privKeyPtr(privKey);
 
@@ -505,9 +484,8 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
 
     // choose destination filename
     QString destFilename = QFileDialog::getSaveFileName(this,
-                                                        tr("Save File: %1. File size: %2KB") // TODO: remove information after UI will be implemented
-                                                                .arg(QString::fromStdString(filename))
-                                                                .arg((int)round((float)encodedMeta.nFileSize / 1024.0f)),
+                                                        tr("Save File: %1") // TODO: remove information after UI will be implemented
+                                                                .arg(QString::fromStdString(filename)),
                                                         filename.data(), tr("All Files (*)")
     );
 

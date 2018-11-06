@@ -2730,7 +2730,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 if (coinControl && !coinControl->fSplitBlock) {
                     BOOST_FOREACH (const PAIRTYPE(CScript, CAmount) & s, vecSend) {
                         CTxOut txout(s.second, s.first);
-                        if (txout.IsDust(::minRelayTxFee)) {
+                        if (txout.IsDust(::minRelayTxFee) && wtxNew.type != TX_FILE_PAYMENT_REQUEST) {
                             strFailReason = _("Transaction amount too small");
                             return false;
                         }
@@ -2906,7 +2906,13 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                         break;
                 }
 
-                CAmount nFeeNeeded = max(nFeePay, GetMinimumFee(nBytes, nTxConfirmTarget, mempool));
+                bool extraFee = txNew.type == TX_FILE_PAYMENT_REQUEST || txNew.type == TX_FILE_TRANSFER;
+                CAmount nFeeNeeded = max(nFeePay, GetMinimumFee(nBytes, nTxConfirmTarget, mempool) * (extraFee ? 2 : 1));
+
+                if (txNew.type == TX_FILE_PAYMENT_CONFIRM) {
+                    const CPaymentConfirm &paymentConfirm = txNew.meta.get<CPaymentConfirm>();
+                    nFeeNeeded += GetFileFee(paymentConfirm);
+                }
 
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
                 // because we must be at the maximum allowed fee.

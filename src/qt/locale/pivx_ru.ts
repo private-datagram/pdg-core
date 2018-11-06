@@ -2843,9 +2843,9 @@ To change the percentage (no restart required):
     </message>
     <message>
         <source> sec. Used denominations:
-</source>
+    </source>
         <translation>сек. Испльзованы номинации:
-</translation>
+    </translation>
     </message>
     <message>
         <source>Starting ResetMintZerocoin: rescanning complete blockchain, this will need up to 30 minutes depending on your hardware. 
@@ -2859,9 +2859,9 @@ Please be patient...</source>
     </message>
     <message>
         <source> sec.
-</source>
+    </source>
         <translation>сек.
-</translation>
+    </translation>
     </message>
     <message>
         <source>Starting ResetSpentZerocoin: </source>
@@ -2886,6 +2886,15 @@ Please be patient...</source>
     <message>
         <source>Are you sure you want to send?&lt;br /&gt;&lt;br /&gt;</source>
         <translation>Вы действительно хотите отправить?&lt;br /&gt;&lt;br /&gt;</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to send payment request for file?&lt;br /&gt;&lt;br /&gt;</source>
+        <translation>Вы действительно хотите отправить запрос на оплату файла?&lt;br /&gt;&lt;br /&gt;</translation>
+    </message>
+
+    <message>
+        <source>are file transaction extra fee</source>
+        <translation>дополнительная комиссия за файловую транзакцию</translation>
     </message>
     <message>
         <source> to address </source>
@@ -3848,6 +3857,18 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Are you sure you want to send?</source>
         <translation>Вы уверены, что хотите отправить?</translation>
+    </message>
+    <message>
+        <source>Send File</source>
+        <translation>Отправить файл</translation>
+    </message>
+    <message>
+        <source>Filename</source>
+        <translation>Название файла</translation>
+    </message>
+    <message>
+        <source>File price</source>
+        <translation>Цена за файл</translation>
     </message>
     <message>
         <source>are added as transaction fee</source>

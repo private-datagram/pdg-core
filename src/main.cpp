@@ -93,6 +93,8 @@ int64_t nReserveBalance = 0;
  */
 CFeeRate minRelayTxFee = CFeeRate(10000);
 
+CFileFeeRate minFileFee = CFileFeeRate(100);
+
 CTxMemPool mempool(::minRelayTxFee);
 
 struct COrphanTx {
@@ -794,7 +796,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER) { // TODO: make safe
+        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER && tx.type != TX_FILE_PAYMENT_REQUEST) { // TODO: make safe
             reason = "dust";
             return false;
         }
@@ -1792,7 +1794,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             mempool.PrioritiseTransaction(hash, hash.ToString(), 1000, 0.1 * COIN);
         } else if (!ignoreFees) {
             CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
-            if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend())
+            if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend()) // TODO: FEE CHECK
                 return state.DoS(0, error("AcceptToMemoryPool : not enough fees %s, %d < %d",
                                         hash.ToString(), nFees, txMinFee),
                     REJECT_INSUFFICIENTFEE, "insufficient fee");
@@ -1829,7 +1831,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             }
         }
 
-        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
+        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000) // TODO: FEE CHECK
             return error("AcceptToMemoryPool: : insane fees %s, %d > %d",
                 hash.ToString(),
                 nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
@@ -1995,7 +1997,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         if (isDSTX) {
             mempool.PrioritiseTransaction(hash, hash.ToString(), 1000, 0.1 * COIN);
         } else { // same as !ignoreFees for AcceptToMemoryPool
-            CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
+            CAmount txMinFee = GetMinRelayFee(tx, nSize, true); // TODO: CHECK FEE
             if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend())
                 return state.DoS(0, error("AcceptableInputs : not enough fees %s, %d < %d",
                                         hash.ToString(), nFees, txMinFee),
@@ -2030,7 +2032,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
             }
         }
 
-        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
+        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)  // TODO: CHECK FEE
             return error("AcceptableInputs: : insane fees %s, %d > %d",
                 hash.ToString(),
                 nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
@@ -8328,6 +8330,24 @@ bool EraseFileDB(CDBFile& file) {
 
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
     return GetAdjustedTime() > (blockTime + tx.vfiles[0].nLifeTime);
+}
+
+uint64_t CalcEncodedFileSize(uint64_t srcSize) {
+    const uint64_t blockSize = (uint64_t) AES_BLOCK_SIZE;
+    // according to encryption out
+    // iv + src + padding to AES_BLOCK_SIZE
+    return blockSize + srcSize + ((srcSize % blockSize) == 0 ? blockSize : (blockSize - (srcSize % blockSize)));
+}
+
+CAmount GetFileFee(const CPaymentConfirm &paymentConfirm) {
+    CTransaction requestTx;
+    uint256 blockHash;
+    if (GetTransaction(paymentConfirm.requestTxid, requestTx, blockHash, true)) {
+        CPaymentRequest &paymentRequest = requestTx.meta.get<CPaymentRequest>();
+        return minFileFee.GetFee(paymentRequest.nFileSize, (uint32_t) round((float) paymentConfirm.nLifeTime / 86400));
+    }
+
+    return 0;
 }
 
 CNode *FindFreeNode(const set<NodeId> &nodes) {
