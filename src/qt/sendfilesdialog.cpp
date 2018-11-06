@@ -467,7 +467,10 @@ void SendFilesDialog::on_listTransactions_doubleClicked(const QModelIndex &index
     CWalletDB wdb(pwalletMain->strWalletFile, "r+");
     vector<char> publicKey;
     vector<char> privateKey;
-    wdb.ReadFileEncryptKeys(requestTxid, publicKey, privateKey);
+    if (!wdb.ReadFileEncryptKeys(requestTxid, publicKey, privateKey) || privateKey.empty()) {
+        QMessageBox::critical(this, tr("Save file"), tr("Decrypt file error. Failed to load file keys. Possible wallet is damaged"));
+        return;
+    }
     RSA* privKey = crypto::rsa::PrivateDERToKey(privateKey);
     unique_ptr<RSA> privKeyPtr(privKey);
 

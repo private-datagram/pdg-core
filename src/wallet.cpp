@@ -2906,7 +2906,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                         break;
                 }
 
-                bool extraFee = txNew.type == TX_FILE_PAYMENT_REQUEST || txNew.type == TX_FILE_TRANSFER;
+                bool extraFee = txNew.type == TX_FILE_PAYMENT_REQUEST;
                 CAmount nFeeNeeded = max(nFeePay, GetMinimumFee(nBytes, nTxConfirmTarget, mempool) * (extraFee ? 2 : 1));
 
                 if (txNew.type == TX_FILE_PAYMENT_CONFIRM) {
