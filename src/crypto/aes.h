@@ -85,7 +85,7 @@ namespace crypto {
             }
 
             if (outSize != NULL)
-                *outSize = totalRead + sizeof(iv) + AES_BLOCK_SIZE;
+                *outSize = totalRead + sizeof(iv) + ((totalRead % AES_BLOCK_SIZE) == 0 ? AES_BLOCK_SIZE : (AES_BLOCK_SIZE - (read % AES_BLOCK_SIZE)));
 
             return true;
         }
