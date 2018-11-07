@@ -40,6 +40,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <mutex>
+#include <shared_mutex>
+#include <algorithm>
 
 #include "libzerocoin/CoinSpend.h"
 
@@ -241,148 +244,200 @@ struct RequiredFile {
     bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
-class CDBFileBlockFilesState {
-public:
-    unsigned int numberBytesSize;        //!number of bytes of all files stored
-    unsigned int countFiles;      //! number of all files stored
-
-    unsigned int markRemovedNumberBytesSize; //! number of bytes of all mark remove files in db
-    unsigned int countMarkRemovedFiles; //! number of mark removed files in db
+struct FileRepositoryBlockSyncState {
+    bool isSync;                //! Synchronization status.
+    int nCompleteFile;          //! Number complete handle of file
+    int nCompleteTempFile;      //! Number complete handle temp of file
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
-        READWRITE(VARINT(numberBytesSize));
-        READWRITE(VARINT(countFiles));
-        READWRITE(VARINT(markRemovedNumberBytesSize));
-        READWRITE(VARINT(countMarkRemovedFiles));
+        READWRITE(isSync);
+        READWRITE(nCompleteFile);
+        READWRITE(nCompleteTempFile);
     }
+
+    FileRepositoryBlockSyncState() : isSync(false), nCompleteFile(-1), nCompleteTempFile(-1) {}
+    FileRepositoryBlockSyncState(const bool isSync, const int nOriginalFile) : isSync(isSync), nCompleteFile(nOriginalFile) {}
 
     void SetNull()
     {
-        numberBytesSize = 0;
-        countFiles = 0;
-        markRemovedNumberBytesSize = 0;
-        countMarkRemovedFiles = 0;
+        isSync = false;
+        nCompleteFile = -1;
+        nCompleteTempFile = -1;
     }
 
-    CDBFileBlockFilesState()
-    {
-        SetNull();
-    }
-
-    std::string ToString() const;
-
-    /** update statistics (does not update countFiles) */
-    void AddFile(unsigned int nByteSize)
-    {
-        numberBytesSize += nByteSize;
-    }
-
-    void AddDiskFile()
-    {
-        countFiles++;
-    }
-
-    /** update statistics (does not update numberBytesSize) */
-    void RemoveFile(unsigned int nByteSize)
-    {
-        markRemovedNumberBytesSize += nByteSize;
-        countMarkRemovedFiles++;
-    }
-
-    bool isClearDiskSpaceNeeded() {
-        //marked remove byte size more than limit relatively total size.
-        return markRemovedNumberBytesSize >= (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * numberBytesSize / 100);
+    bool IsNull() {
+        return !isSync && nCompleteFile = -1 && nCompleteTempFile = -1;
     }
 };
 
-class CFileBlockFileInfo
-{
+class CDBFileRepositoryState {
 public:
-    unsigned int numberBytesSize;        //! number of used bytes of block file
-    unsigned int numberFiles;      //! number of files stored in file
-//    unsigned int nUndoSize;    //! number of used bytes in the undo file
-    uint64_t firstRecordTime;       //! earliest time of block in file
-    uint64_t lastRecordTime;        //! latest time of block in file
-    bool isFill;                    //! file is fill
+    uint64_t nTotalFileStorageSize;            //!number of bytes of all files stored
+    unsigned int nBlocksCount;                 //! number of block files
+    unsigned int filesCount;                  //! number of all files in all blocks
+
+    // TODO PDG 5 rename
+
+    uint64_t removeCandidatesTotalSize;       //! number of bytes of all mark remove files in db
+    unsigned int removeCandidatesFilesCount;  //! number of mark removed files in db
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
-        READWRITE(VARINT(numberBytesSize));
-        READWRITE(VARINT(numberFiles));
-//        READWRITE(VARINT(nUndoSize));
-        READWRITE(VARINT(firstRecordTime));
-        READWRITE(VARINT(lastRecordTime));
-        READWRITE(isFill);
+        READWRITE(VARINT(nTotalFileStorageSize));
+        READWRITE(VARINT(nBlocksCount));
+        READWRITE(VARINT(filesCount));
+        READWRITE(VARINT(removeCandidatesTotalSize));
+        READWRITE(VARINT(removeCandidatesFilesCount));
     }
 
     void SetNull()
     {
-        numberFiles = 0;
-        numberBytesSize = 0;
-//        nUndoSize = 0;
-        firstRecordTime = 0;
-        lastRecordTime = 0;
-        isFill = false;
+        nTotalFileStorageSize = 0;
+        nBlocksCount = 0;
+        filesCount = 0;
+        removeCandidatesTotalSize = 0;
+        removeCandidatesFilesCount = 0;
     }
 
-    CFileBlockFileInfo()
+    CDBFileRepositoryState()
     {
         SetNull();
     }
 
-    bool IsDiskFileEmpty() {
-        LogPrint("file", "%s - FILES. Check diskFile empty. Meta data: numberFiles: %d, byteSize: %d\n", __func__, numberFiles, numberBytesSize); //TODO: PDG 2 remove after debug
-        if ((numberBytesSize == 0 && numberFiles != 0) || (numberBytesSize != 0 && numberFiles == 0)) {
+    std::string ToString() const;
+
+    /** update statistics (does not update blocksCount) */
+    void AddFile(uint64_t fileSize)
+    {
+        nTotalFileStorageSize += fileSize;
+        filesCount++;
+    }
+
+    void IncrementBlockFiles()
+    {
+        nBlocksCount++;
+    }
+
+    /** update statistics (does not update numberBytesSize) */
+    void SubtractFile(uint64_t fileSize)
+    {
+        removeCandidatesTotalSize += fileSize;
+        removeCandidatesFilesCount++;
+    }
+
+    bool IsClearDiskSpaceNeeded() {
+        //marked remove byte size more than limit relatively total size.
+        return removeCandidatesTotalSize >= (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * nTotalFileStorageSize / 100);
+    }
+};
+
+/*struct RepositoryBlockDiskInfo
+{
+    boost::filesystem::path path;
+    const int32_t type;
+
+    RepositoryBlockDiskInfo(const boost::filesystem::path path, const int32_t type) : path(path), type(type) {}
+};
+
+enum {
+    ORIGINAL_DISK_FILE = 0,
+    TEMP_DISK_FILE = 1
+};*/
+
+class CFileRepositoryBlockInfo
+{
+public:
+    uint32_t nBlockSize;                //! number of used bytes of block file.
+    uint32_t nFilesCount;               //! number of files stored in file.
+    uint64_t firstWriteTime;            //! earliest time of block in file.
+    uint64_t lastWriteTime;             //! latest time of block in file.
+    bool isFull;                        //! file is full.
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(VARINT(nBlockSize));
+        READWRITE(VARINT(nFilesCount));
+        READWRITE(VARINT(firstWriteTime));
+        READWRITE(VARINT(lastWriteTime));
+        READWRITE(isFull);
+    }
+
+    void SetNull()
+    {
+        nFilesCount = 0;
+        nBlockSize = 0;
+        firstWriteTime = 0;
+        isFull = false;
+        UpdateLastWrite();
+    }
+
+    CFileRepositoryBlockInfo()
+    {
+        SetNull();
+    }
+
+    bool IsBlockFileEmpty() {
+        LogPrint("file", "%s - FILES. Check diskFile empty. Meta data: numberFiles: %d, byteSize: %d\n", __func__, nFilesCount, nBlockSize); //TODO: PDG 2 remove after debug
+        if ((nBlockSize == 0 && nFilesCount != 0) || (nBlockSize != 0 && nFilesCount == 0)) {
             LogPrint("file", "%s - FILES. ERROR. Meta data blockfile info not valid.\n", __func__);
         }
 
-        return numberBytesSize == 0 && numberFiles == 0;
+        return nBlockSize == 0 && nFilesCount == 0;
     }
 
     std::string ToString() const;
 
     /** update statistics (does not update numberBytesSize) */
-    void AddFile(uint64_t nTimeIn, unsigned int nBytesSize)
+    void AddFile(unsigned int nAddSize)
     {
-        if (numberFiles == 0 || firstRecordTime > nTimeIn)
-            firstRecordTime = nTimeIn;
+        if (nFilesCount == 0)
+            firstWriteTime = GetTimeMillis();
 
-        numberFiles++;
+        nFilesCount++;
+        nBlockSize += nAddSize;
 
-        if (nTimeIn > lastRecordTime)
-            lastRecordTime = nTimeIn;
-
-        numberBytesSize = numberBytesSize + nBytesSize;
+        UpdateLastWrite();
     }
 
-    void RemoveFile(unsigned int nBytesSize)
+    void SubtractFile(unsigned int nBytesSize)
     {
-        if (numberFiles == 0 || numberBytesSize < nBytesSize) {
-            LogPrint("file", "%s - FILES. ERROR - remove file failed. Number files:%d, bytes size total: %d, remove bytes:%d\n",
+        if (nFilesCount == 0 || nBlockSize < nBytesSize) {
+            LogPrint("file", "%s - FILES. ERROR - remove file error. Number files:%d, bytes size total: %d, remove bytes:%d\n",
                     __func__,
-                    numberFiles,
-                    numberBytesSize,
+                    nFilesCount,
+                    nBlockSize,
                     nBytesSize); //TODO: PDG 2 remove after debug
         }
 
         //TODO: PDG 5 check file.vBytes.size() or something else (bytes header)
-        numberBytesSize = numberBytesSize - nBytesSize;
-        numberFiles--;
+        nBlockSize = nBlockSize - nBytesSize;
+        nFilesCount--;
+
+        UpdateLastWrite();
+    }
+
+    void UpdateLastWrite() {
+        lastWriteTime = GetTimeMillis();
     }
 };
+
 
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
+extern CFileRepositoryManager fileRepositoryManager;
 
 //TODO: remove
 //typedef boost::unordered_map<uint256, CBlockFileInfo> FileMap;
@@ -420,8 +475,6 @@ extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
 extern CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
-
-extern CDBFileBlockFilesState cdbFileBlockFilesState;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
@@ -468,19 +521,6 @@ FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 /** Open an undo file (rev?????.dat) */
 FILE* OpenUndoFile(const CDiskBlockPos& pos, bool fReadOnly = false);
 
-bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime);
-bool FindFileBlockPosByStructure(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime, int lastDiskFile, vector<CFileBlockFileInfo>& infoFileBlockFile, bool isTmp = false);
-
-void UpdateFileBlockPosData(CDiskFileBlockPos& pos);
-
-/** Open a data file (blk?????.dat). isTmp - open a data file (blk?????_tmp.dat) */
-FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly = false, bool isTmp = false);
-/** File to a filesystem path */
-boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix);
-
-/** Tmp file to a filesystem path */
-boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix);
-
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char* prefix);
 
@@ -489,7 +529,9 @@ bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp = NULL);
 /** Initialize a new block tree database + block data on disk */
 bool InitBlockIndex();
 /** Load the required files from database */
-bool LoadFilesData();
+bool LoadFileSyncData();
+/** */
+bool InitFileDBState();
 /** Load the block tree and coins database from disk */
 bool LoadBlockIndex(std::string& strError);
 /** Unload database information */
@@ -532,7 +574,7 @@ bool CanRequestFile();
 bool SaveFileDB(CDBFile& file);
 bool EraseFileDB(CDBFile& file);
 
-bool SaveFileBlockFileState();
+bool SaveBlockFileInfoState();
 
 /** Request info about available file */
 bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
@@ -789,15 +831,6 @@ public:
     ScriptError GetScriptError() const { return error; }
 };
 
-/** File region */
-bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos, bool isTmp = false);
-bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos, bool isTmp = false);
-bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos);
-
-bool RemoveFileBlockFromDisk(int fileNumber, bool isTmp = false);
-bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber);
-bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
-
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos);
@@ -979,6 +1012,132 @@ public:
     ~CVerifyDB();
     bool VerifyDB(CCoinsView* coinsview, int nCheckLevel, int nCheckDepth);
 };
+
+class CFileRepositoryManager {
+private:
+    std::vector<CFileRepositoryBlockInfo> vfileRepositoryBlockInfo;
+    int nLastFileRepositoryBlock;
+    CDBFileRepositoryState dbFileRepositoryState;
+    uint64_t lastUpdateTime;
+    mutable std::shared_mutex cs_RepositoryReadWriteLock;
+
+    bool RemoveFileRepositoryBlockFromDisk(int fileNumber, bool isTmp);
+
+    bool RemoveFileRepositoryBlockFromDisk(const CFileRepositoryBlockDiskPos& pos);
+
+    bool WriteFileRepositoryBlockToDisk(CDBFile &file, CFileRepositoryBlockDiskPos &pos, bool isTmp);
+
+    bool WriteFileRepositoryBlockHeaderToDisk(CDBFileHeaderOnly &file, CFileRepositoryBlockDiskPos &pos, bool isTmp);
+
+    bool ReadFileBlockFromDisk(CDBFile &file, const CFileRepositoryBlockDiskPos& pos, bool isTmp);
+
+    bool ReadFileBlockHeaderFromDisk(CDBFileHeaderOnly &file, const CFileRepositoryBlockDiskPos& pos, bool isTmp);
+
+    bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber);
+
+    bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber);
+
+    bool FinishSync(FileRepositoryBlockSyncState &syncState);
+
+    void FlushFileRepositoryBlock(int nLastBlockIndex, unsigned int nLastBlockSize, bool fFinalize = false, bool isTmp = false);
+
+    bool FindAndAllocateBlockFile(CValidationState& state, CFileRepositoryBlockDiskPos &pos, const uint32_t nAddSize);
+
+    bool FindAndAllocateBlockFile(CValidationState &state, CFileRepositoryBlockDiskPos &pos,
+                                  const uint32_t nAddSize, int &lastBlockFileIndex, vector<CFileRepositoryBlockInfo> &vblockFileInfo, bool isTmp);
+
+    //file region
+    FILE* OpenFileRepositoryBlock(const CFileRepositoryBlockDiskPos& pos, bool fReadOnly, bool isTmp);
+
+    boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix);
+
+    boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix);
+    //end region
+
+    uint32_t GetRepositoryFileSize(const CDBFile &file);
+
+    //todo: PDG 5 remove
+    void ClearFileMetaData();
+
+    template <typename FileType>
+    bool ReadFileBlockFromDiskTo(FileType &file, const CFileRepositoryBlockDiskPos& pos, int nTypeIn, int nVersionIn, bool isTmp)
+    {
+        // Open history file to read
+        CAutoFile filein(OpenFileRepositoryBlock(pos, true, isTmp), nTypeIn, nVersionIn);
+        if (filein.IsNull())
+            return error("%s : OpenFileRepositoryBlock failed", __func__);
+
+        // Read file
+        try {
+            MessageStartChars messageStart;
+            unsigned int nSize;
+            filein >> FLATDATA(messageStart) >> nSize;
+
+            if (memcmp(messageStart, Params().MessageStart(), MESSAGE_START_SIZE) != 0)
+                return error("%s : Read file error. Message start missmatch. Position: %d/%u", __func__, pos.nBlockFileIndex, pos.nOffset);
+
+            filein >> file;
+        } catch (std::exception& e) {
+            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+        }
+
+        return true;
+    }
+
+    bool CFileRepositoryManager::WriteFileRepositoryBlockToDiskFrom(CDBFile &file, CFileRepositoryBlockDiskPos &pos, int nTypeIn, int nVersionIn, bool isTmp)
+    {
+        // Open history file to append
+        CAutoFile fileout(OpenFileRepositoryBlock(pos, false, isTmp), nTypeIn, nVersionIn);
+        if (fileout.IsNull())
+            return error("WriteFileRepositoryBlockToDisk : OpenFileRepositoryBlock failed");
+
+        // Write index header
+        unsigned int nSize = fileout.GetSerializeSize(file);
+        fileout << FLATDATA(Params().MessageStart()) << nSize;
+
+        // Write block
+        long fileOutPos = ftell(fileout.Get());
+        if (fileOutPos < 0)
+            return error("WriteFileRepositoryBlockToDisk : ftell failed");
+        //pos.nOffset = (unsigned int) fileOutPos;
+        fileout << file;
+
+        return true;
+    }
+
+/*    template< typename Iterator >
+    void bubble_sort( Iterator First, Iterator Last )
+    {
+        while( First < --Last )
+            for( Iterator i = First; i < Last; ++i )
+                if ( *(i + 1) < *i )
+                    std::iter_swap( i, i + 1 );
+    }*/
+
+
+public:
+
+    CFileRepositoryManager();
+
+    bool SaveFile(CDBFile& file);
+
+    bool EraseFile(CDBFile& file);
+
+    bool SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex);
+
+    bool LoadFileRepositoryState();
+
+    bool GetFile(const uint256& fileHash, CDBFile& fileOut);
+
+    void FlushBlockFiles();
+
+    void FindAndRecycleExpiredFiles();
+
+    void ShrinkRecycledFiles();
+
+};
+
+
 
 /** Find the last common block between the parameter chain and a locator. */
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator);

@@ -527,7 +527,7 @@ struct CFile
 {
     // Encrypted file hash
     uint256 fileHash;
-    uint64_t nLifeTime;
+    uint32_t nLifeTime;
     uint32_t nFlags;
 
     CFile();
@@ -537,7 +537,7 @@ struct CFile
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(fileHash);
-        READWRITE(VARINT(nLifeTime));
+        READWRITE(nLifeTime);
         READWRITE(nFlags);
     }
 

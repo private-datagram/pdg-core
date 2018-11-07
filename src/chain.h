@@ -21,12 +21,12 @@
 
 struct CDBFile
 {
-    // Encrypted file bytes
-    std::vector<char> vBytes;
     // Encrypted file hash
     uint256 fileHash;
-    uint64_t nLifeTime;
+    uint32_t fileExpiredDate;
     bool removed;
+    // Encrypted file bytes
+    std::vector<char> vBytes;
 
     CDBFile();
 
@@ -40,15 +40,37 @@ struct CDBFile
             UpdateFileHash();
         }
 
-        READWRITE(*const_cast<std::vector<char>*>(&vBytes));
         READWRITE(fileHash);
-        READWRITE(VARINT(nLifeTime));
+        READWRITE(fileExpiredDate);
         READWRITE(removed);
+        READWRITE(*const_cast<std::vector<char>*>(&vBytes));
     }
 
     uint256 CalcFileHash() const;
 
     uint256 UpdateFileHash();
+
+    std::string ToString() const;
+};
+
+// TODO: PDG 2 split CDBFile on header and content
+struct CDBFileHeaderOnly
+{
+    // Encrypted file hash
+    uint256 fileHash;
+    uint32_t fileExpiredDate;
+    bool removed;
+
+    CDBFileHeaderOnly();
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(fileHash);
+        READWRITE(fileExpiredDate);
+        READWRITE(removed);
+    }
 
     std::string ToString() const;
 };
@@ -95,49 +117,55 @@ struct CDiskBlockPos {
     bool IsNull() const { return (nFile == -1); }
 };
 
-struct CDiskFileBlockPos {
-    int numberDiskFile;
-    unsigned int numberPosition;
-    unsigned int fileSize;
+struct CFileRepositoryBlockDiskPos {
+    int nBlockFileIndex;
+    unsigned int nOffset;
+    unsigned int nFileSize;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
-        READWRITE(VARINT(numberDiskFile));
-        READWRITE(VARINT(numberPosition));
-        READWRITE(VARINT(fileSize));
+        READWRITE(VARINT(nBlockFileIndex));
+        READWRITE(VARINT(nOffset));
+        READWRITE(VARINT(nFileSize));
     }
 
-    CDiskFileBlockPos()
+    CFileRepositoryBlockDiskPos()
     {
         SetNull();
     }
 
-    CDiskFileBlockPos(int nFileIn, unsigned int nPosIn, unsigned int fileSizeIn)
+    CFileRepositoryBlockDiskPos(int nBlockIndex, unsigned int nPosIn, unsigned int fileSizeIn)
     {
-        numberDiskFile = nFileIn;
-        numberPosition = nPosIn;
-        fileSize = fileSizeIn;
+        nBlockFileIndex = nBlockIndex;
+        nOffset = nPosIn;
+        nFileSize = fileSizeIn;
     }
 
-    friend bool operator==(const CDiskFileBlockPos& a, const CDiskFileBlockPos& b)
+    friend bool operator==(const CFileRepositoryBlockDiskPos& a, const CFileRepositoryBlockDiskPos& b)
     {
-        return (a.numberDiskFile == b.numberDiskFile && a.numberPosition == b.numberPosition && a.fileSize == b.fileSize);
+        return (a.nBlockFileIndex == b.nBlockFileIndex && a.nOffset == b.nOffset && a.nFileSize == b.nFileSize);
     }
 
-    friend bool operator!=(const CDiskFileBlockPos& a, const CDiskFileBlockPos& b)
+    friend bool operator!=(const CFileRepositoryBlockDiskPos& a, const CFileRepositoryBlockDiskPos& b)
     {
         return !(a == b);
     }
 
     void SetNull()
     {
-        numberDiskFile = -1;
-        numberPosition = 0;
+        nBlockFileIndex = -1;
+        nOffset = 0;
     }
-    bool IsNull() const { return (numberDiskFile == -1); }
+    bool IsNull() const { return (nBlockFileIndex == -1); }
+
+    //for sort
+    bool operator < (const CFileRepositoryBlockDiskPos& pos) const
+    {
+        return (nOffset < pos.nOffset);
+    }
 };
 
 enum BlockStatus {

@@ -5466,14 +5466,14 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     CDBFile dbFile;
     dbFile.vBytes.reserve(encryptedFile.size());
     dbFile.vBytes.assign(encryptedFile.begin(), encryptedFile.end());
-    dbFile.nLifeTime = paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
     dbFile.UpdateFileHash();
+    dbFile.fileExpiredDate = GetAdjustedTime() + paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
     encryptedFile.clear();
 
     // fill file
     CFile txFile;
     txFile.fileHash = dbFile.fileHash;
-    txFile.nLifeTime = dbFile.nLifeTime;
+    txFile.nLifeTime = paymentConfirm->nLifeTime;
 
     LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, txFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
 

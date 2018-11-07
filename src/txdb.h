@@ -81,21 +81,24 @@ private:
     void operator=(const CBlockFileTreeDB&);
 
 public:
-    bool ReadFileIndex(const uint256& fileHash, CDiskFileBlockPos& pos);
-    bool WriteFileIndex(const uint256& fileHash, CDiskFileBlockPos& pos);
+    bool ReadFileIndex(const uint256& fileHash, CFileRepositoryBlockDiskPos& pos);
+    bool WriteFileIndex(const uint256& fileHash, CFileRepositoryBlockDiskPos& pos);
     bool EraseFileIndex(const uint256& fileHash);
 
-    bool ReadLastFileBlockFile(int& nFile);
-    bool WriteLastFileBlockFile(int nFile);
+    bool ReadLastFileRepositoryBlock(int& nFile);
+    bool WriteLastFileRepositoryBlock(int nFile);
 
-    bool ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo& fileinfo);
-    bool WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo& fileinfo);
+    bool ReadFileRepositoryBlockSyncState(FileRepositoryBlockSyncState& syncState);
+    bool WriteFileRepositoryBlockSyncState(const FileRepositoryBlockSyncState syncState);
+
+    bool ReadFileRepositoryBlockInfo(int nFile, CFileRepositoryBlockInfo& fileinfo);
+    bool WriteFileRepositoryBlockInfo(int nFile, const CFileRepositoryBlockInfo& fileinfo);
 
     bool WriteRequiredFiles(const map<uint256, RequiredFile>& requiredFilesMap);
     bool ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap);
 
-    bool WriteCDBFileBlockFilesState(const CDBFileBlockFilesState& diskFileState);
-    bool ReadCDBFileBlockFilesState(CDBFileBlockFilesState& diskFileState);
+    bool WriteCDBFileRepositoryState(const CDBFileRepositoryState& diskFileState);
+    bool ReadCDBFileRepositoryState(CDBFileRepositoryState& diskFileState);
 };
 
 class CZerocoinDB : public CLevelDBWrapper

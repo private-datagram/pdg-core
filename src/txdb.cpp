@@ -78,12 +78,12 @@ CBlockFileTreeDB::CBlockFileTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) 
 {
 }
 
-bool CBlockFileTreeDB::ReadFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos)
+bool CBlockFileTreeDB::ReadFileIndex(const uint256 &fileHash, CFileRepositoryBlockDiskPos& pos)
 {
     return Read(make_pair(string("flindex"), fileHash), pos);
 }
 
-bool CBlockFileTreeDB::WriteFileIndex(const uint256 &fileHash, CDiskFileBlockPos& pos)
+bool CBlockFileTreeDB::WriteFileIndex(const uint256 &fileHash, CFileRepositoryBlockDiskPos &pos)
 {
     return Write(make_pair(string("flindex"), fileHash), pos);
 }
@@ -93,22 +93,32 @@ bool CBlockFileTreeDB::EraseFileIndex(const uint256 &fileHash)
     return Erase(make_pair(string("flindex"), fileHash));
 }
 
-bool CBlockFileTreeDB::WriteLastFileBlockFile(int nFile)
+bool CBlockFileTreeDB::WriteLastFileRepositoryBlock(int nFile)
 {
     return Write('n', nFile);
 }
 
-bool CBlockFileTreeDB::ReadLastFileBlockFile(int &nFile)
+bool CBlockFileTreeDB::ReadLastFileRepositoryBlock(int &nFile)
 {
     return Read('n', nFile);
 }
 
-bool CBlockFileTreeDB::ReadFileBlockFileInfo(int nFile, CFileBlockFileInfo &fileinfo)
+bool CBlockFileTreeDB::WriteFileRepositoryBlockSyncState(const FileRepositoryBlockSyncState syncState)
+{
+    return Write(string("frbss"), syncState);
+}
+
+bool CBlockFileTreeDB::ReadFileRepositoryBlockSyncState(FileRepositoryBlockSyncState& syncState)
+{
+    return Read(string("frbss"), syncState);
+}
+
+bool CBlockFileTreeDB::ReadFileRepositoryBlockInfo(int nFile, CFileRepositoryBlockInfo &fileinfo)
 {
     return Read(make_pair('k', nFile), fileinfo);
 }
 
-bool CBlockFileTreeDB::WriteFileBlockFileInfo(int nFile, const CFileBlockFileInfo &fileinfo)
+bool CBlockFileTreeDB::WriteFileRepositoryBlockInfo(int nFile, const CFileRepositoryBlockInfo &fileinfo)
 {
     return Write(make_pair('k', nFile), fileinfo);
 }
@@ -134,12 +144,12 @@ bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile> &requiredFil
     return true;
 }
 
-bool CBlockFileTreeDB::WriteCDBFileBlockFilesState(const CDBFileBlockFilesState& diskFileState)
+bool CBlockFileTreeDB::WriteCDBFileRepositoryState(const CDBFileRepositoryState& diskFileState)
 {
     return Write(string("dfs"), diskFileState);
 }
 
-bool CBlockFileTreeDB::ReadCDBFileBlockFilesState(CDBFileBlockFilesState& diskFileState)
+bool CBlockFileTreeDB::ReadCDBFileRepositoryState(CDBFileRepositoryState& diskFileState)
 {
     return Read(string("dfs"), diskFileState);
 }

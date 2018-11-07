@@ -5243,6 +5243,14 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Ошибка загрузки базы данных блоков</translation>
     </message>
     <message>
+        <source>Error loading files synchronization data</source>
+        <translation>Ошибка загрузки данных синхронизации файлов</translation>
+    </message>
+    <message>
+        <source>Error initializing file database</source>
+        <translation>Ошибка инициализации базы данных файлов</translation>
+    </message>
+    <message>
         <source>Error loading wallet.dat</source>
         <translation>Ошибка при загрузке wallet.dat</translation>
     </message>
@@ -5607,8 +5615,8 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Загружается индекс блока ...</translation>
     </message>
     <message>
-        <source>Loading meta files data...</source>
-        <translation>Загрузка мета данных файлов...</translation>
+        <source>Loading files synchronization data...</source>
+        <translation>Загрузка данных синхронизации файлов...</translation>
     </message>
     <message>
         <source>Loading budget cache...</source>

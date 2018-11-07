@@ -87,6 +87,8 @@ bool fAlerts = DEFAULT_ALERTS;
 unsigned int nStakeMinAge = 60 * 60;
 int64_t nReserveBalance = 0;
 
+CFileRepositoryManager fileRepositoryManager;
+
 /** Fees smaller than this (in upiv) are considered zero fee (for relaying and mining)
  * We are ~100 times smaller then bitcoin now (2015-06-23), set minRelayTxFee only 10 times higher
  * so it's still 10 times lower comparing to bitcoin.
@@ -106,8 +108,6 @@ map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
 CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
-
-CDBFileBlockFilesState cdbFileBlockFilesState;
 
 template <typename Item> Item* FindByNodeIn(const vector<Item> &items, const NodeId nodeId);
 
@@ -159,15 +159,10 @@ int nSyncStarted = 0;
 /** All pairs A->B, where A (or one if its ancestors) misses transactions, but B has transactions. */
 multimap<CBlockIndex*, CBlockIndex*> mapBlocksUnlinked;
 
-//TODO: PDG 5 cs_LastBlockFile and vinfoBlockFile???
 CCriticalSection cs_LastBlockFile;
 std::vector<CBlockFileInfo> vinfoBlockFile;
 int nLastBlockFile = 0;
 
-// FileBlock meta
-CCriticalSection cs_VinfoFileBlockFile;
-std::vector<CFileBlockFileInfo> vinfoFileBlockFile;
-int nLastFileDiskFile = 0;
 
 /**
      * Every received block is assigned a unique and increasing identifier, so we
@@ -182,8 +177,6 @@ uint32_t nBlockSequenceId = 1;
      * them, if processing happens afterwards. Protected by cs_main.
      */
 map<uint256, NodeId> mapBlockSource;
-
-CCriticalSection cs_PendingReceiveFile;
 
 /** Blocks that are in flight, and that are in the queue to be downloaded. Protected by cs_main. */
 struct QueuedBlock {
@@ -2136,116 +2129,7 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 
 // TODO: figure out with locks
 bool GetFile(const uint256& fileHash, CDBFile& fileOut) {
-    CDiskFileBlockPos posFile;
-    if (!pblockfiletree->ReadFileIndex(fileHash, posFile))
-        return error("%s : File not found in DB. fileHash %s", __func__, fileHash.ToString());
-
-    CDBFile file;
-    if (!ReadFileBlockFromDisk(fileOut, posFile))
-        return error("%s : File not found on disk. fileHash %s", __func__, fileHash.ToString());
-
-    return true;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// File region
-//
-// TODO: figure out with locks
-bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos, bool isTmp)
-{
-    // Open history file to append
-    CAutoFile fileout(OpenFileBlockFile(pos, false, isTmp), SER_DISK, CLIENT_VERSION);
-    if (fileout.IsNull())
-        return error("WriteFileBlockToDisk : OpenFileBlockFile failed");
-
-    // Write index header
-    unsigned int nSize = fileout.GetSerializeSize(file);
-    fileout << FLATDATA(Params().MessageStart()) << nSize;
-
-    // Write block
-    long fileOutPos = ftell(fileout.Get());
-    if (fileOutPos < 0)
-        return error("WriteFileBlockToDisk : ftell failed");
-    pos.numberPosition = (unsigned int) fileOutPos;
-    fileout << file;
-
-    return true;
-}
-
-bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos)
-{
-    CDiskFileBlockPos newPos = pos;
-    CDBFile file;
-    if (!ReadFileBlockFromDisk(file, newPos))
-        return error("RemoveFileBlockFromDisk : read file block failed");
-
-    file.removed = true;
-    if (!WriteFileBlockToDisk(file, newPos))
-        return error("RemoveFileBlockFromDisk : write updated(removed) file failed");
-
-    return true;
-}
-
-// TODO: figure out with locks
-bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos, bool isTmp)
-{
-    // Open history file to read
-    CAutoFile filein(OpenFileBlockFile(pos, true, isTmp), SER_DISK, CLIENT_VERSION);
-    if (filein.IsNull())
-        return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
-
-    // Read file
-    try {
-        filein >> file;
-    } catch (std::exception& e) {
-        return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-    }
-
-    return true;
-}
-
-bool RemoveFileBlockFromDisk(int fileNumber, bool isTmp)
-{
-    boost::filesystem::path path;
-    if (isTmp) {
-        path = GetTmpFilePosFilename(fileNumber, "blk");
-    } else {
-        path = GetFilePosFilename(fileNumber, "blk");
-    }
-
-    LogPrint("file", "%s - FILES. Remove file from disk. path: %s\n", __func__, path);
-
-    if (!remove(path)) {
-        LogPrint("file", "%s - FILES. Remove file from disk failed.\n", __func__);
-        return false;
-    }
-
-    return true;
-}
-
-bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber)
-{
-    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
-    boost::filesystem::path path = GetFilePosFilename(originalFileNumber, "blk");
-
-    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
-
-    //remove original file
-    RemoveFileBlockFromDisk(originalFileNumber, false);
-    rename(tmpPath, path);
-    return true;
-}
-
-bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
-{
-    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
-    boost::filesystem::path path = GetFilePosFilename(tmpFileNumber, "blk");
-    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
-
-    //remove original file
-    rename(tmpPath, path);
-    return true;
+    return fileRepositoryManager.GetFile(fileHash, fileOut);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3116,19 +3000,6 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     }
 }
 
-void static FlushFileBlockFile(std::vector<CFileBlockFileInfo>& vFileBlockFile, int lastFileDiskFile, bool fFinalize = false, bool isTmp = false) {
-    //in order to open last disk file
-    CDiskFileBlockPos posLast(lastFileDiskFile, 0, 0);
-
-    FILE* fileLast = OpenFileBlockFile(posLast, false, isTmp);
-    if (fileLast) {
-        if (fFinalize)
-            TruncateFile(fileLast, vFileBlockFile[lastFileDiskFile].numberBytesSize);
-        FileCommit(fileLast);
-        fclose(fileLast);
-    }
-}
-
 void static FlushBlockFile(bool fFinalize = false)
 {
     LOCK(cs_LastBlockFile);
@@ -3771,10 +3642,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             // First make sure all block and undo data is flushed to disk.
             FlushBlockFile();
 
-            {
-                LOCK(cs_VinfoFileBlockFile);
-                FlushFileBlockFile(vinfoFileBlockFile, nLastFileDiskFile);
-            }
+            fileRepositoryManager.FlushBlockFiles();
 
             // Then update all block file information (which may refer to block and undo files).
 
@@ -3801,7 +3669,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            if (!SaveFileBlockFileState()) {
+            if (!SaveBlockFileInfoState()) {
                 return state.Abort("Failed to save fileblock file state");
             }
 
@@ -3811,6 +3679,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
                 return state.Abort("Failed to write required files in db. ");
             }
+
             pblockfiletree->Sync();
 
             // Finally flush the chainstate (which may refer to block index entries).
@@ -4485,86 +4354,6 @@ bool ReceivedBlockTransactions(const CBlock& block, CValidationState& state, CBl
     return true;
 }
 
-bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime) {
-    LogPrint("file", "%s - FILES. Find file block pos. %d\n", __func__);
-    LOCK(cs_VinfoFileBlockFile);
-    return FindFileBlockPosByStructure(state, pos, nAddSize, nTime, nLastFileDiskFile, vinfoFileBlockFile);
-}
-
-bool FindFileBlockPosByStructure(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int& nAddSize, uint64_t nTime, int& lastDiskFile, vector<CFileBlockFileInfo>& infoFileBlockFile, bool isTmp)
-{
-    pos.numberDiskFile = lastDiskFile;
-    LogPrint("file", "%s - FILES. Number last fileblock disk file: %d\n", __func__, lastDiskFile);
-
-    if (infoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
-        infoFileBlockFile.resize(pos.numberDiskFile + 1);
-    }
-
-    //Flush file after filled
-    // TODO: aseert addSize < MAX_FILEBLOCKFILE_SIZE
-    while (infoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
-        LogPrint("file", "%s - FILES. MAX_FILEBLOCKFILE_SIZE. Flush fileblock disk file.\n", __func__);
-        FlushFileBlockFile(infoFileBlockFile, lastDiskFile, true, isTmp);
-
-        //update meta previous diskfile
-        infoFileBlockFile[pos.numberDiskFile].isFill = true;
-
-        //position this file
-        ++pos.numberDiskFile;
-        if (infoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
-            infoFileBlockFile.resize(pos.numberDiskFile + 1);
-            //todo: проверить.
-            cdbFileBlockFilesState.AddDiskFile();
-        }
-    }
-
-    //update meta data
-    lastDiskFile = pos.numberDiskFile;
-    LogPrint("file", "%s - FILES. Updated meta data. Number last file disk file: %d\n", __func__, lastDiskFile);
-
-    pos.numberPosition = infoFileBlockFile[lastDiskFile].numberBytesSize;
-    pos.fileSize = nAddSize;
-
-//    infoFileBlockFile[lastDiskFile].numberBytesSize += nAddSize;
-    infoFileBlockFile[lastDiskFile].AddFile(nTime, nAddSize);
-
-    unsigned int nOldChunks = (pos.numberPosition + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
-    LogPrint("file", "%s - FILES. Old chunks: %d\n", __func__, nOldChunks);
-
-    unsigned int nNewChunks = (infoFileBlockFile[lastDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
-    LogPrint("file", "%s - FILES. New chunks: %d\n", __func__, nNewChunks);
-
-    if (nNewChunks > nOldChunks) {
-        if (CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition)) {
-            FILE* file = OpenFileBlockFile(pos);
-            LogPrint("file", "%s - FILES. Open fileblock disk file. number position: %d\n", __func__, pos.numberPosition);
-            if (file) {
-                LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.numberPosition);
-                AllocateFileRange(file, pos.numberPosition, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition);
-                fclose(file);
-            }
-        } else
-            return state.Error("out of disk space");
-    }
-
-    return true;
-}
-
-void UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
-    LogPrint("file", "%s - FILES. Update file block pos data \n", __func__);
-    unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
-    LogPrint("file", "%s - FILES. Meta data. Disk file bytes size: %d\n", __func__, diskFileBytesSize);
-
-    unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
-    LogPrint("file", "%s - FILES. pos. End file position: %d\n", __func__, endFilePosition);
-
-    unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize); // TODO: figure out
-    vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize = maxValue;
-    LogPrint("file", "%s - FILES. Meta data. Updated number bytes size max value: %d\n", __func__, maxValue);
-
-    nLastFileDiskFile = pos.numberDiskFile;
-}
-
 bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, uint64_t nTime, bool fKnown = false)
 {
     LOCK(cs_LastBlockFile);
@@ -4894,7 +4683,7 @@ bool IsBlockHashInChain(const uint256& hashBlock)
 
 bool IsFileExist(const uint256& fileHash) {
     // TODO: PDG 4 Lock DB?
-    CDiskFileBlockPos postx;
+    CFileRepositoryBlockDiskPos postx;
     return pblockfiletree->ReadFileIndex(fileHash, postx);
 }
 
@@ -5426,35 +5215,6 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char
     return GetDataDir() / "blocks" / strprintf("%s%05u.dat", prefix, pos.nFile);
 }
 
-//file region
-FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly, bool isTmp)
-{
-    boost::filesystem::path path;
-    if (isTmp) {
-        path = GetTmpFilePosFilename(pos.numberDiskFile, "blk");
-    } else {
-        path = GetFilePosFilename(pos.numberDiskFile, "blk");
-    }
-
-    LogPrintf("Open fileblock file: %s\n", path.string());
-
-    if (pos.IsNull())
-        return NULL;
-
-    return OpenDiskFile(pos.numberPosition, path, fReadOnly);
-}
-
-boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix)
-{
-    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, numberDiskFile);
-}
-
-boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix)
-{
-    return GetDataDir() / "files" / strprintf("%s%05u_tmp.dat", prefix, numberDiskFile);
-}
-//end region
-
 CBlockIndex* InsertBlockIndex(uint256 hash)
 {
     if (hash == 0)
@@ -5537,25 +5297,7 @@ bool static LoadBlockIndexDB(string& strError)
         }
     }
 
-    //Load fileBlock file info
-    pblockfiletree->ReadLastFileBlockFile(nLastFileDiskFile);
-    vinfoFileBlockFile.resize(nLastFileDiskFile + 1);
-    LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileDiskFile);
-    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
-        if (!pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
-            LogPrintf("%s: Filed to load file info from db: %d\n", __func__, nFile);
-        }
-    }
-    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
-    // Load all saved files to db if nLastBlockFile saved invalid
-    for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
-        CFileBlockFileInfo info;
-        if (pblockfiletree->ReadFileBlockFileInfo(nFile, info)) {
-            vinfoFileBlockFile.push_back(info);
-        } else {
-            break;
-        }
-    }
+    fileRepositoryManager.LoadFileRepositoryState();
 
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
@@ -5701,7 +5443,7 @@ void UnloadBlockIndex()
     pindexBestInvalid = NULL;
 }
 
-bool LoadFilesData()
+bool LoadFileSyncData()
 {
     if (fReindex)
         return true;
@@ -5715,11 +5457,12 @@ bool LoadFilesData()
         it->second.requestExpirationTime = GetTimeMicros();
     }
 
-    LogPrint("file", "%s - FILES. Loaded file blockFiles State.%s\n", __func__, cdbFileBlockFilesState.ToString()); // TODO: PDG 2 remove after debug
-    if (!pblockfiletree->ReadCDBFileBlockFilesState(cdbFileBlockFilesState))
-        return false;
-
     return true;
+}
+
+bool InitFileDBState() {
+    LogPrint("file", "%s - FILES. Loaded file blockFiles State.%s\n", __func__, dbFileRepositoryState.ToString()); // TODO: PDG 2 remove after debug
+    return pblockfiletree->ReadCDBFileRepositoryState(dbFileRepositoryState);
 }
 
 bool LoadBlockIndex(string& strError)
@@ -6737,7 +6480,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
                                 }
 
-                                //TODO: PDG 5 blockTime - GetAdjustedTime?
                                 if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                     Misbehaving(pfrom->GetId(), 5);
@@ -7970,182 +7712,11 @@ void RemoveHasFileRequestsByHash(const uint256 &hash) {
 }
 
 void ProcessMarkRemoveFilesScheduler() {
-    LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
-    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
-
-    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
-    ssKeySet << string("flindex");
-    pcursor->Seek(ssKeySet.str());
-
-    // Load file position
-    while (pcursor->Valid()) {
-        boost::this_thread::interruption_point();
-        try {
-            leveldb::Slice sliceKey = pcursor->key();
-            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
-            string stType;
-            ssKey >> stType;
-            if (stType == "flindex") {
-                leveldb::Slice sliceValue = pcursor->value();
-                CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
-                CDiskFileBlockPos pos;
-                ssValue >> pos;
-
-                LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.numberDiskFile, pos.numberPosition);
-
-                CDBFile file;
-                if (!ReadFileBlockFromDisk(file, pos)) {
-                    LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
-                    return;
-                }
-
-                //todo: PDG 5 nLifeTime относительно блока?
-//                if (GetAdjustedTime() > (blockTime + file.nLifeTime) {
-                LogPrint("file", "%s - FILES. DB file load. fileHash: %s. File life time: %d/%d.\n", __func__, file.fileHash.ToString(), file.nLifeTime);
-                if (GetAdjustedTime() > file.nLifeTime) {
-                    file.removed = true;
-                    if (!WriteFileBlockToDisk(file, pos)) {
-                        LogPrint("file", "%s - FILES. Write updated(removed) file failed. \n", __func__);
-                        return;
-                    }
-
-                    cdbFileBlockFilesState.RemoveFile(pos.fileSize);
-                    LogPrint("file", "%s - FILES. File expired. DB file mark as remove and save at db.\n", __func__);
-                }
-
-                pcursor->Next();
-            } else {
-                break; // if shutdown requested or finished inter on file pos.
-            }
-
-        } catch (std::exception& e) {
-            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
-            return;
-        }
-    }
-}
-
-//todo: PDG 5 remove
-void ClearFileMetaData() {
-    nLastFileDiskFile = 0;
-
-    //erase info file BlockFile
-    for (auto it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
-        it = vinfoFileBlockFile.erase(it);
-    }
+    fileRepositoryManager.FindAndRecycleExpiredFiles();
 }
 
 void ProcessFilesEraseScheduler() {
-    LogPrint("file", "%s - FILES. Process diskfile erase scheduler: %s.\n", __func__, cdbFileBlockFilesState.ToString());
-    LOCK2(cs_main, cs_VinfoFileBlockFile);
-
-    if (!cdbFileBlockFilesState.isClearDiskSpaceNeeded()) {
-        LogPrint("file", "%s - FILES. diskfile do't need cleaning.\n", __func__);
-        return;
-    }
-
-    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
-
-    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
-    ssKeySet << string("flindex");
-    pcursor->Seek(ssKeySet.str());
-
-    vector<CFileBlockFileInfo> vTmpInfoFileBlockFile;
-    int lastTempDiskFile = 0;
-
-    //TODO: PDG 5 lock?
-    cdbFileBlockFilesState.SetNull();
-
-    // Load file position
-    while (pcursor->Valid()) {
-        boost::this_thread::interruption_point();
-        try {
-            leveldb::Slice sliceKey = pcursor->key();
-            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
-            string stType;
-            ssKey >> stType;
-            if (stType == "flindex") {
-                leveldb::Slice sliceValue = pcursor->value();
-                CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
-                CDiskFileBlockPos pos;
-                ssValue >> pos;
-
-                LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.numberDiskFile, pos.numberPosition);
-
-                CDBFile file;
-                if (!ReadFileBlockFromDisk(file, pos)) {
-                    LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
-                    return;
-                }
-
-                if (file.removed) {
-                    CFileBlockFileInfo &diskFileInfo = vinfoFileBlockFile[pos.numberDiskFile];
-                    vinfoFileBlockFile[pos.numberDiskFile].RemoveFile(pos.fileSize);
-                    LogPrint("file", "%s - FILES. File mark as removed, don't rewrite at new diskfile. Removed file hash: s%\n", __func__, file.fileHash.ToString());
-                    pcursor->Next();
-                    continue;
-                }
-
-                unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
-                CDiskFileBlockPos newPosAtTmpFile;
-                CValidationState state;
-                if (!FindFileBlockPosByStructure(state, newPosAtTmpFile, nFileSize + 8, 0, lastTempDiskFile, vTmpInfoFileBlockFile, true)) {
-                    LogPrint("file", "%s - FILES. Find file position at temp fileblock from disk failed.\n", __func__);
-                    return;
-                }
-
-                //remove old blk by id and if copy fill - rename copy.
-                if (vinfoFileBlockFile[pos.numberDiskFile].IsDiskFileEmpty() && vTmpInfoFileBlockFile[newPosAtTmpFile.numberDiskFile].isFill) {
-                    ReplaceTmpToOriginalFileBlockFromDisk(pos.numberDiskFile, newPosAtTmpFile.numberDiskFile);
-                }
-
-                pcursor->Next();
-            } else {
-                break; // if shutdown requested or finished inter on file pos.
-            }
-
-        } catch (std::exception& e) {
-            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
-            return;
-        }
-    }
-
-    if (!vTmpInfoFileBlockFile[lastTempDiskFile].isFill) {
-        RenameTmpOriginalFileBlockDisk(lastTempDiskFile);
-    }
-
-    vinfoFileBlockFile = vTmpInfoFileBlockFile;
-    nLastFileDiskFile = lastTempDiskFile;
-
-    SaveFileBlockFileState();
-    //save new state
-
-}
-
-bool SaveFileBlockFileState() {
-    bool fileBlockFileChanged = false;
-    for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
-        unsigned long nFile = it - vinfoFileBlockFile.begin();
-        if (!pblockfiletree->WriteFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
-            LogPrint("file", "%s - FILES. Failed to write to fileBlock index", __func__);
-            return false;
-        }
-        fileBlockFileChanged = true;
-        ++it;
-    }
-
-    if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
-        LogPrint("file", "%s - FILES. Failed to write to file block index", __func__);
-        return false;
-    }
-    pblockfiletree->Sync();
-
-    LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, cdbFileBlockFilesState.ToString());
-    if (!pblockfiletree->WriteCDBFileBlockFilesState(cdbFileBlockFilesState)) {
-        LogPrint("file", "%s - FILES. Error write file blockfiles state in db.", __func__);
-        return false;
-    }
-    pblockfiletree->Sync();
+    fileRepositoryManager.ShrinkRecycledFiles();
 }
 
 void ProcessFilesRequestsScheduler() {
@@ -8538,46 +8109,11 @@ bool SaveMaturationTransactions() {
 }
 
 bool SaveFileDB(CDBFile& file) {
-    LogPrint("file", "%s - FILES. Saving file to db. filehash: %s, filesize: %d\n", __func__, file.fileHash.ToString(), file.vBytes.size());
-
-    unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
-    CDiskFileBlockPos filePos;
-    CValidationState state;
-    if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
-        return error("%s : Failed to find file block pos with fileHash - %s", __func__, file.fileHash.ToString());
-
-    if (!WriteFileBlockToDisk(file, filePos))
-        return error("%s : Failed to write file block to disk with fileHash - %s", __func__, file.fileHash.ToString());
-
-    if (!pblockfiletree->WriteFileIndex(file.fileHash, filePos))
-        return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
-
-    cdbFileBlockFilesState.AddFile(filePos.fileSize);
-    UpdateFileBlockPosData(filePos);
-
-    LogPrint("file", "%s - FILES. File saved at position %d/%d\n", __func__, filePos.numberDiskFile, filePos.numberPosition);
-
-    return true;
+    return fileRepositoryManager.SaveFile(file);
 }
 
 bool EraseFileDB(CDBFile& file) {
-    LogPrint("file", "%s : Erase file from DB %s\n", __func__, file.fileHash.ToString());
-
-    CDiskFileBlockPos pos;
-    if (!pblockfiletree->ReadFileIndex(file.fileHash, pos))
-        return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
-
-    LogPrint("file", "%s : Erased file position: %d/%d\n", __func__, pos.numberDiskFile, pos.numberPosition);
-
-    if (!pblockfiletree->EraseFileIndex(file.fileHash))
-        return error("%s : Failed to delete file index with fileHash - %s", __func__, file.fileHash.ToString());
-
-    if (!RemoveFileBlockFromDisk(pos))
-        return error("%s : Failed to remove file from blocks with fileHash - %s", __func__, file.fileHash.ToString());
-
-    cdbFileBlockFilesState.RemoveFile(pos.fileSize);
-
-    return true;
+    return fileRepositoryManager.EraseFile(file);
 }
 
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
@@ -8668,19 +8204,19 @@ std::string CBlockFileInfo::ToString() const
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
 
-std::string CFileBlockFileInfo::ToString() const
+std::string CFileRepositoryBlockInfo::ToString() const
 {
-    return strprintf("CFileBlockFileInfo(numberBytesSize=%u, numberFiles=%u, time=%s...%s)", numberBytesSize, numberFiles, DateTimeStrFormat("%Y-%m-%d", firstRecordTime), DateTimeStrFormat("%Y-%m-%d", lastRecordTime));
+    return strprintf("CFileRepositoryBlockInfo(nTotalFileStorageSize=%u, numberFiles=%u, time=%s...%s)", nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
 }
 
-std::string CDBFileBlockFilesState::ToString() const
+std::string CDBFileRepositoryState::ToString() const
 {
     return strprintf(
-            "CDBFileBlockFilesState(TotalByteSize:%d. Count files:%d. Mark remov bytes:%d. Count mark remove: %d)",
-            numberBytesSize,
-            countFiles,
-            markRemovedNumberBytesSize,
-            countMarkRemovedFiles
+            "CDBFileRepositoryState(TotalByteSize:%d. Count files:%d. Mark remov bytes:%d. Count mark remove: %d)",
+            nTotalFileStorageSize,
+            nBlocksCount,
+            removeCandidatesTotalSize,
+            removeCandidatesFilesCount
     );
 }
 
@@ -8701,3 +8237,761 @@ public:
         mapOrphanTransactionsByPrev.clear();
     }
 } instance_of_cmaincleanup;
+
+
+CFileRepositoryManager::CFileRepositoryManager(): cs_vfileRepositoryBlockInfo(), vfileRepositoryBlockInfo(), nLastFileRepositoryBlock(0), dbFileRepositoryState(), lastUpdateTime(GetTimeMillis())  {
+}
+
+bool CFileRepositoryManager::SaveFile(CDBFile& file) {
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    LogPrint("file", "%s - FILES. Saving file to db. filehash: %s, filesize: %d\n", __func__, file.fileHash.ToString(), file.vBytes.size());
+
+    unsigned int nRepositoryFileSize = GetRepositoryFileSize(file);
+    CFileRepositoryBlockDiskPos filePos;
+    CValidationState state;
+    if (!FindAndAllocateBlockFile(state, filePos, nRepositoryFileSize, GetTimeMillis()))
+        return error("%s : Failed to find file block pos with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!WriteFileRepositoryBlockToDisk(file, filePos))
+        return error("%s : Failed to write file block to disk with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!pblockfiletree->WriteFileIndex(file.fileHash, filePos))
+        return error("%s : Failed to write file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    dbFileRepositoryState.AddFile(nRepositoryFileSize);
+    //UpdateFileRepositoryBlockPos(filePos);
+
+    LogPrint("file", "%s - FILES. File saved at position %d/%d\n", __func__, filePos.nBlockFileIndex, filePos.nOffset);
+
+    return true;
+}
+
+bool CFileRepositoryManager::EraseFile(CDBFile& file) {
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    LogPrint("file", "%s : Erase file from DB %s\n", __func__, file.fileHash.ToString());
+
+    CFileRepositoryBlockDiskPos pos;
+    if (!pblockfiletree->ReadFileIndex(file.fileHash, pos))
+        return error("%s : Failed to read file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    LogPrint("file", "%s : Erased file position: %d/%d\n", __func__, pos.nBlockFileIndex, pos.nOffset);
+
+    if (!pblockfiletree->EraseFileIndex(file.fileHash))
+        return error("%s : Failed to delete file index with fileHash - %s", __func__, file.fileHash.ToString());
+
+    if (!RemoveFileRepositoryBlockFromDisk(pos))
+        return error("%s : Failed to remove file from blocks with fileHash - %s", __func__, file.fileHash.ToString());
+
+    dbFileRepositoryState.SubtractFile(GetRepositoryFileSize(file));
+
+    return true;
+}
+
+bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    bool blockChanged = false;
+    for (std::vector<CFileRepositoryBlockInfo>::const_iterator it = vblockFileInfo.begin(); it != vblockFileInfo.end(); it++) {
+        if (it->lastWriteTime <= lastUpdateTime)
+            continue;
+
+        unsigned long nFile = it - vblockFileInfo.begin();
+        if (!pblockfiletree->WriteFileRepositoryBlockInfo(nFile, vblockFileInfo[nFile])) {
+            LogPrint("file", "%s - FILES. Failed to write to fileBlock index", __func__);
+            return false;
+        }
+        blockChanged = true;
+    }
+
+    if (blockChanged && !pblockfiletree->WriteLastFileRepositoryBlock(lastBlockFileIndex) && !pblockfiletree->Sync()) {
+        LogPrint("file", "%s - FILES. Failed to write to file block index", __func__);
+        return false;
+    }
+
+    LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, dbFileRepositoryState.ToString());
+    if (!pblockfiletree->WriteCDBFileRepositoryState(dbFileRepositoryState) && !pblockfiletree->Sync()) {
+        LogPrint("file", "%s - FILES. Error write file blockfiles state in db.", __func__);
+        return false;
+    }
+}
+
+bool CFileRepositoryManager::LoadFileRepositoryState() {
+    READ_LOCK(cs_RepositoryReadWriteLock);
+
+    //Load sync file state
+    FileRepositoryBlockSyncState syncState;
+    if (!pblockfiletree->ReadFileRepositoryBlockSyncState(syncState)) {
+        LogPrintf("%s: Filed to read repository block synchronization state. Creating new\n", __func__);
+
+        if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState))
+            return error("%s: Filed to init repository block synchronization state.\n", __func__);
+    }
+
+    //Load fileBlock file info
+    if (!pblockfiletree->ReadLastFileRepositoryBlock(nLastFileRepositoryBlock)) {
+        LogPrintf("%s: Filed to read last file block. Creating new\n", __func__);
+
+        nLastFileRepositoryBlock = 0;
+        if (!pblockfiletree->WriteLastFileRepositoryBlock(nLastFileRepositoryBlock))
+            return error("%s: Filed to init files repository state\n", __func__);
+    }
+
+    vfileRepositoryBlockInfo.clear();
+    vfileRepositoryBlockInfo.resize(nLastFileRepositoryBlock + 1);
+
+    LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileRepositoryBlock);
+    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
+        if (!pblockfiletree->ReadFileRepositoryBlockInfo(nFile, vfileRepositoryBlockInfo[nFile])) {
+            if (nFile == 0) {
+                LogPrintf("%s: Filed to read first file repository block info. Creating new\n", __func__);
+                vfileRepositoryBlockInfo[nFile].SetNull();
+                if (!pblockfiletree->WriteFileRepositoryBlockInfo(nFile, vfileRepositoryBlockInfo[nFile]))
+                    return error("%s: Filed to init files repository state on block info\n", __func__);
+                break;
+            } else {
+                //this can only be when previous failed sync
+                if (!syncState.IsNull()) {
+                    LogPrint("file", "%s - FILES. Repository block info not Found at disk: %d .\n", __func__, nFile);
+                    nFile++;
+                    continue;
+                }
+
+                return error("%s: Filed to load file info from db on file: %d\n", __func__, nFile);
+            }
+        }
+    }
+
+    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vfileRepositoryBlockInfo[nLastBlockFile].ToString());
+
+    // Load all saved files to db if nLastBlockFile saved invalid
+    for (int nFile = nLastFileRepositoryBlock + 1; true; nFile++) {
+        CFileRepositoryBlockInfo info;
+        if (!pblockfiletree->ReadFileRepositoryBlockInfo(nFile, info))
+            break;
+
+        vfileRepositoryBlockInfo.push_back(info);
+    }
+
+    //todo: ???
+    nLastFileRepositoryBlock = vfileRepositoryBlockInfo.size() - 1;
+
+    //is sync not null - failed previous repository block sync. Reindex block files.
+    if (!syncState.IsNull()) {
+        if (!FinishSync(syncState)) {
+            return error("%s: Filed to finish the synchronization.\n", __func__);
+        }
+    }
+
+    return true;
+}
+
+bool CFileRepositoryManager::FinishSync(FileRepositoryBlockSyncState &syncState) {
+    LogPrintf("%s Finish sync.\n", __func__);
+
+    filesystem::path filesDir = GetDataDir() / "files";
+    if (!filesystem::exists(filesDir)) {
+        return error("%s: Filed to read temp repository block files.\n", __func__);
+    }
+
+    string filePrefix = "blk";
+    string tempFilePrefix = strprintf("temp_%s", filePrefix);
+
+    filesystem::create_directories(filesDir);
+    for (unsigned int i = 0; i < syncState.nCompleteTempFile; i++) {
+        filesystem::path source = GetDataDir() / strprintf("%05u.dat", i);
+        if (!filesystem::exists(source)) {
+            return error("%s: Filed to rename temp repository block file. File not found.  file number: %d\n", __func__, i);
+        } else {
+            LogPrintf("%s Rename temp repository block file to original. File number: %d\n", __func__, i);
+            if (!RenameTmpOriginalFileBlockDisk(i)) {
+                return error("%s: Filed to rename temp repository block file. File number: %d\n", __func__, i);
+            }
+        }
+    }
+
+    //sync end
+    syncState.SetNull();
+    if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState))
+        return error("%s: Filed to finish sync repository block state.\n", __func__);
+
+    return true;
+}
+
+// TODO: figure out with locks
+bool CFileRepositoryManager::GetFile(const uint256& fileHash, CDBFile& fileOut) {
+    READ_LOCK(cs_RepositoryReadWriteLock);
+
+    CFileRepositoryBlockDiskPos posFile;
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile))
+        return error("%s : File not found in DB. fileHash %s", __func__, fileHash.ToString());
+
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(fileOut, posFile, false))
+        return error("%s : File not found on disk. fileHash %s", __func__, fileHash.ToString());
+
+    return true;
+}
+
+bool CFileRepositoryManager::ReadFileBlockFromDisk(CDBFile& file, const CFileRepositoryBlockDiskPos& pos, bool isTmp)
+{
+    return ReadFileBlockFromDiskTo(file, pos, SER_DISK, CLIENT_VERSION, isTmp);
+}
+
+bool CFileRepositoryManager::ReadFileBlockHeaderFromDisk(CDBFileHeaderOnly& file, const CFileRepositoryBlockDiskPos& pos, bool isTmp)
+{
+    return ReadFileBlockFromDiskTo(file, pos, SER_DISK, CLIENT_VERSION, isTmp);
+}
+
+bool CFileRepositoryManager::WriteFileRepositoryBlockToDisk(CDBFile &file, CFileRepositoryBlockDiskPos &pos, bool isTmp)
+{
+    return WriteFileRepositoryBlockToDiskFrom(file, pos, SER_DISK, CLIENT_VERSION, isTmp);
+}
+
+bool CFileRepositoryManager::WriteFileRepositoryBlockToDisk(CDBFileHeaderOnly &file, CFileRepositoryBlockDiskPos &pos, bool isTmp)
+{
+    return WriteFileRepositoryBlockToDiskFrom(file, pos, SER_DISK, CLIENT_VERSION, isTmp);
+}
+
+bool CFileRepositoryManager::RemoveFileRepositoryBlockFromDisk(const CFileRepositoryBlockDiskPos& pos)
+{
+    CFileRepositoryBlockDiskPos newPos = pos;
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(file, newPos))
+        return error("RemoveFileRepositoryBlockFromDisk : read file block failed");
+
+    file.removed = true;
+    if (!WriteFileRepositoryBlockToDisk(file, newPos))
+        return error("RemoveFileRepositoryBlockFromDisk : write updated(removed) file failed");
+
+    return true;
+}
+
+bool CFileRepositoryManager::RemoveFileRepositoryBlockFromDisk(int fileNumber, bool isTmp)
+{
+    boost::filesystem::path path;
+    if (isTmp) {
+        path = GetTmpFilePosFilename(fileNumber, "blk");
+    } else {
+        path = GetFilePosFilename(fileNumber, "blk");
+    }
+
+    LogPrint("file", "%s - FILES. Remove file from disk. path: %s\n", __func__, path);
+
+    if (!remove(path)) {
+        LogPrint("file", "%s - FILES. Remove file from disk failed.\n", __func__);
+        return false;
+    }
+
+    return true;
+}
+
+bool CFileRepositoryManager::ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber)
+{
+    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
+    boost::filesystem::path path = GetFilePosFilename(originalFileNumber, "blk");
+
+    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
+
+    //remove original file
+    RemoveFileRepositoryBlockFromDisk(originalFileNumber, false);
+    rename(tmpPath, path);
+    return true;
+}
+
+bool CFileRepositoryManager::RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
+{
+    boost::filesystem::path tmpPath = GetTmpFilePosFilename(tmpFileNumber, "blk");
+    boost::filesystem::path path = GetFilePosFilename(tmpFileNumber, "blk");
+    LogPrint("file", "%s - FILES. Rename tmp fileblock file from disk. path: %s to \n", __func__, tmpPath, path);
+
+    //remove original file
+    rename(tmpPath, path);
+    return true;
+}
+
+void CFileRepositoryManager::FlushBlockFiles() {
+    FlushFileRepositoryBlock(nLastFileRepositoryBlock, vfileRepositoryBlockInfo[nLastFileRepositoryBlock].nBlockSize);
+}
+
+void CFileRepositoryManager::FlushFileRepositoryBlock(int nLastBlockIndex, unsigned int nLastBlockSize, bool fFinalize, bool isTmp) {
+    //in order to open last disk file
+    CFileRepositoryBlockDiskPos lastFilePos(nLastBlockIndex, 0, 0);
+    FILE* fileLast = OpenFileRepositoryBlock(lastFilePos, false, isTmp);
+    if (fileLast) {
+        if (fFinalize)
+            TruncateFile(fileLast, nLastBlockSize);
+        FileCommit(fileLast);
+        fclose(fileLast);
+    }
+}
+
+bool CFileRepositoryManager::FindAndAllocateBlockFile(CValidationState& state, CFileRepositoryBlockDiskPos &pos, const uint32_t nDBFileSize) {
+    LogPrint("file", "%s - FILES. Find file block pos. %d\n", __func__);
+    return FindAndAllocateBlockFile(state, pos, nDBFileSize, nLastFileRepositoryBlock, vfileRepositoryBlockInfo, false);
+}
+
+bool CFileRepositoryManager::FindAndAllocateBlockFile(CValidationState &state, CFileRepositoryBlockDiskPos &pos,
+                              const uint32_t nAddSize, int &lastBlockFileIndex, vector<CFileRepositoryBlockInfo> &vblockFileInfo, bool isTmp)
+{
+    pos.nBlockFileIndex = lastBlockFileIndex;
+    LogPrint("file", "%s - FILES. Number last fileblock disk file: %d\n", __func__, lastBlockFileIndex);
+
+    if (nAddSize > MAX_FILEBLOCKFILE_SIZE) {
+        LogPrint("file", "%s - FILES. Files size too large to save in one block.\n", __func__);
+        return false;
+    }
+
+    if (vblockFileInfo[pos.nBlockFileIndex].nBlockSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
+        LogPrint("file", "%s - FILES. MAX_FILEBLOCKFILE_SIZE. Flush fileblock disk file.\n", __func__);
+
+        // finalize block (truncate file)
+        FlushFileRepositoryBlock(lastBlockFileIndex, vblockFileInfo[lastBlockFileIndex].nBlockSize, true, isTmp);
+
+        //update meta previous diskfile
+        vblockFileInfo[pos.nBlockFileIndex].isFull = true;
+
+        // allocate new block and update state
+        vblockFileInfo.emplace_back(CFileRepositoryBlockInfo());
+        pos.nBlockFileIndex = lastBlockFileIndex = vblockFileInfo.size() - 1;
+        dbFileRepositoryState.IncrementBlockFiles();
+    }
+
+    //update meta data
+    LogPrint("file", "%s - FILES. Updated meta data. Number last file disk file: %d\n", __func__, lastBlockFileIndex);
+
+    pos.nOffset = vblockFileInfo[lastBlockFileIndex].nBlockSize;
+    pos.nFileSize = nAddSize;
+
+    vblockFileInfo[lastBlockFileIndex].AddFile(nAddSize);
+
+    unsigned int nOldChunks = (pos.nOffset + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    LogPrint("file", "%s - FILES. Old chunks: %d\n", __func__, nOldChunks);
+
+    unsigned int nNewChunks = (vblockFileInfo[lastBlockFileIndex].nBlockSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    LogPrint("file", "%s - FILES. New chunks: %d\n", __func__, nNewChunks);
+
+    if (nNewChunks > nOldChunks) {
+        if (!CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.nOffset)) {
+            return state.Error("out of disk space");
+        }
+
+        FILE* file = OpenFileRepositoryBlock(pos, false, isTmp);
+        LogPrint("file", "%s - FILES. Open fileblock disk file. number position: %d\n", __func__, pos.nOffset);
+        if (file) {
+            LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.nOffset);
+            AllocateFileRange(file, pos.nOffset, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.nOffset);
+            fclose(file);
+        }
+    }
+
+    return true;
+}
+
+//file region
+FILE* CFileRepositoryManager::OpenFileRepositoryBlock(const CFileRepositoryBlockDiskPos& pos, bool fReadOnly, bool isTmp)
+{
+    boost::filesystem::path path;
+    if (isTmp) {
+        path = GetTmpFilePosFilename(pos.nBlockFileIndex, "blk");
+    } else {
+        path = GetFilePosFilename(pos.nBlockFileIndex, "blk");
+    }
+
+    LogPrintf("Open fileblock file: %s\n", path.string());
+
+    if (pos.IsNull())
+        return NULL;
+
+    return OpenDiskFile(pos.nOffset, path, fReadOnly);
+}
+
+boost::filesystem::path CFileRepositoryManager::GetFilePosFilename(const int numberDiskFile, const char* prefix)
+{
+    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, numberDiskFile);
+}
+
+boost::filesystem::path CFileRepositoryManager::GetTmpFilePosFilename(const int numberDiskFile, const char* prefix)
+{
+    return GetDataDir() / "files" / strprintf("tmp_%s%05u.dat", prefix, numberDiskFile);
+}
+//end region
+
+bool CFileRepositoryManager::FindAndRecycleExpiredFiles() {
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    //TODO: PDG 5 add check is this masternode. not run on node.(net.cpp)
+
+    LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
+    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
+
+    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
+    ssKeySet << string("flindex");
+    pcursor->Seek(ssKeySet.str());
+
+    // Load file position
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        try {
+            leveldb::Slice sliceKey = pcursor->key();
+            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
+            string stType;
+            ssKey >> stType;
+            if (stType != "flindex") {
+                break; // if shutdown requested or finished inter on file pos.
+            }
+
+            leveldb::Slice sliceValue = pcursor->value();
+            CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
+            CFileRepositoryBlockDiskPos pos;
+            ssValue >> pos;
+
+            LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.nBlockFileIndex, pos.nOffset);
+
+            CDBFileHeaderOnly fileHeader;
+
+            if (!ReadFileBlockHeaderFromDisk(fileHeader, pos, false))
+                return error("%s : Failed to read DB file header", __func__);
+
+            LogPrint("file", "%s - FILES. DB file load. fileHash: %s. File expired time: %d/%d.\n", __func__, file.fileHash.ToString(), file.fileExpiredDate);
+            if (GetAdjustedTime() > fileHeader.fileExpiredDate) {
+                fileHeader.removed = true;
+                if (!WriteFileRepositoryBlockHeaderToDisk(fileHeader, pos, true))
+                    return error("file", "%s - FILES. Write updated(removed) file failed.\n", __func__);
+
+                dbFileRepositoryState.SubtractFile(pos.nFileSize);
+                LogPrint("file", "%s - FILES. File expired. DB file mark as remove and save at db.\n", __func__);
+            }
+
+            pcursor->Next();
+        } catch (std::exception& e) {
+            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+        }
+    }
+
+    return true;
+}
+
+void CFileRepositoryManager::ShrinkRecycledFiles() {
+    LogPrint("file", "%s - FILES. Process diskfile erase scheduler: %s.\n", __func__, dbFileRepositoryState.ToString());
+
+    {
+        READ_LOCK(cs_RepositoryReadWriteLock);
+        if (!dbFileRepositoryState.IsClearDiskSpaceNeeded()) {
+            LogPrint("file", "%s - FILES. diskfile don't need cleaning.\n", __func__);
+            return;
+        }
+    }
+
+    LOCK(cs_main);
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
+
+    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
+    ssKeySet << string("flindex");
+    pcursor->Seek(ssKeySet.str());
+
+    vector<CFileRepositoryBlockInfo> vTmpInfoFileRepositoryBlock;
+    int lastTmpDiskFile = 0;
+
+//    map<uint256, CFileRepositoryBlockDiskPos> mapnewPosAtTempFile;
+
+    map<int, vector<CFileRepositoryBlockDiskPos>> sortRepositoryBlockPos;
+
+    // Load and sort file position
+    while (pcursor->Valid()) {
+
+        //TODO: ???
+//        boost::this_thread::interruption_point();
+
+        try {
+            leveldb::Slice sliceKey = pcursor->key();
+            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
+            string stType;
+            ssKey >> stType;
+            if (stType != "flindex") {
+                break; // if shutdown requested or finished inter on file pos.
+            }
+
+            leveldb::Slice sliceValue = pcursor->value();
+            CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
+            CFileRepositoryBlockDiskPos pos;
+            ssValue >> pos;
+
+            LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.nBlockFileIndex, pos.nOffset);
+
+            int nRepositoryFile = pos.nBlockFileIndex;
+            if (sortRepositoryBlockPos.count(nRepositoryFile)) {
+
+                //add and sort
+                vector<CFileRepositoryBlockDiskPos> &vRepositoryBlockPos = sortRepositoryBlockPos[nRepositoryFile];
+                vRepositoryBlockPos.emplace_back(pos);
+                std::sort(vRepositoryBlockPos.begin(), vRepositoryBlockPos.end());
+            } else {
+
+                //add new
+                vector<CFileRepositoryBlockDiskPos> vRepositoryBlockPos;
+                vRepositoryBlockPos.emplace_back(pos);
+                sortRepositoryBlockPos[nRepositoryFile] = vRepositoryBlockPos;
+            }
+
+            pcursor->Next();
+        } catch (std::exception& e) {
+            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
+            return;
+        }
+    }
+
+    LogPrint("file", "%s - FILES. File repositoryBlock Pos be sorted.\n", __func__);
+
+    //handle temp files.
+    LogPrint("file", "%s - FILES. Fill temp files.\n", __func__);
+    int nRepositoryFile = 0;
+
+    //write sync start status
+    FileRepositoryBlockSyncState syncState(true, nRepositoryFile);
+    if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
+        LogPrint("file", "%s - FILES. Filed to write repository block synchronization state.\n", __func__);
+        return;
+    }
+
+    //fill temp files.
+    while (nRepositoryFile != sortRepositoryBlockPos.size()) {
+        if (!sortRepositoryBlockPos.count(nRepositoryFile)) {
+            //this can only be when previous failed sync
+            LogPrint("file", "%s - FILES. Repository file not Found at disk: %d .\n", __func__, nRepositoryFile);
+            nRepositoryFile++;
+            continue;
+        }
+
+        vector<CFileRepositoryBlockDiskPos> &vRepositoryBlockPos = sortRepositoryBlockPos[nRepositoryFile];
+        BOOST_FOREACH (const CFileRepositoryBlockDiskPos& oldPos, vRepositoryBlockPos) {
+            LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, oldPos.nBlockFileIndex, oldPos.nOffset);
+
+            CDBFile file;
+            if (!ReadFileBlockFromDisk(file, oldPos, false)) {
+                LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
+                return;
+            }
+
+            if (file.removed) {
+                LogPrint("file", "%s - FILES. File mark as removed, don't rewrite at new diskfile. Removed file hash: s%\n", __func__, file.fileHash.ToString());
+                continue;
+            }
+
+            unsigned int nFileSize = GetRepositoryFileSize(file);
+            CFileRepositoryBlockDiskPos newPosAtTempFile;
+            CValidationState state;
+            if (!FindAndAllocateBlockFile(state, newPosAtTempFile, nFileSize, lastTmpDiskFile, vTmpInfoFileRepositoryBlock, true)) {
+                LogPrint("file", "%s - FILES. Find file position at temp fileblock from disk failed.\n", __func__);
+                return;
+            }
+
+            uint256 &fileHash = file.fileHash;
+
+            //save file at temp blockfile
+            if (!WriteFileRepositoryBlockToDisk(file, newPosAtTempFile, true)) {
+                LogPrint("file", "%s - FILES. Failed to write file block to disk with fileHash - %s", __func__, fileHash.ToString());
+                return;
+            }
+
+            //update sync state after add new temp file
+            if (syncState.nCompleteTempFile != newPosAtTempFile.nBlockFileIndex) {
+                LogPrint("file", "%s: Update sync state after add new temp repository file.\n", __func__);
+
+                //update previous file state info.
+                if (!pblockfiletree->WriteFileRepositoryBlockInfo(syncState.nCompleteTempFile, vTmpInfoFileRepositoryBlock[syncState.nCompleteTempFile])) {
+                    LogPrint("%s: Filed to save new repository state on block info. \n", __func__);
+                    return;
+                }
+
+                syncState.nCompleteTempFile = newPosAtTempFile.nBlockFileIndex;
+                if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
+                    LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after create new temp file.\n", __func__);
+                    return;
+                }
+            }
+
+            if (vfileRepositoryBlockInfo[oldPos.nBlockFileIndex].IsBlockFileEmpty()) {
+                LogPrint("file", "%s - FILES. Repository block file is empty. Remove file from disk. Filenumber: %d", __func__, oldPos.nBlockFileIndex);
+
+                if (!RemoveFileRepositoryBlockFromDisk(oldPos.nBlockFileIndex, false)) {
+                    LogPrint("file", "%s - FILES. Failed to remove file block at disk. repository block file number: %d", __func__, oldPos.nBlockFileIndex);
+                    return;
+                }
+
+                //update sync state after remove original file
+                if (syncState.nCompleteFile != oldPos.nBlockFileIndex) {
+                    syncState.nCompleteFile = oldPos.nBlockFileIndex;
+
+                    if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
+                        LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after remove original.\n", __func__);
+                        return;
+                    }
+                }
+            }
+        }
+
+        nRepositoryFile++;
+    }
+    //todo: Cохранить cтейт последнего tmp файла и все его позиции.
+    if (!SaveFileRepositoryState(vTmpInfoFileRepositoryBlock, nRepositoryFile)) {
+        LogPrint("file", "%s - FILES. Filed to save new file repository block info. size: %d, nFile: %d", __func__, vTmpInfoFileRepositoryBlock, nRepositoryFile);
+        return;
+    }
+
+    //rename all tmp to original
+    LogPrint("file", "%s - FILES. Rename all temp files to original name.", __func__);
+    for (int i = 0; i != nRepositoryFile; i++) {
+        if (!RenameTmpOriginalFileBlockDisk(i)) {
+            LogPrint("file", "%s - FILES. Failed to rename repository file block at disk. Number: %d", __func__, i);
+            return;
+        }
+    }
+
+    //sync is over
+    syncState.SetNull();
+    if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
+        LogPrint("file", "%s - FILES. Filed to write repository block synchronization is over state.\n", __func__);
+        return;
+    }
+}
+
+/*void CFileRepositoryManager::ShrinkRecycledFiles() {
+    //TODO: PDG 5 add check is this masternode. not run on node.(net.cpp)
+    LogPrint("file", "%s - FILES. Process diskfile erase scheduler: %s.\n", __func__, dbFileRepositoryState.ToString());
+
+    {
+        READ_LOCK(cs_RepositoryReadWriteLock);
+        if (!dbFileRepositoryState.IsClearDiskSpaceNeeded()) {
+            LogPrint("file", "%s - FILES. diskfile don't need cleaning.\n", __func__);
+            return;
+        }
+    }
+
+    LOCK(cs_main);
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+
+    boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
+
+    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
+    ssKeySet << string("flindex");
+    pcursor->Seek(ssKeySet.str());
+
+    vector<CFileRepositoryBlockInfo> vTmpInfoFileRepositoryBlock;
+    map<uint256, CFileRepositoryBlockDiskPos> mapnewPosAtTempFile;
+    int lastTmpDiskFile = 0;
+
+    dbFileRepositoryState.SetNull();
+
+    // Load file position
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        try {
+            leveldb::Slice sliceKey = pcursor->key();
+            CDataStream ssKey(sliceKey.data(), sliceKey.data() + sliceKey.size(), SER_DISK, CLIENT_VERSION);
+            string stType;
+            ssKey >> stType;
+            if (stType != "flindex") {
+                break; // if shutdown requested or finished inter on file pos.
+            }
+
+            leveldb::Slice sliceValue = pcursor->value();
+            CDataStream ssValue(sliceValue.data(), sliceValue.data() + sliceValue.size(), SER_DISK, CLIENT_VERSION);
+            CFileRepositoryBlockDiskPos pos;
+            ssValue >> pos;
+
+            LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.nBlockFileIndex, pos.nOffset);
+
+            CDBFile file;
+            if (!ReadFileBlockFromDisk(file, pos, false)) {
+                LogPrint("file", "%s - FILES. Read file block failed.\n", __func__);
+                return;
+            }
+
+            if (file.removed) {
+                LogPrint("file", "%s - FILES. File mark as removed, don't rewrite at new diskfile. Removed file hash: s%\n", __func__, file.fileHash.ToString());
+                pcursor->Next();
+                continue;
+            }
+
+            unsigned int nFileSize = GetRepositoryFileSize(file);
+            CFileRepositoryBlockDiskPos newPosAtTempFile;
+            CValidationState state;
+            if (!FindAndAllocateBlockFile(state, newPosAtTempFile, nFileSize, lastTmpDiskFile, vTmpInfoFileRepositoryBlock, true)) {
+                LogPrint("file", "%s - FILES. Find file position at temp fileblock from disk failed.\n", __func__);
+                return;
+            }
+
+            uint256 &fileHash = file.fileHash;
+
+            //save file at temp blockfile
+            if (!WriteFileRepositoryBlockToDisk(file, newPosAtTempFile, true)) {
+                LogPrint("file", "%s - FILES. Failed to write file block to disk with fileHash - %s", __func__, fileHash.ToString());
+                return;
+            }
+
+
+            // первым делом сделать сет из index'ов отсортированных попорядку.
+            //заполнять TMP.
+            //когда original опустошиться переименовать tmp в оригинал.
+            //После каждого TMP fill - сохраняем и индексы.
+
+
+            //remove old blk by id and if copy fill - rename copy.
+          *//*
+           if (vfileRepositoryBlockInfo[pos.nBlockFileIndex].IsBlockFileEmpty() && vTmpInfoFileRepositoryBlock[newPosAtTempFile.nBlockFileIndex].isFull) {
+                ReplaceTmpToOriginalFileBlockFromDisk(pos.nBlockFileIndex, newPosAtTempFile.nBlockFileIndex);
+            }
+
+            dbFileRepositoryState.AddFile(newPosAtTempFile.nFileSize);
+            mapnewPosAtTempFile[fileHash] = newPosAtTempFile;
+            *//*
+
+            pcursor->Next();
+
+        } catch (std::exception& e) {
+            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
+            return;
+        }
+    }
+
+    if (!vTmpInfoFileRepositoryBlock[lastTmpDiskFile].isFull) {
+        RenameTmpOriginalFileBlockDisk(lastTmpDiskFile);
+    }
+
+    //    ClearFileMetaData() todo: ???
+    vfileRepositoryBlockInfo = vTmpInfoFileRepositoryBlock;
+    nLastFileRepositoryBlock = lastTmpDiskFile;
+
+    //save new indexes
+    for (auto it = mapnewPosAtTempFile.begin(); it != mapnewPosAtTempFile.end(); it++) {
+        if (!pblockfiletree->WriteFileIndex(it->first, it->second)) {
+            LogPrint("file", "%s - FILES. Failed to write file index with fileHash - %s", __func__, it->first.ToString());
+            return;
+        }
+    }
+
+    //save new state
+    if (!SaveFileRepositoryState(vfileRepositoryBlockInfo, nLastFileRepositoryBlock)) {
+        LogPrint("file", "%s - FILES. ----------------------", __func__);
+        return;
+    }
+}*/
+
+uint32_t CFileRepositoryManager::GetRepositoryFileSize(const CDBFile &file) {
+    uint32_t dbFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+    return dbFileSize + MESSAGE_START_SIZE + sizeof(unsigned int);
+}
+
+//todo: PDG 5 remove
+void CFileRepositoryManager::ClearFileMetaData() {
+    nLastFileRepositoryBlock = 0;
+
+    //erase info file BlockFile
+    for (auto it = vfileRepositoryBlockInfo.begin(); it != vfileRepositoryBlockInfo.end();) {
+        it = vfileRepositoryBlockInfo.erase(it);
+    }
+}

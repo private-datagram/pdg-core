@@ -1448,11 +1448,17 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
-                LogPrint("file", "%s - FILES. Loading meta files data from DB.\n", __func__);
-                uiInterface.InitMessage(_("Loading meta files data..."));
-                if (!LoadFilesData()) {
+                LogPrint("file", "%s - FILES. Loading files synchronization data.\n", __func__);
+                uiInterface.InitMessage(_("Loading files synchronization data..."));
+                if (!LoadFileSyncData()) {
+                    LogPrint("file", "%s - FILES. Error loading file synchronization data.\n", __func__);
+                    strLoadError = _("Error loading files synchronization data");
+                    break;
+                }
+
+                if (!InitFileDBState()) {
                     LogPrint("file", "%s - FILES. Error loading meta files data from DB.\n", __func__);
-                    strLoadError = _("Error loading meta files data from database");
+                    strLoadError = _("Error initializing file database");
                     break;
                 }
 
