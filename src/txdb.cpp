@@ -80,17 +80,17 @@ CBlockFileTreeDB::CBlockFileTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) 
 
 bool CBlockFileTreeDB::ReadFileIndex(const uint256 &fileHash, CFileRepositoryBlockDiskPos& pos)
 {
-    return Read(make_pair(string("flindex"), fileHash), pos);
+    return Read(make_pair('d', fileHash), pos);
 }
 
 bool CBlockFileTreeDB::WriteFileIndex(const uint256 &fileHash, CFileRepositoryBlockDiskPos &pos)
 {
-    return Write(make_pair(string("flindex"), fileHash), pos);
+    return Write(make_pair('d', fileHash), pos);
 }
 
 bool CBlockFileTreeDB::EraseFileIndex(const uint256 &fileHash)
 {
-    return Erase(make_pair(string("flindex"), fileHash));
+    return Erase(make_pair('d', fileHash));
 }
 
 bool CBlockFileTreeDB::WriteLastFileRepositoryBlock(int nFile)

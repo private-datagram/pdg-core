@@ -144,6 +144,13 @@ struct CFileRepositoryBlockDiskPos {
         nFileSize = fileSizeIn;
     }
 
+    void SetNull()
+    {
+        nBlockFileIndex = -1;
+        nOffset = 0;
+    }
+    bool IsNull() const { return (nBlockFileIndex == -1); }
+
     friend bool operator==(const CFileRepositoryBlockDiskPos& a, const CFileRepositoryBlockDiskPos& b)
     {
         return (a.nBlockFileIndex == b.nBlockFileIndex && a.nOffset == b.nOffset && a.nFileSize == b.nFileSize);
@@ -154,17 +161,30 @@ struct CFileRepositoryBlockDiskPos {
         return !(a == b);
     }
 
-    void SetNull()
-    {
-        nBlockFileIndex = -1;
-        nOffset = 0;
-    }
-    bool IsNull() const { return (nBlockFileIndex == -1); }
-
-    //for sort
     bool operator < (const CFileRepositoryBlockDiskPos& pos) const
     {
-        return (nOffset < pos.nOffset);
+        if (nBlockFileIndex == pos.nBlockFileIndex) {
+            return (nOffset < pos.nOffset);
+        }
+        return (nBlockFileIndex < pos.nBlockFileIndex);
+    }
+
+    bool operator > (const CFileRepositoryBlockDiskPos& pos) const
+    {
+        if (nBlockFileIndex == pos.nBlockFileIndex) {
+            return (nOffset > pos.nOffset);
+        }
+        return (nBlockFileIndex > pos.nBlockFileIndex);
+    }
+
+    bool operator <= (const CFileRepositoryBlockDiskPos& pos) const
+    {
+        return !((*this) > pos);
+    }
+
+    bool operator >= (const CFileRepositoryBlockDiskPos& pos) const
+    {
+        return !((*this) < pos);
     }
 };
 

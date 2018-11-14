@@ -7,13 +7,22 @@
 #ifndef BITCOIN_SYNC_H
 #define BITCOIN_SYNC_H
 
+
 #include "threadsafety.h"
 
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 
+
+//#include <boost/thread/thread.hpp>
+//#include <boost/thread/pthread/shared_mutex.hpp>
+//#include <iostream>
+//#include <mutex>  // For std::unique_lock
+//#include <shared_mutex>
+//#include <thread>
 
 /////////////////////////////////////////////////
 //                                             //
@@ -171,8 +180,9 @@ public:
 
 typedef CMutexLock<CCriticalSection> CCriticalBlock;
 
-typedef std::shared_lock<std::shared_mutex> CSharedLock;
-typedef std::unique_lock<std::shared_mutex> CUniqueLock;
+typedef boost::shared_mutex SharedMutexLock;
+typedef boost::unique_lock<SharedMutexLock> CSharedLock;
+typedef boost::shared_lock<SharedMutexLock> CUniqueLock;
 
 #define PASTE(x, y) x ## y
 #define PASTE2(x, y) PASTE(x, y)

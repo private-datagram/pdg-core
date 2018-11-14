@@ -41,7 +41,8 @@
 #include <utility>
 #include <vector>
 #include <mutex>
-#include <shared_mutex>
+//#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 #include <algorithm>
 
 #include "libzerocoin/CoinSpend.h"
@@ -89,10 +90,15 @@ static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
 
 /** The maximum size for file block of a blk?????.dat file (since 0.8) */
+
+//TODO: PDG 5  return after test
 //static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x10000000; // 256 MiB
-static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x8000000; // 256 MiB
+static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x1000000; // 256 MiB
 /** The pre-allocation chunk size for file block blk?????.dat files (since 0.8) */
-static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
+
+//TODO: PDG 5  return after test
+//static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
+static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x200000; // 32 MiB
 
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
@@ -245,9 +251,10 @@ struct RequiredFile {
 };
 
 struct FileRepositoryBlockSyncState {
-    bool isSync;                //! Synchronization status.
-    int nCompleteFile;          //! Number complete handle of file
-    int nCompleteTempFile;      //! Number complete handle temp of file
+    bool isSync;                    //! Synchronization status.
+    bool IsHasTransfer;             //! Any file be transfer
+    int nProcessedSourceBlocks;     //! Number complete handle of file
+    int nProcessedTempBlocks;       //! Number complete handle temp of file
 
     ADD_SERIALIZE_METHODS;
 
@@ -255,22 +262,24 @@ struct FileRepositoryBlockSyncState {
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
         READWRITE(isSync);
-        READWRITE(nCompleteFile);
-        READWRITE(nCompleteTempFile);
+        READWRITE(IsHasTransfer);
+        READWRITE(nProcessedSourceBlocks);
+        READWRITE(nProcessedTempBlocks);
     }
 
-    FileRepositoryBlockSyncState() : isSync(false), nCompleteFile(-1), nCompleteTempFile(-1) {}
-    FileRepositoryBlockSyncState(const bool isSync, const int nOriginalFile) : isSync(isSync), nCompleteFile(nOriginalFile) {}
+    FileRepositoryBlockSyncState() : isSync(false), IsHasTransfer(false), nProcessedSourceBlocks(-1), nProcessedTempBlocks(-1) {}
 
+    FileRepositoryBlockSyncState(const bool isSync,const bool isHasTransfer, const int nProcessedSourceBlocks, int nProcessedTempBlocks) : isSync(isSync), IsHasTransfer(isHasTransfer), nProcessedSourceBlocks(nProcessedSourceBlocks), nProcessedTempBlocks(nProcessedTempBlocks) {}
     void SetNull()
     {
         isSync = false;
-        nCompleteFile = -1;
-        nCompleteTempFile = -1;
+        IsHasTransfer = false;
+        nProcessedSourceBlocks = -1;
+        nProcessedTempBlocks = -1;
     }
 
     bool IsNull() {
-        return !isSync && nCompleteFile = -1 && nCompleteTempFile = -1;
+        return !isSync && !IsHasTransfer && nProcessedSourceBlocks == -1 && nProcessedTempBlocks == -1;
     }
 };
 
@@ -320,11 +329,6 @@ public:
         filesCount++;
     }
 
-    void IncrementBlockFiles()
-    {
-        nBlocksCount++;
-    }
-
     /** update statistics (does not update numberBytesSize) */
     void SubtractFile(uint64_t fileSize)
     {
@@ -334,7 +338,7 @@ public:
 
     bool IsClearDiskSpaceNeeded() {
         //marked remove byte size more than limit relatively total size.
-        return removeCandidatesTotalSize >= (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * nTotalFileStorageSize / 100);
+        return removeCandidatesTotalSize > (MARK_AS_REMOVE_FILL_LIMIT_PERCENT * nTotalFileStorageSize / 100);
     }
 };
 
@@ -417,6 +421,7 @@ public:
                     nFilesCount,
                     nBlockSize,
                     nBytesSize); //TODO: PDG 2 remove after debug
+            return;
         }
 
         //TODO: PDG 5 check file.vBytes.size() or something else (bytes header)
@@ -437,7 +442,6 @@ extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
-extern CFileRepositoryManager fileRepositoryManager;
 
 //TODO: remove
 //typedef boost::unordered_map<uint256, CBlockFileInfo> FileMap;
@@ -558,7 +562,6 @@ void ProcessFilesEraseScheduler();
 void ProcessHasFileRequests();
 void ProcessFileRequests();
 
-bool GetFile(CDBFile file, uint256& hash);
 bool IsFileRequestExpired(int64_t requestDate);
 
 int CountNotRequiredHashesByNode(const NodeId id);
@@ -574,7 +577,7 @@ bool CanRequestFile();
 bool SaveFileDB(CDBFile& file);
 bool EraseFileDB(CDBFile& file);
 
-bool SaveBlockFileInfoState();
+bool SaveFileRepositoryState();
 
 /** Request info about available file */
 bool SendFileAvailable(CNode* pro, uint256 fileTxHash);
@@ -1015,11 +1018,11 @@ public:
 
 class CFileRepositoryManager {
 private:
-    std::vector<CFileRepositoryBlockInfo> vfileRepositoryBlockInfo;
+    std::vector<CFileRepositoryBlockInfo> vFileRepositoryBlockInfo;
     int nLastFileRepositoryBlock;
     CDBFileRepositoryState dbFileRepositoryState;
     uint64_t lastUpdateTime;
-    mutable std::shared_mutex cs_RepositoryReadWriteLock;
+    mutable boost::shared_mutex cs_RepositoryReadWriteLock;
 
     bool RemoveFileRepositoryBlockFromDisk(int fileNumber, bool isTmp);
 
@@ -1027,13 +1030,11 @@ private:
 
     bool WriteFileRepositoryBlockToDisk(CDBFile &file, CFileRepositoryBlockDiskPos &pos, bool isTmp);
 
-    bool WriteFileRepositoryBlockHeaderToDisk(CDBFileHeaderOnly &file, CFileRepositoryBlockDiskPos &pos, bool isTmp);
+    bool WriteFileRepositoryBlockToDisk(CDBFileHeaderOnly &file, CFileRepositoryBlockDiskPos &pos, bool isTmp);
 
     bool ReadFileBlockFromDisk(CDBFile &file, const CFileRepositoryBlockDiskPos& pos, bool isTmp);
 
     bool ReadFileBlockHeaderFromDisk(CDBFileHeaderOnly &file, const CFileRepositoryBlockDiskPos& pos, bool isTmp);
-
-    bool ReplaceTmpToOriginalFileBlockFromDisk(int& originalFileNumber, int& tmpFileNumber);
 
     bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber);
 
@@ -1046,18 +1047,15 @@ private:
     bool FindAndAllocateBlockFile(CValidationState &state, CFileRepositoryBlockDiskPos &pos,
                                   const uint32_t nAddSize, int &lastBlockFileIndex, vector<CFileRepositoryBlockInfo> &vblockFileInfo, bool isTmp);
 
-    //file region
+    bool SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex);
+
     FILE* OpenFileRepositoryBlock(const CFileRepositoryBlockDiskPos& pos, bool fReadOnly, bool isTmp);
 
     boost::filesystem::path GetFilePosFilename(const int numberDiskFile, const char* prefix);
 
     boost::filesystem::path GetTmpFilePosFilename(const int numberDiskFile, const char* prefix);
-    //end region
 
     uint32_t GetRepositoryFileSize(const CDBFile &file);
-
-    //todo: PDG 5 remove
-    void ClearFileMetaData();
 
     template <typename FileType>
     bool ReadFileBlockFromDiskTo(FileType &file, const CFileRepositoryBlockDiskPos& pos, int nTypeIn, int nVersionIn, bool isTmp)
@@ -1084,12 +1082,13 @@ private:
         return true;
     }
 
-    bool CFileRepositoryManager::WriteFileRepositoryBlockToDiskFrom(CDBFile &file, CFileRepositoryBlockDiskPos &pos, int nTypeIn, int nVersionIn, bool isTmp)
+    template <typename FileType>
+    bool WriteFileRepositoryBlockToDiskFrom(const FileType &file, CFileRepositoryBlockDiskPos &pos, int nTypeIn, int nVersionIn, bool isTmp)
     {
         // Open history file to append
         CAutoFile fileout(OpenFileRepositoryBlock(pos, false, isTmp), nTypeIn, nVersionIn);
         if (fileout.IsNull())
-            return error("WriteFileRepositoryBlockToDisk : OpenFileRepositoryBlock failed");
+            return error("WriteFileRepositoryBlockToDiskFrom: OpenFileRepositoryBlock failed");
 
         // Write index header
         unsigned int nSize = fileout.GetSerializeSize(file);
@@ -1098,7 +1097,7 @@ private:
         // Write block
         long fileOutPos = ftell(fileout.Get());
         if (fileOutPos < 0)
-            return error("WriteFileRepositoryBlockToDisk : ftell failed");
+            return error("WriteFileRepositoryBlockToDiskFrom: ftell failed");
         //pos.nOffset = (unsigned int) fileOutPos;
         fileout << file;
 
@@ -1123,7 +1122,12 @@ public:
 
     bool EraseFile(CDBFile& file);
 
-    bool SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex);
+    bool SaveFileRepositoryState();
+
+    bool LoadFileDBState();
+
+    //todo: PDG 5 remove
+    void FillTestData();
 
     bool LoadFileRepositoryState();
 
@@ -1137,7 +1141,7 @@ public:
 
 };
 
-
+extern CFileRepositoryManager fileRepositoryManager;
 
 /** Find the last common block between the parameter chain and a locator. */
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator);

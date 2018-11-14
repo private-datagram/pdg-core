@@ -47,10 +47,14 @@
 #define CHECK_REQUESTING_FILES_INTERVAL 30
 
 // Erase expired file at DB every 1 hour (3600s)
-#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
+//TODO: PDG 5 return after check
+//#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
+#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 30
 
 // Erase expired file at DB every 2 hours (1 hour - 3600s)
-#define ERASE_FILES_INTERVAL 2 * 3600
+//TODO: PDG 5 return after check
+//#define ERASE_FILES_INTERVAL 2 * 3600
+#define ERASE_FILES_INTERVAL 2 * 30
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
@@ -279,6 +283,7 @@ bool AddLocal(const CService& addr, int nScore)
 bool AddLocal(const CNetAddr& addr, int nScore)
 {
     return AddLocal(CService(addr, GetListenPort()), nScore);
+
 }
 
 bool RemoveLocal(const CService& addr)
@@ -519,6 +524,7 @@ void CNode::ClearBanned()
         setBanned.clear();
         setBannedIsDirty = true;
     }
+
     DumpBanlist(); // store banlist to Disk
     uiInterface.BannedListChanged();
 }
@@ -1310,7 +1316,7 @@ void ProcessFilesRequestsSchedulerHandler()
 
 void ProcessMarkRemoveFilesSchedulerHandler()
 {
-    g_signals.ProcessFilesEraseScheduler();
+    g_signals.ProcessMarkRemoveFilesScheduler();
 }
 
 void ProcessFilesEraseSchedulerHandler()

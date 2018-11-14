@@ -83,6 +83,9 @@ CDBFile::CDBFile() : vBytes(), removed(false) {
     UpdateFileHash();
 }
 
+CDBFileHeaderOnly::CDBFileHeaderOnly() {
+}
+
 uint256 CDBFile::CalcFileHash() const
 {
     return Hash(vBytes.begin(), vBytes.end());
@@ -110,6 +113,6 @@ std::string CDBFileHeaderOnly::ToString() const
     str += strprintf("DBCFile(hash=%s, lifeTime=%d, removed=%d)\n",
                      fileHash.ToString(),
                      fileExpiredDate,
-                     removed;
+                     removed);
     return str;
 }
