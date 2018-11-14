@@ -278,6 +278,14 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         return AnonymizeOnlyUnlocked;
     }
 
+    if (transaction.getMeta().IsInstanceOf<CPaymentRequest>()) {
+        transaction.getTransaction()->type = TX_FILE_PAYMENT_REQUEST;
+    } else if (transaction.getMeta().IsInstanceOf<CPaymentConfirm>()) {
+        transaction.getTransaction()->type = TX_FILE_PAYMENT_CONFIRM;
+    } else {
+        transaction.getTransaction()->type = TX_PAYMENT;
+    }
+
     QSet<QString> setAddress; // Used to detect duplicates
     int nAddresses = 0;
 
@@ -335,13 +343,6 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
-        if (meta->IsInstanceOf<CPaymentRequest>()) {
-            newTx->type = TX_FILE_PAYMENT_REQUEST;
-        } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
-            newTx->type = TX_FILE_PAYMENT_CONFIRM;
-        } else {
-            newTx->type = TX_PAYMENT;
-        }
         newTx->meta = *meta;
 
         if (recipients[0].useSwiftTX && total > GetSporkValue(SPORK_5_MAX_VALUE) * COIN) {

@@ -2221,6 +2221,10 @@ https://www.transifex.com/pivx-project/pivx-project-translations</translation>
         <source>%1 ms</source>
         <translation>%1 ms</translation>
     </message>
+    <message>
+        <source>[Info not available]</source>
+        <translation>[Info not available]</translation>
+    </message>
 </context>
 <context>
     <name>QRImageWidget</name>

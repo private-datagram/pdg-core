@@ -256,6 +256,17 @@ QString BitcoinUnits::getAmountColumnTitle(int unit)
     return amountTitle;
 }
 
+QString BitcoinUnits::formatBytes(uint64_t bytes) {
+    if (bytes < 1024)
+        return QString(tr("%1 B")).arg(bytes);
+    if (bytes < 1024 * 1024)
+        return QString(tr("%1 KB")).arg(bytes / 1024);
+    if (bytes < 1024 * 1024 * 1024)
+        return QString(tr("%1 MB")).arg(bytes / 1024 / 1024);
+
+    return QString(tr("%1 GB")).arg(bytes / 1024 / 1024 / 1024);
+}
+
 int BitcoinUnits::rowCount(const QModelIndex& parent) const
 {
     Q_UNUSED(parent);

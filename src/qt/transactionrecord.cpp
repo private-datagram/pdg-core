@@ -14,6 +14,8 @@
 #include "wallet.h"
 
 #include <stdint.h>
+#include <QObject>
+#include <QTranslator>
 
 /* Return positive answer if transaction should be shown in list.
  */
@@ -459,5 +461,35 @@ int TransactionRecord::getOutputIndex() const
 }
 
 void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
-    // TODO: make fill meta information
+    if (wtx.type == TX_FILE_PAYMENT_REQUEST) {
+        const CPaymentRequest &paymentRequest = wtx.meta.get<CPaymentRequest>();
+        sub.fileDescription = paymentRequest.sComment;
+        sub.fileSize = paymentRequest.nFileSize;
+        sub.filePrice = paymentRequest.nPrice;
+    }
+
+    // TODO: PDG3 optimize
+    if (wtx.type == TX_FILE_TRANSFER) {
+        const CFileMeta &fileMeta = wtx.meta.get<CFileMeta>();
+        if (!pwalletMain->mapWallet.count(fileMeta.confirmTxId)) {
+            sub.fileDescription = QObject::tr("[Info not available]").toStdString();
+            return;
+        }
+
+        const CWalletTx &paymentConfirmTx = pwalletMain->mapWallet[fileMeta.confirmTxId];
+        const CPaymentConfirm &paymentConfirm = paymentConfirmTx.meta.get<CPaymentConfirm>();
+
+        if (!pwalletMain->mapWallet.count(paymentConfirm.requestTxid)) {
+            sub.fileDescription = QObject::tr("[Info not available]").toStdString();
+            return;
+        }
+
+        const CWalletTx &paymentRequestTx = pwalletMain->mapWallet[paymentConfirm.requestTxid];
+        const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
+
+        sub.fileDescription = paymentRequest.sComment;
+        sub.fileSize = paymentRequest.nFileSize;
+        sub.filePrice = paymentRequest.nPrice;
+    }
+
 }

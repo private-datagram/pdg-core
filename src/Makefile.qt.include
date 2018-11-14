@@ -83,6 +83,7 @@ QT_MOC_CPP = \
   qt/moc_csvmodelwriter.cpp \
   qt/moc_obfuscationconfig.cpp \
   qt/moc_editaddressdialog.cpp \
+  qt/moc_filetransactiontablemodel.cpp \
   qt/moc_guiutil.cpp \
   qt/moc_intro.cpp \
   qt/moc_macdockiconhandler.cpp \
@@ -100,6 +101,7 @@ QT_MOC_CPP = \
   qt/moc_qvalidatedlineedit.cpp \
   qt/moc_qvaluecombobox.cpp \
   qt/moc_receivecoinsdialog.cpp \
+  qt/moc_paymenttransactiontablemodel.cpp \
   qt/moc_privacydialog.cpp \
   qt/moc_receiverequestdialog.cpp \
   qt/moc_recentrequeststablemodel.cpp \
@@ -158,6 +160,7 @@ BITCOIN_QT_H = \
   qt/csvmodelwriter.h \
   qt/obfuscationconfig.h \
   qt/editaddressdialog.h \
+  qt/filetransactiontablemodel.h \
   qt/guiconstants.h \
   qt/guiutil.h \
   qt/intro.h \
@@ -179,6 +182,7 @@ BITCOIN_QT_H = \
   qt/qvalidatedlineedit.h \
   qt/qvaluecombobox.h \
   qt/receivecoinsdialog.h \
+  qt/paymenttransactiontablemodel.h \
   qt/privacydialog.h \
   qt/receiverequestdialog.h \
   qt/recentrequeststablemodel.h \
@@ -306,6 +310,7 @@ BITCOIN_QT_CPP += \
   qt/coincontroltreewidget.cpp \
   qt/obfuscationconfig.cpp \
   qt/editaddressdialog.cpp \
+  qt/filetransactiontablemodel.cpp \
   qt/masternodelist.cpp \
   qt/multisenddialog.cpp \
   qt/multisigdialog.cpp\
@@ -314,6 +319,7 @@ BITCOIN_QT_CPP += \
   qt/paymentrequestplus.cpp \
   qt/paymentserver.cpp \
   qt/receivecoinsdialog.cpp \
+  qt/paymenttransactiontablemodel.cpp \
   qt/privacydialog.cpp \
   qt/receiverequestdialog.cpp \
   qt/recentrequeststablemodel.cpp \

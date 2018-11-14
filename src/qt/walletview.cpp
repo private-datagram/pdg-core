@@ -287,9 +287,7 @@ void WalletView::gotoSendCoinsPage(QString addr)
 void WalletView::gotoSendFilesPage(QString addr)
 {
     setCurrentWidget(sendFilesPage);
-
-    if (!addr.isEmpty())
-        sendFilesPage->setAddress(addr);
+    sendFilesPage->resize();
 }
 
 void WalletView::gotoSignMessageTab(QString addr)

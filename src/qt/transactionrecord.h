@@ -107,17 +107,18 @@ public:
     /** Number of confirmation recommended for accepting a transaction */
     static const int RecommendedNumConfirmations = 6;
 
-    TransactionRecord() : hash(), time(0), type(Other), address(""), debit(0), credit(0), idx(0)
+    TransactionRecord() : hash(), time(0), type(Other), address(""), debit(0), credit(0), fileDescription(""),
+                          filePrice(0), fileSize(0UL), idx(0)
     {
     }
 
     TransactionRecord(uint256 hash, qint64 time) : hash(hash), time(time), type(Other), address(""), debit(0),
-                                                   credit(0), idx(0)
+                                                   credit(0), fileDescription(""), filePrice(0), fileSize(0UL), idx(0)
     {
     }
 
     TransactionRecord(uint256 hash, qint64 time, Type type, const std::string& address, const CAmount& debit, const CAmount& credit) : hash(hash), time(time), type(type), address(address), debit(debit), credit(credit),
-                                                                                                                                       idx(0)
+                                                                                                                                       fileDescription(""), filePrice(0), fileSize(0UL), idx(0)
     {
     }
 
@@ -136,6 +137,9 @@ public:
     std::string address;
     CAmount debit;
     CAmount credit;
+    std::string fileDescription;
+    CAmount filePrice;
+    quint64 fileSize;
     /**@}*/
 
     /** Subtransaction index, for sort key */
