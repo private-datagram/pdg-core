@@ -8377,7 +8377,7 @@ bool CFileRepositoryManager::LoadFileRepositoryState() {
     vFileRepositoryBlockInfo.resize(nLastFileRepositoryBlock + 1);
 
     LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileRepositoryBlock);
-    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
+    for (int nFile = 0; nFile <= nLastFileRepositoryBlock; nFile++) {
         if (!pblockfiletree->ReadFileRepositoryBlockInfo(nFile, vFileRepositoryBlockInfo[nFile])) {
             if (nFile == 0) {
                 LogPrintf("%s: Filed to read first file repository block info. Creating new\n", __func__);
@@ -8398,9 +8398,9 @@ bool CFileRepositoryManager::LoadFileRepositoryState() {
         }
     }
 
-    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vFileRepositoryBlockInfo[nLastBlockFile].ToString());
+    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vFileRepositoryBlockInfo[nLastFileRepositoryBlock].ToString());
 
-    // Load all saved files to db if nLastBlockFile saved invalid
+    // Load all saved files to db if nLastFileRepositoryBlock saved invalid
     for (int nFile = nLastFileRepositoryBlock + 1; true; nFile++) {
         CFileRepositoryBlockInfo info;
         if (!pblockfiletree->ReadFileRepositoryBlockInfo(nFile, info))
@@ -8648,7 +8648,8 @@ void CFileRepositoryManager::FillTestData() {
     while (isFiling) {
             CDBFile dbFile;
             vector<char> vTestFile;
-            int nChars = rand() % 2000 + 100000;
+            int nChars = rand() % 2000 + 10000;
+            //int nChars = 5000000;
             char myword[] = { 'H', 'e', 'l', 'l', 'o', '\0', 'd', '2', '@'};
 
             for (int i = 0; i < nChars; i++) {
@@ -8662,7 +8663,7 @@ void CFileRepositoryManager::FillTestData() {
 
             //1.5 minutes
             //30 days 30 * 24 * 60 * 60 * 1000 * 1000
-            dbFile.fileExpiredDate = GetAdjustedTime() +  3 * 30; // TODO: PDG 4 check lifetime and fee before
+            dbFile.fileExpiredDate = GetAdjustedTime() +  rand() % 180 + 60; // TODO: PDG 4 check lifetime and fee before
             LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, dbFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
 
             if (!SaveFileDB(dbFile))
@@ -8671,7 +8672,7 @@ void CFileRepositoryManager::FillTestData() {
             LogPrint("%s :TEST FILE - test file be saved. nFile:%d , byteSize: %d", __func__, nFiles, dbFile.vBytes.size());
             nFiles++;
 
-            if (nFiles == 2000) {
+            if (nFiles == 420) {
                 break;
             }
       }
@@ -8762,6 +8763,32 @@ void CFileRepositoryManager::FindAndRecycleExpiredFiles() {
     LogPrint("file", "%s - FILES. Process mark remove files scheduler finish.\n", __func__);
 }
 
+bool CFileRepositoryManager::handleEmptySrcFile(FileRepositoryBlockSyncState &syncState, const CFileRepositoryBlockDiskPos &srcFilePos) {
+    LogPrint("file", "%s - FILES. Repository block file is empty. Remove file from disk. Filenumber: %d", __func__, srcFilePos.nBlockFileIndex);
+
+    if (!RemoveFileRepositoryBlockFromDisk(srcFilePos.nBlockFileIndex, false)) {
+        LogPrint("file", "%s - FILES. Failed to remove file block at disk. repository block file number: %d", __func__, srcFilePos.nBlockFileIndex);
+        return false;
+    }
+
+    if (!pblockfiletree->EraseFileRepositoryBlockInfo(srcFilePos.nBlockFileIndex)) {
+        LogPrint("file", "%s - FILES. Failed to remove file block info at disk. repository block file number: %d", __func__, srcFilePos.nBlockFileIndex);
+        return false;
+    }
+
+    //update sync state after remove original file
+    if (syncState.nProcessedSourceBlocks != srcFilePos.nBlockFileIndex) {
+        syncState.nProcessedSourceBlocks = srcFilePos.nBlockFileIndex;
+
+        if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
+            LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after remove original.\n", __func__);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void CFileRepositoryManager::ShrinkRecycledFiles() {
     LogPrint("file", "%s - FILES. Process diskfile erase scheduler. FileRepositoryState: %s\n", __func__, dbFileRepositoryState.ToString());
 
@@ -8777,8 +8804,10 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     LOCK(cs_main);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
 
-    //todo: sync true - log and return
+    //set to zero
+    dbFileRepositoryState.SetNull();
 
+    //todo: PDG 5 sync true - log and return
     boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
 
     CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
@@ -8863,9 +8892,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
         if (file.removed) {
             LogPrint("file", "%s - FILES. File mark as removed, don't rewrite at new diskfile. Removed file hash: s%\n", __func__, fileHash.ToString());
             srcBlockInfo.SubtractFile(nRepositoryFileSize);
-            //dbFileRepositoryState.SubtractFile(nRepositoryFileSize);
-
-
 
             CFileRepositoryBlockDiskPos testDbFilePos;
             if (!pblockfiletree->ReadFileIndex(fileHash, testDbFilePos)) {
@@ -8878,23 +8904,9 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
                 return;
             }
 
-            if (srcBlockInfo.IsBlockFileEmpty()) {
-                LogPrint("file", "%s - FILES. Repository block file is empty. Remove file from disk. Filenumber: %d", __func__, srcFilePos.nBlockFileIndex);
-
-                if (!RemoveFileRepositoryBlockFromDisk(srcFilePos.nBlockFileIndex, false)) {
-                    LogPrint("file", "%s - FILES. Failed to remove file block at disk. repository block file number: %d", __func__, srcFilePos.nBlockFileIndex);
-                    return;
-                }
-
-                //update sync state after remove original file
-                if (syncState.nProcessedSourceBlocks != srcFilePos.nBlockFileIndex) {
-                    syncState.nProcessedSourceBlocks = srcFilePos.nBlockFileIndex;
-
-                    if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
-                        LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after remove original.\n", __func__);
-                        return;
-                    }
-                }
+            if (srcBlockInfo.IsBlockFileEmpty() && !handleEmptySrcFile(syncState, srcFilePos)) {
+                LogPrint("file", "%s : Failed to handle empty src file. nFile: %d", __func__, srcFilePos.nBlockFileIndex);
+                return;
             }
 
             continue;
@@ -8916,6 +8928,15 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
         // save new file index at DB
         if (!pblockfiletree->WriteFileIndex(fileHash, newPosAtTempFile)) {
             LogPrint("file", "%s - FILES. Failed to write file index fileHash - %s", __func__, fileHash.ToString());
+            return;
+        }
+
+        dbFileRepositoryState.AddFile(nRepositoryFileSize);
+
+        //TODO: PDG 5.
+        srcBlockInfo.SubtractFile(nRepositoryFileSize);
+        if (srcBlockInfo.IsBlockFileEmpty() && !handleEmptySrcFile(syncState, srcFilePos)) {
+            LogPrint("file", "%s : Failed to handle empty src file. nFile: %d", __func__, srcFilePos.nBlockFileIndex);
             return;
         }
 
@@ -8951,8 +8972,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
         }
     }
 
-    //set to zero
-    dbFileRepositoryState.SetNull();
     vFileRepositoryBlockInfo = vNewTempFileRepositoryBlockInfo;
     nLastFileRepositoryBlock = nNewRepositoryBlockIndex;
     if (!SaveFileRepositoryState(vNewTempFileRepositoryBlockInfo, nNewRepositoryBlockIndex)) {

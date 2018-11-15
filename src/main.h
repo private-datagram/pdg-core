@@ -416,7 +416,7 @@ public:
     void SubtractFile(unsigned int nBytesSize)
     {
         if (nFilesCount == 0 || nBlockSize < nBytesSize) {
-            LogPrint("file", "%s - FILES. ERROR - remove file error. Number files:%d, bytes size total: %d, remove bytes:%d\n",
+            LogPrint("file", "%s - FILES. FILES. ERROR. Meta data blockfile info not valid:%d, bytes size total: %d, remove bytes:%d\n",
                     __func__,
                     nFilesCount,
                     nBlockSize,
@@ -1132,6 +1132,8 @@ public:
     bool LoadFileRepositoryState();
 
     bool GetFile(const uint256& fileHash, CDBFile& fileOut);
+
+    bool handleEmptySrcFile(FileRepositoryBlockSyncState &syncState, const CFileRepositoryBlockDiskPos &srcFilePos);
 
     void FlushBlockFiles();
 

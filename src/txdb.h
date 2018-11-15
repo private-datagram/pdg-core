@@ -93,6 +93,7 @@ public:
 
     bool ReadFileRepositoryBlockInfo(int nFile, CFileRepositoryBlockInfo& fileinfo);
     bool WriteFileRepositoryBlockInfo(int nFile, const CFileRepositoryBlockInfo& fileinfo);
+    bool EraseFileRepositoryBlockInfo(const int &nFile);
 
     bool WriteRequiredFiles(const map<uint256, RequiredFile>& requiredFilesMap);
     bool ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap);

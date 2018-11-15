@@ -123,6 +123,11 @@ bool CBlockFileTreeDB::WriteFileRepositoryBlockInfo(int nFile, const CFileReposi
     return Write(make_pair('k', nFile), fileinfo);
 }
 
+bool CBlockFileTreeDB::EraseFileRepositoryBlockInfo(const int &nFile)
+{
+    return Erase(make_pair('k', nFile));
+}
+
 bool CBlockFileTreeDB::WriteRequiredFiles(const std::map<uint256, RequiredFile> &requiredFilesMap)
 {
     vector<pair<uint256, RequiredFile>> flatData;
