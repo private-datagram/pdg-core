@@ -28,7 +28,7 @@ CAmount CFeeRate::GetFee(size_t nSize) const
 
 std::string CFeeRate::ToString() const
 {
-    return strprintf("%d.%08d PIV/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
+    return strprintf("%d.%08d PDG/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
 }
 
 
@@ -52,5 +52,5 @@ CAmount CFileFeeRate::GetFee(size_t nSize, uint32_t nDays) const
 
 std::string CFileFeeRate::ToString() const
 {
-    return strprintf("%d.%08d PIV/kB/month", nSatoshisPerKPerM / COIN, nSatoshisPerKPerM % COIN);
+    return strprintf("%d.%08d PDG/kB/month", nSatoshisPerKPerM / COIN, nSatoshisPerKPerM % COIN);
 }

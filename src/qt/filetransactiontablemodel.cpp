@@ -371,9 +371,9 @@ QString FileTransactionTableModel::formatTxToAddress(const TransactionRecord* wt
             return QString::fromStdString(wtx->address) + watchAddress;
         case TransactionRecord::ZerocoinMint:
         case TransactionRecord::ZerocoinSpend_Change_zPiv:
-            return tr("Anonymous (zPIV Transaction)");
+            return tr("Anonymous (zPDG Transaction)");
         case TransactionRecord::StakeZPIV:
-            return tr("Anonymous (zPIV Stake)");
+            return tr("Anonymous (zPDG Stake)");
         case TransactionRecord::SendToSelf:
         default:
             return tr("(n/a)") + watchAddress;

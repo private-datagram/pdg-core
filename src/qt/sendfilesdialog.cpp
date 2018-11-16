@@ -153,7 +153,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
         address.append("</span>");
 
         formatted.append(tr("Filename") + ": " + fileInfo.fileName() + "<br />");
-        formatted.append(tr("File price") + ": " + BitcoinUnits::formatHtmlWithUnit(BitcoinUnits::PIV, ui->priceField->value()) + "<br />");
+        formatted.append(tr("File price") + ": " + BitcoinUnits::formatHtmlWithUnit(BitcoinUnits::PDG, ui->priceField->value()) + "<br />");
     }
 
     fNewRecipientAllowed = false;
@@ -513,7 +513,7 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
     CBitcoinAddress paymentAddress(CKeyID(paymentRequest->paymentAddress));
 
     if (!paymentAddress.IsValid()) {
-        QMessageBox::critical(this, tr("Send File"), tr("Invalid PIVX address"), QMessageBox::Ok, QMessageBox::Ok);
+        QMessageBox::critical(this, tr("Send File"), tr("Invalid PDG address"), QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
@@ -556,7 +556,7 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
     amount.append("</b> ").append(strFunds);
 
     infoElement.append(tr("File description") + ": " + QString::fromStdString(paymentRequest->sComment) + "<br />");
-    infoElement.append(tr("File price") + ": " + BitcoinUnits::formatHtmlWithUnit(BitcoinUnits::PIV, paymentRequest->nPrice) + "<br />");
+    infoElement.append(tr("File price") + ": " + BitcoinUnits::formatHtmlWithUnit(BitcoinUnits::PDG, paymentRequest->nPrice) + "<br />");
     infoElement.append(tr("File size") + ": " + BitcoinUnits::formatBytes(paymentRequest->nFileSize) + "<br />");
     infoElement.append(tr("Storage period") + ": " + QString::number(nStorageDays) + " day(s)" + "<br />");
     formatted.append(infoElement);

@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PIVX_STAKEINPUT_H
-#define PIVX_STAKEINPUT_H
+#ifndef PDG_STAKEINPUT_H
+#define PDG_STAKEINPUT_H
 
 class CKeyStore;
 class CWallet;
@@ -29,7 +29,7 @@ public:
 
 // zPIVStake can take two forms
 // 1) the stake candidate, which is a zcmint that is attempted to be staked
-// 2) a staked zpiv, which is a zcspend that has successfully staked
+// 2) a staked zpdg, which is a zcspend that has successfully staked
 class CZPivStake : public CStakeInput
 {
 private:
@@ -87,4 +87,4 @@ public:
 };
 
 
-#endif //PIVX_STAKEINPUT_H
+#endif //PDG_STAKEINPUT_H

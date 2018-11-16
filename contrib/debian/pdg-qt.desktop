@@ -1,0 +1,12 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=PDG
+Comment=PDG P2P Cryptocurrency
+Comment[fr]=PDG, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=PDG, eşten eşe kriptografik sanal para birimi
+Exec=pdg-qt %u
+Terminal=false
+Type=Application
+Icon=pdg128
+MimeType=x-scheme-handler/pdg;
+Categories=Office;Finance;

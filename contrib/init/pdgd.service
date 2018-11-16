@@ -1,0 +1,26 @@
+[Unit]
+Description=PDG's distributed currency daemon
+After=network.target
+
+[Service]
+User=pdg
+Group=pdg
+
+Type=forking
+PIDFile=/var/lib/pdgd/pdgd.pid
+
+ExecStart=/usr/bin/pdgd -daemon -pid=/var/lib/pdgd/pdgd.pid \
+          -conf=/etc/pdg/pdg.conf -datadir=/var/lib/pdgd
+
+ExecStop=-/usr/bin/pdg-cli -conf=/etc/pdg/pdg.conf \
+         -datadir=/var/lib/pdgd stop
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

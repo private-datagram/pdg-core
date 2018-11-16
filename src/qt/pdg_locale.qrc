@@ -1,0 +1,35 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/translations">
+        <file alias="bg">locale/pdg_bg.qm</file>
+        <file alias="ca">locale/pdg_ca.qm</file>
+        <file alias="cs">locale/pdg_cs.qm</file>
+        <file alias="da">locale/pdg_da.qm</file>
+        <file alias="de">locale/pdg_de.qm</file>
+        <file alias="en">locale/pdg_en.qm</file>
+        <file alias="en_US">locale/pdg_en_US.qm</file>
+        <file alias="es">locale/pdg_es.qm</file>
+        <file alias="es_ES">locale/pdg_es_ES.qm</file>
+        <file alias="fi">locale/pdg_fi.qm</file>
+        <file alias="fr_FR">locale/pdg_fr_FR.qm</file>
+        <file alias="hi_IN">locale/pdg_hi_IN.qm</file>
+        <file alias="hr">locale/pdg_hr.qm</file>
+        <file alias="hr_HR">locale/pdg_hr_HR.qm</file>
+        <file alias="it">locale/pdg_it.qm</file>
+        <file alias="ja">locale/pdg_ja.qm</file>
+        <file alias="ko_KR">locale/pdg_ko_KR.qm</file>
+        <file alias="lt_LT">locale/pdg_lt_LT.qm</file>
+        <file alias="nl">locale/pdg_nl.qm</file>
+        <file alias="pl">locale/pdg_pl.qm</file>
+        <file alias="pt">locale/pdg_pt.qm</file>
+        <file alias="pt_BR">locale/pdg_pt_BR.qm</file>
+        <file alias="ro_RO">locale/pdg_ro_RO.qm</file>
+        <file alias="ru">locale/pdg_ru.qm</file>
+        <file alias="sk">locale/pdg_sk.qm</file>
+        <file alias="sv">locale/pdg_sv.qm</file>
+        <file alias="tr">locale/pdg_tr.qm</file>
+        <file alias="uk">locale/pdg_uk.qm</file>
+        <file alias="vi">locale/pdg_vi.qm</file>
+        <file alias="zh_CN">locale/pdg_zh_CN.qm</file>
+        <file alias="zh_TW">locale/pdg_zh_TW.qm</file>
+    </qresource>
+</RCC>
