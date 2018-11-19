@@ -4690,11 +4690,10 @@ bool IsFileExist(const uint256& fileHash) {
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
-//    TODO: PDG 5 enable after debug
-//    if (!fMasterNode || !pwalletMain->IsMine(tx)) {
-//        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
-//        return false;
-//    }
+    if (!fMasterNode || !pwalletMain->IsMine(tx)) {
+        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
+        return false;
+    }
 
     if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime())) {
         LogPrint("file", "%s - FILES. File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
@@ -7715,7 +7714,7 @@ void RemoveHasFileRequestsByHash(const uint256 &hash) {
     fileRepositoryManager.FindAndRecycleExpiredFiles();
 }*/
 
-static int fillTestDataFlag = 0;
+static int fillTestDataFlag = 1;
 void ProcessMarkRemoveFilesScheduler() {
     if (fillTestDataFlag == 0) {
        fileRepositoryManager.FillTestData();
@@ -8683,12 +8682,11 @@ void CFileRepositoryManager::FillTestData() {
 }
 
 void CFileRepositoryManager::FindAndRecycleExpiredFiles() {
+    LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
+
     LOCK(cs_main);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
 
-    //TODO: PDG 5 add check is this masternode. not run on node.(net.cpp)
-
-    LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
     boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
 
     CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
@@ -8749,13 +8747,6 @@ void CFileRepositoryManager::FindAndRecycleExpiredFiles() {
             pcursor->Next();
         } catch (std::exception& e) {
             LogPrint("%s : Deserialize or I/O error - %s", __func__, e.what());
-
-
-                //todo: обработать тут конец курсора(посмотреть это в блоке.)
-            // Deserialize or I/O error - CDataStream::read() : end of data: iostream errorasking peer for sporks
-
-            LogPrint("file", "%s : Deserialize or I/O error - %s", __func__, e.what());
-            //if ()
             return;
         }
     }
@@ -8940,16 +8931,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
             return;
         }
 
-        //any file be transfer
-        //удалить IsHasTransfer из finishSync и из самого стейта
-//        if (!syncState.IsHasTransfer) {
-//            syncState.IsHasTransfer = true;
-//            if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
-//                LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after add new file.\n", __func__);
-//                return;
-//            }
-//        }
-
         //update sync state after add new temp file
         if (syncState.nProcessedTempBlocks != newPosAtTempFile.nBlockFileIndex) {
             LogPrint("file", "%s: Update sync state after add new temp repository file.\n", __func__);
@@ -8966,9 +8947,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
                 LogPrint("file", "%s - FILES. Filed to write repository block synchronization state after create new temp file.\n", __func__);
                 return;
             }
-
-            //todo: check increment at allocate method
-            //++nNewRepositoryBlockIndex;
         }
     }
 
@@ -8987,7 +8965,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
             return;
         }
     }
-
 
     //sync is over
     syncState.SetNull();
