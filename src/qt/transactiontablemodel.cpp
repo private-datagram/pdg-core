@@ -351,9 +351,9 @@ QString TransactionTableModel::formatTxType(const TransactionRecord* wtx) const
     case TransactionRecord::SendToSelf:
         return tr("Payment to yourself");
     case TransactionRecord::StakeMint:
-        return tr("PIV Stake");
+        return tr("PDG Stake");
     case TransactionRecord::StakeZPIV:
-        return tr("zPIV Stake");
+        return tr("zPDG Stake");
     case TransactionRecord::Generated:
         return tr("Mined");
     case TransactionRecord::ObfuscationDenominate:
@@ -367,15 +367,15 @@ QString TransactionTableModel::formatTxType(const TransactionRecord* wtx) const
     case TransactionRecord::Obfuscated:
         return tr("Obfuscated");
     case TransactionRecord::ZerocoinMint:
-        return tr("Converted PIV to zPIV");
+        return tr("Converted PDG to zPDG");
     case TransactionRecord::ZerocoinSpend:
-        return tr("Spent zPIV");
+        return tr("Spent zPDG");
     case TransactionRecord::RecvFromZerocoinSpend:
-        return tr("Received PIV from zPIV");
+        return tr("Received PDG from zPDG");
     case TransactionRecord::ZerocoinSpend_Change_zPiv:
-        return tr("Minted Change as zPIV from zPIV Spend");
+        return tr("Minted Change as zPDG from zPDG Spend");
     case TransactionRecord::ZerocoinSpend_FromMe:
-        return tr("Converted zPIV to PIV");
+        return tr("Converted zPDG to PDG");
     case TransactionRecord::RecvFilePaymentRequest:
         return tr("File payment request");
     case TransactionRecord::RecvFilePaymentConfirm:
@@ -405,14 +405,14 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord* wtx
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::RecvFromOther:
     case TransactionRecord::RecvFromZerocoinSpend:
-    case TransactionRecord::RecvFilePaymentRequest: // TODO: change icons
+    case TransactionRecord::RecvFilePaymentRequest: // TODO: PDG3 change icons
     case TransactionRecord::RecvFilePaymentConfirm:
     case TransactionRecord::RecvFileTransfer:
         return QIcon(":/icons/tx_input");
     case TransactionRecord::SendToAddress:
     case TransactionRecord::SendToOther:
     case TransactionRecord::ZerocoinSpend:
-    case TransactionRecord::SendFilePaymentRequest: // TODO: change icons
+    case TransactionRecord::SendFilePaymentRequest: // TODO: PDG3 change icons
     case TransactionRecord::SendFilePaymentConfirm:
     case TransactionRecord::SendFileTransfer:
         return QIcon(":/icons/tx_output");
@@ -454,9 +454,9 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord* wtx, b
         return QString::fromStdString(wtx->address) + watchAddress;
     case TransactionRecord::ZerocoinMint:
     case TransactionRecord::ZerocoinSpend_Change_zPiv:
-        return tr("Anonymous (zPIV Transaction)");
+        return tr("Anonymous (zPDG Transaction)");
     case TransactionRecord::StakeZPIV:
-        return tr("Anonymous (zPIV Stake)");
+        return tr("Anonymous (zPDG Stake)");
     case TransactionRecord::SendToSelf:
     default:
         return tr("(n/a)") + watchAddress;

@@ -14,6 +14,8 @@
 #include "wallet.h"
 
 #include <stdint.h>
+#include <QObject>
+#include <QTranslator>
 
 /* Return positive answer if transaction should be shown in list.
  */
@@ -58,7 +60,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             return parts;
 
         if (wtx.IsZerocoinSpend() && (fZSpendFromMe || wallet->zpivTracker->HasMintTx(hash))) {
-            //zPIV stake reward
+            //zPDG stake reward
             sub.involvesWatchAddress = false;
             sub.type = TransactionRecord::StakeZPIV;
             sub.address = mapValue["zerocoinmint"];
@@ -69,7 +71,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             }
             sub.debit -= wtx.vin[0].nSequence * COIN;
         } else if (isminetype mine = wallet->IsMine(wtx.vout[1])) {
-            // PIV stake reward
+            // PDG stake reward
             sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
             sub.type = TransactionRecord::StakeMint;
             sub.address = CBitcoinAddress(address).ToString();
@@ -160,7 +162,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             sub.idx = parts.size();
             parts.append(sub);
         }
-    } else if (nNet > 0 || wtx.IsCoinBase() || (nNet == 0 && ((CMerkleTx*)&wtx)->type == TX_FILE_TRANSFER)) { // TODO: make beautiful
+    } else if (nNet > 0 || wtx.IsCoinBase() || (nNet == 0 && ((((CMerkleTx*)&wtx)->type == TX_FILE_TRANSFER) || ((CMerkleTx*)&wtx)->type == TX_FILE_PAYMENT_REQUEST))) { // TODO: find better solution
         //
         // Credit
         //
@@ -176,7 +178,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                 sub.credit = txout.nValue;
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                 if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address)) {
-                    // Received by PIVX Address
+                    // Received by PDG Address
                     switch (wtx.type) {
                         case TX_FILE_PAYMENT_REQUEST:
                             sub.type = TransactionRecord::RecvFilePaymentRequest;
@@ -255,7 +257,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                 sub.type = TransactionRecord::Obfuscated;
                 CTxDestination address;
                 if (ExtractDestination(wtx.vout[0].scriptPubKey, address)) {
-                    // Sent to PIVX Address
+                    // Sent to PDG Address
                     sub.address = CBitcoinAddress(address).ToString();
                 } else {
                     // Sent to IP, or other non-address transaction like OP_EVAL
@@ -305,7 +307,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
                     //private keys that the change was sent to. Do not display a "sent to" here.
                     if (wtx.IsZerocoinMint())
                         continue;
-                    // Sent to PIVX Address
+                    // Sent to PDG Address
                     switch (wtx.type) {
                         case TX_FILE_PAYMENT_REQUEST:
                             sub.type = TransactionRecord::SendFilePaymentRequest;
@@ -459,5 +461,35 @@ int TransactionRecord::getOutputIndex() const
 }
 
 void TransactionRecord::initFile(TransactionRecord& sub, const CWalletTx& wtx) {
-    // TODO: make fill meta information
+    if (wtx.type == TX_FILE_PAYMENT_REQUEST) {
+        const CPaymentRequest &paymentRequest = wtx.meta.get<CPaymentRequest>();
+        sub.fileDescription = paymentRequest.sComment;
+        sub.fileSize = paymentRequest.nFileSize;
+        sub.filePrice = paymentRequest.nPrice;
+    }
+
+    // TODO: PDG3 optimize
+    if (wtx.type == TX_FILE_TRANSFER) {
+        const CFileMeta &fileMeta = wtx.meta.get<CFileMeta>();
+        if (!pwalletMain->mapWallet.count(fileMeta.confirmTxId)) {
+            sub.fileDescription = QObject::tr("[Info not available]").toStdString();
+            return;
+        }
+
+        const CWalletTx &paymentConfirmTx = pwalletMain->mapWallet[fileMeta.confirmTxId];
+        const CPaymentConfirm &paymentConfirm = paymentConfirmTx.meta.get<CPaymentConfirm>();
+
+        if (!pwalletMain->mapWallet.count(paymentConfirm.requestTxid)) {
+            sub.fileDescription = QObject::tr("[Info not available]").toStdString();
+            return;
+        }
+
+        const CWalletTx &paymentRequestTx = pwalletMain->mapWallet[paymentConfirm.requestTxid];
+        const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
+
+        sub.fileDescription = paymentRequest.sComment;
+        sub.fileSize = paymentRequest.nFileSize;
+        sub.filePrice = paymentRequest.nPrice;
+    }
+
 }

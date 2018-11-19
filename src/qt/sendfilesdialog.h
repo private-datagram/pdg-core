@@ -3,6 +3,10 @@
 
 #include "walletmodel.h"
 
+#include "guiutil.h"
+#include "filetransactiontablemodel.h"
+#include "paymenttransactiontablemodel.h"
+
 #include <QDialog>
 #include <QString>
 
@@ -25,6 +29,15 @@ class SendFilesDialog : public QDialog
     Q_OBJECT
 
 public:
+    enum ColumnWidths {
+        STATUS_COLUMN_WIDTH = 23,
+        DATE_COLUMN_WIDTH = 120,
+        DESCRIPTION_COLUMN_WIDTH = 380,
+        ADDRESS_COLUMN_WIDTH = 380,
+        PRICE_MINIMUM_COLUMN_WIDTH = 120,
+        MINIMUM_COLUMN_WIDTH = 23
+    };
+
     explicit SendFilesDialog(QWidget *parent = 0);
     ~SendFilesDialog();
 
@@ -34,6 +47,7 @@ public:
     void setModel(WalletModel* model);
     void setAddress(const QString &address);
     void initFileHistory();
+    void resize();
 
 public slots:
     void clear();
@@ -47,6 +61,10 @@ private:
     bool fNewRecipientAllowed;
     SendCoinsRecipient recipient;
     TransactionFilterProxy* filter;
+    TransactionFilterProxy* paymentRequestsFilter;
+    GUIUtil::TableViewLastColumnResizingFixer* fileColumnResizingFixer;
+    GUIUtil::TableViewLastColumnResizingFixer* paymentColumnResizingFixer;
+    PaymentTransactionTableModel *paymentTransactionTableModel;
     //todo:
     // Process WalletModel::SendCoinsReturn and generate a pair consisting
     // of a message and message flags for use in emit message().
@@ -54,6 +72,8 @@ private:
     void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString(), bool fPrepare = false);
     bool readFile(const string &filename, vector<char> &vchFile) const;
     bool saveFileMeta(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const;
+    void saveFileFromTx(const uint256 &txHash);
+    virtual void resizeEvent(QResizeEvent* event);
 
 signals:
     // Fired when a message should be reported to the user
@@ -63,7 +83,8 @@ private slots:
     void on_uploadFile_clicked();
     void on_sendFileToAddressButton_clicked();
     void coinControlUpdateLabels();
-    void on_listTransactions_doubleClicked(const QModelIndex &index);
+    void on_tableFileTransactions_doubleClicked(const QModelIndex &index);
+    void on_tablePaymentRequests_doubleClicked(const QModelIndex &index);
 };
 
 #endif // SENDFILESDIALOG_H

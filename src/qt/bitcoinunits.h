@@ -43,7 +43,7 @@
 #define THIN_SP_UTF8 REAL_THIN_SP_UTF8
 #define THIN_SP_HTML HTML_HACK_SP
 
-/** PIVX unit definitions. Encapsulates parsing and formatting
+/** PDG unit definitions. Encapsulates parsing and formatting
    and serves as list model for drop-down selection boxes.
 */
 class BitcoinUnits : public QAbstractListModel
@@ -53,13 +53,13 @@ class BitcoinUnits : public QAbstractListModel
 public:
     explicit BitcoinUnits(QObject* parent);
 
-    /** PIVX units.
+    /** PDG units.
       @note Source: https://en.bitcoin.it/wiki/Units . Please add only sensible ones
      */
     enum Unit {
-        PIV,
-        mPIV,
-        uPIV
+        PDG,
+        mPDG,
+        uPDG
     };
 
     enum SeparatorStyle {
@@ -99,6 +99,8 @@ public:
     static bool parse(int unit, const QString& value, CAmount* val_out);
     //! Gets title for amount column including current display unit if optionsModel reference available */
     static QString getAmountColumnTitle(int unit);
+    //! Format size to human format
+    static QString formatBytes(uint64_t bytes);
     ///@}
 
     //! @name AbstractListModel implementation

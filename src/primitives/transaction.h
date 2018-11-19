@@ -249,6 +249,7 @@ public:
 
     std::string sComment;
     CAmount nPrice;
+    uint64_t nFileSize;
     uint160 paymentAddress;
     // TODO: don't forget about hash, think about security
     // TODO: add expiration time
@@ -261,6 +262,7 @@ public:
 
         READWRITE(sComment);
         READWRITE(nPrice);
+        READWRITE(nFileSize);
         READWRITE(paymentAddress);
     }
 

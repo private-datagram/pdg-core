@@ -102,10 +102,10 @@ TransactionView::TransactionView(QWidget* parent) : QWidget(parent), model(0), t
     typeWidget->addItem(tr("Mined"), TransactionFilterProxy::TYPE(TransactionRecord::Generated));
     typeWidget->addItem(tr("Minted"), TransactionFilterProxy::TYPE(TransactionRecord::StakeMint) | TransactionFilterProxy::TYPE(TransactionRecord::StakeZPIV));
     typeWidget->addItem(tr("Masternode Reward"), TransactionFilterProxy::TYPE(TransactionRecord::MNReward));
-    typeWidget->addItem(tr("Received PIV from zPIV"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFromZerocoinSpend));
+    typeWidget->addItem(tr("Received PDG from zPDG"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFromZerocoinSpend));
     typeWidget->addItem(tr("Zerocoin Mint"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinMint));
     typeWidget->addItem(tr("Zerocoin Spend"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend));
-    typeWidget->addItem(tr("Zerocoin Spend, Change in zPIV"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend_Change_zPiv));
+    typeWidget->addItem(tr("Zerocoin Spend, Change in zPDG"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend_Change_zPiv));
     typeWidget->addItem(tr("Zerocoin Spend to Self"), TransactionFilterProxy::TYPE(TransactionRecord::ZerocoinSpend_FromMe));
     typeWidget->addItem(tr("File payment"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm) | TransactionFilterProxy::TYPE(TransactionRecord::SendFilePaymentRequest) | TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentConfirm));
     typeWidget->addItem(tr("File transfer"), TransactionFilterProxy::TYPE(TransactionRecord::RecvFileTransfer) | TransactionFilterProxy::TYPE(TransactionRecord::SendFileTransfer));

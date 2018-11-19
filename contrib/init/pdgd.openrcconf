@@ -1,0 +1,26 @@
+# /etc/conf.d/pdgd: config file for /etc/init.d/pdgd
+
+# Config file location
+#BITCOIND_CONFIGFILE="/etc/pdg/pdg.conf"
+
+# What directory to write pidfile to?  (created and owned by $BITCOIND_USER)
+#BITCOIND_PIDDIR="/var/run/pdgd"
+
+# What filename to give the pidfile
+#BITCOIND_PIDFILE="${BITCOIND_PIDDIR}/pdgd.pid"
+
+# Where to write pdgd data (be mindful that the blockchain is large)
+#BITCOIND_DATADIR="/var/lib/pdgd"
+
+# User and group to own pdgd process
+#BITCOIND_USER="pdg"
+#BITCOIND_GROUP="pdg"
+
+# Path to pdgd executable
+#BITCOIND_BIN="/usr/bin/pdgd"
+
+# Nice value to run pdgd under
+#BITCOIND_NICE=0
+
+# Additional options (avoid -conf and -datadir, use flags above)
+BITCOIND_OPTS=""

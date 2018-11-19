@@ -278,6 +278,14 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         return AnonymizeOnlyUnlocked;
     }
 
+    if (transaction.getMeta().IsInstanceOf<CPaymentRequest>()) {
+        transaction.getTransaction()->type = TX_FILE_PAYMENT_REQUEST;
+    } else if (transaction.getMeta().IsInstanceOf<CPaymentConfirm>()) {
+        transaction.getTransaction()->type = TX_FILE_PAYMENT_CONFIRM;
+    } else {
+        transaction.getTransaction()->type = TX_PAYMENT;
+    }
+
     QSet<QString> setAddress; // Used to detect duplicates
     int nAddresses = 0;
 
@@ -294,15 +302,15 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
                 CScript scriptPubKey(scriptStr, scriptStr + out.script().size());
                 vecSend.push_back(std::pair<CScript, CAmount>(scriptPubKey, out.amount()));
             }
-            if (subtotal <= 0) {
+            if (subtotal <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST) { // TODO: find better solution
                 return InvalidAmount;
             }
             total += subtotal;
-        } else { // User-entered pivx address / amount:
+        } else { // User-entered pdg address / amount:
             if (!validateAddress(rcp.address)) {
                 return InvalidAddress;
             }
-            if (rcp.amount <= 0) {
+            if (rcp.amount <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST) { // TODO: find better solution
                 return InvalidAmount;
             }
             setAddress.insert(rcp.address);
@@ -335,20 +343,10 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
 
         PtrContainer<CTransactionMeta>* meta = &transaction.getMeta();
-        if (meta->IsInstanceOf<CPaymentRequest>()) {
-            newTx->type = TX_FILE_PAYMENT_REQUEST;
-        } else if (meta->IsInstanceOf<CPaymentConfirm>()) {
-            newTx->type = TX_FILE_PAYMENT_CONFIRM;
-        } /*else if (meta->IsInstanceOf<CFileMeta>()) {
-            newTx->type = TX_FILE_TRANSFER;
-            newTx->vchFile = recipients[0].vchFile; // TODO: refactor
-        }*/ else {
-            newTx->type = TX_PAYMENT;
-        }
         newTx->meta = *meta;
 
         if (recipients[0].useSwiftTX && total > GetSporkValue(SPORK_5_MAX_VALUE) * COIN) {
-            emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PIV.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),
+            emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PDG.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),
                 CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
@@ -357,7 +355,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         transaction.setTransactionFee(nFeeRequired);
 
         if (recipients[0].useSwiftTX && newTx->GetValueOut() > GetSporkValue(SPORK_5_MAX_VALUE) * COIN) {
-            emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PIV.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),
+            emit message(tr("Send Coins"), tr("SwiftX doesn't support sending values that high yet. Transactions are currently limited to %1 PDG.").arg(GetSporkValue(SPORK_5_MAX_VALUE)),
                 CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
@@ -399,7 +397,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
                 std::string value;
                 rcp.paymentRequest.SerializeToString(&value);
                 newTx->vOrderForm.push_back(make_pair(key, value));
-            } else if (!rcp.message.isEmpty()) // Message from normal pivx:URI (pivx:XyZ...?message=example)
+            } else if (!rcp.message.isEmpty()) // Message from normal pdg:URI (pdg:XyZ...?message=example)
             {
                 newTx->vOrderForm.push_back(make_pair("Message", rcp.message.toStdString()));
             }
