@@ -81,6 +81,7 @@ signals:
 
 private slots:
     void on_uploadFile_clicked();
+    void on_clearButton_clicked();
     void on_sendFileToAddressButton_clicked();
     void coinControlUpdateLabels();
     void on_tableFileTransactions_doubleClicked(const QModelIndex &index);

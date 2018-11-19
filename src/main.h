@@ -123,7 +123,7 @@ static const int64_t FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
 static const unsigned int MAX_FILE_SEND_COUNT = 5;
 
 /* Max file at node send size buffer */
-static const unsigned int MAX_FILE_SIZE = 10 * 1000 * 1000;
+static const unsigned int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 
 /** Required file expiration date. Timeout in micros. 0.5 hour */

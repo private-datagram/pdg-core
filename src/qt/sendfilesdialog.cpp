@@ -41,6 +41,9 @@ SendFilesDialog::SendFilesDialog(QWidget *parent) : QDialog(parent),
     ui(new Ui::SendFilesDialog)
 {
     ui->setupUi(this);
+
+    // normal pdg address field
+    GUIUtil::setupAddressWidget(ui->addressField, this);
 }
 
 SendFilesDialog::~SendFilesDialog()
@@ -85,6 +88,10 @@ void SendFilesDialog::on_uploadFile_clicked()
 
     //set text at field
     ui->fileNameField->setText(filename);
+}
+
+void SendFilesDialog::on_clearButton_clicked() {
+    clear();
 }
 
 void SendFilesDialog::on_sendFileToAddressButton_clicked()
