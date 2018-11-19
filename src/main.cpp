@@ -6465,7 +6465,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             CTransaction tx;
                             uint256 blockHash;
                             // TODO: PDG 2 refactor
-                            if (!GetTransaction(fileTxHash, tx, blockHash, true)) { // TODO: optimize, make caching
+                            if (!GetTransaction(fileTxHash, tx, blockHash, true) && fMasterNode) { // TODO: optimize, make caching
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
                                 vector<FileRequest> vnewFileRequests;
                                 vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
@@ -6484,7 +6484,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                     Misbehaving(pfrom->GetId(), 5);
                                 } else
-                                if (!IsFileExist(tx.vfiles[0].fileHash)) {
+                                if (!IsFileExist(tx.vfiles[0].fileHash) && fMasterNode) {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to requests map.\n", __func__);
                                     vector<FileRequest> vnewFileRequests;
                                     vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
@@ -6932,6 +6932,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 Misbehaving(pfrom->GetId(), 50);
             } else {
                 LogPrint("file", "FILES. File hash OK\n");
+
+                //mark file as ours
+                CTransaction tx;
+                uint256 blockHash;
+                if (GetTransaction(fileTxHash, tx, blockHash, true) && pwalletMain->IsMine(tx)) {
+                    file.isMine = true;
+                }
 
                 if (!SaveFileDB(file)) {
                     LogPrint("file", "FILES. File save to DB error\n");
@@ -8753,7 +8760,7 @@ void CFileRepositoryManager::FindAndRecycleExpiredFiles() {
             }
 
             int64_t now = GetAdjustedTime();
-            if (now > fileHeader.fileExpiredDate) {
+            if (now > fileHeader.fileExpiredDate && !fileHeader.isMine) {
                 fileHeader.removed = true;
                 if (!WriteFileRepositoryBlockToDisk(fileHeader, pos, false)) {
                     LogPrint("file", "%s - FILES. Write updated(removed) file failed.\n", __func__);
@@ -8829,14 +8836,12 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     vNewTempFileRepositoryBlockInfo.resize(1);
     int nNewRepositoryBlockIndex = 0;
 
-
     //create empty temp_blk file
     CFileRepositoryBlockDiskPos newPosTmp(0, 0, 0);
     LogPrint("file", "%s - FILES. Create new empty tmep file\n", __func__);
     FILE* newFileTmp = OpenFileRepositoryBlock(newPosTmp, false, true);
     if (!newFileTmp)
         LogPrint("file", "%s - FILES. Failed create new empty tmep file \n", __func__);
-
 
     map<CFileRepositoryBlockDiskPos, uint8_t> repositoryFileMap;
 

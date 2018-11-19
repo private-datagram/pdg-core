@@ -24,6 +24,9 @@ struct CDBFile
     // Encrypted file hash
     uint256 fileHash;
     uint32_t fileExpiredDate;
+
+    //file is mine
+    bool isMine;
     bool removed;
     // Encrypted file bytes
     std::vector<char> vBytes;
@@ -42,6 +45,7 @@ struct CDBFile
 
         READWRITE(fileHash);
         READWRITE(fileExpiredDate);
+        READWRITE(isMine);
         READWRITE(removed);
         READWRITE(*const_cast<std::vector<char>*>(&vBytes));
     }
@@ -59,6 +63,7 @@ struct CDBFileHeaderOnly
     // Encrypted file hash
     uint256 fileHash;
     uint32_t fileExpiredDate;
+    bool isMine;
     bool removed;
 
     CDBFileHeaderOnly();
@@ -69,6 +74,7 @@ struct CDBFileHeaderOnly
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(fileHash);
         READWRITE(fileExpiredDate);
+        READWRITE(isMine);
         READWRITE(removed);
     }
 

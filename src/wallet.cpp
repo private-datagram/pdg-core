@@ -5472,6 +5472,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     CDBFile dbFile;
     dbFile.vBytes.reserve(encryptedFile.size());
     dbFile.vBytes.assign(encryptedFile.begin(), encryptedFile.end());
+    dbFile.isMine = true;
     dbFile.UpdateFileHash();
     dbFile.fileExpiredDate = GetAdjustedTime() + paymentConfirm->nLifeTime; // TODO: PDG 4 check lifetime and fee before
     encryptedFile.clear();

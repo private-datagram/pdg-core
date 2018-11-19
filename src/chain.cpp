@@ -79,7 +79,7 @@ uint256 CBlockIndex::GetBlockTrust() const
     }
 }
 
-CDBFile::CDBFile() : vBytes(), removed(false) {
+CDBFile::CDBFile() : vBytes(), isMine(false), removed(false) {
     UpdateFileHash();
 }
 
@@ -99,9 +99,10 @@ uint256 CDBFile::UpdateFileHash()
 std::string CDBFile::ToString() const
 {
     std::string str;
-    str += strprintf("DBCFile(hash=%s, lifeTime=%d, removed=%d, vBytes.size=%u)\n",
+    str += strprintf("DBCFile(hash=%s, lifeTime=%d, isMine=%d, removed=%d, vBytes.size=%u)\n",
                      fileHash.ToString(),
                      fileExpiredDate,
+                     isMine,
                      removed,
                      vBytes.size());
     return str;
@@ -110,9 +111,10 @@ std::string CDBFile::ToString() const
 std::string CDBFileHeaderOnly::ToString() const
 {
     std::string str;
-    str += strprintf("DBCFile(hash=%s, lifeTime=%d, removed=%d)\n",
+    str += strprintf("DBCFile(hash=%s, lifeTime=%d, isMine=%d, removed=%d)\n",
                      fileHash.ToString(),
                      fileExpiredDate,
+                     isMine,
                      removed);
     return str;
 }
