@@ -8327,7 +8327,7 @@ bool CFileRepositoryManager::LoadFileDBState() {
 }
 
 bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
-    LogPrint("file"FileRepositoryBlockSyncState syncState, "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d", __func__, vblockFileInfo.size(), lastBlockFileIndex);
+    LogPrint("file", "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d", __func__, vblockFileInfo.size(), lastBlockFileIndex);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
     bool blockChanged = false;
     for (std::vector<CFileRepositoryBlockInfo>::const_iterator it = vblockFileInfo.begin(); it != vblockFileInfo.end(); it++) {
