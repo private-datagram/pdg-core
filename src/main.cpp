@@ -1380,8 +1380,7 @@ bool ContextualCheckZerocoinSpend(const CTransaction& tx, const CoinSpend& spend
 
     //Reject serial's that are not in the acceptable value range
     bool fUseV1Params = spend.getVersion() < libzerocoin::PrivateCoin::PUBKEY_VERSION;
-    if (pindex->nHeight > Params().Zerocoin_Block_EnforceSerialRange() &&
-        !spend.HasValidSerial(Params().Zerocoin_Params(fUseV1Params)))
+    if (!spend.HasValidSerial(Params().Zerocoin_Params(fUseV1Params)))
         return error("%s : zPDG spend with serial %s from tx %s is not in valid range\n", __func__,
                      spend.getCoinSerialNumber().GetHex(), tx.GetHash().GetHex());
 
@@ -1468,7 +1467,7 @@ bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidati
     return fValidated;
 }
 
-bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fRejectBadUTXO, CValidationState& state)
+bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, CValidationState& state)
 {
     // Basic checks that don't depend on any context
     if (tx.vin.empty())
@@ -1628,7 +1627,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
     if (GetAdjustedTime() > GetSporkValue(SPORK_16_ZEROCOIN_MAINTENANCE_MODE) && tx.ContainsZerocoins())
         return state.DoS(10, error("AcceptToMemoryPool : Zerocoin transactions are temporarily disabled for maintenance"), REJECT_INVALID, "bad-tx");
 
-    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), true, state))
+    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), state))
         return state.DoS(100, error("AcceptToMemoryPool: : CheckTransaction failed"), REJECT_INVALID, "bad-tx");
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -1873,7 +1872,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         *pfMissingInputs = false;
 
 
-    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), true, state))
+    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), state))
         return error("AcceptableInputs: : CheckTransaction failed");
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -2226,8 +2225,10 @@ int64_t GetBlockValue(int nHeight)
 
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
-        nSubsidy = 60001 * COIN;
-    } else if (nHeight < 86400 && nHeight > 0) {
+        nSubsidy = 3840000 * COIN;
+    } else if (nHeight < 101 && nHeight > 0) {
+        nSubsidy = 0;
+    } else if (nHeight < 86400 && nHeight >= 101) {
         nSubsidy = 250 * COIN;
     } else if (nHeight < (Params().NetworkID() == CBaseChainParams::TESTNET ? 145000 : 151200) && nHeight >= 86400) {
         nSubsidy = 225 * COIN;
@@ -2503,7 +2504,9 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue, int nMasternodeCou
             return 0;
     }
 
-    if (nHeight <= 43200) {
+    if (nHeight == 0) {
+        ret = 0;
+    } else if (nHeight <= 43200 && nHeight > 0) {
         ret = blockValue / 5;
     } else if (nHeight < 86400 && nHeight > 43200) {
         ret = blockValue / (100 / 30);
@@ -2742,8 +2745,8 @@ void AddInvalidSpendsToMap(const CBlock& block)
 
 bool ValidOutPoint(const COutPoint out, int nHeight)
 {
-    bool isInvalid = nHeight >= Params().Block_Enforce_Invalid() && invalid_out::ContainsOutPoint(out);
-    return !isInvalid;
+    // if you need to check invalid outpoints from list use: invalid_out::ContainsOutPoint(out)
+    return true;
 }
 
 CAmount GetInvalidUTXOValue()
@@ -3147,18 +3150,6 @@ bool RecalculatePIVSupply(int nHeightStart)
         pindex->nMoneySupply = nSupplyPrev + nValueOut - nValueIn;
         nSupplyPrev = pindex->nMoneySupply;
 
-        // Add fraudulent funds to the supply and remove any recovered funds.
-        if (pindex->nHeight == Params().Zerocoin_Block_RecalculateAccumulators()) {
-            LogPrintf("%s : Original money supply=%s\n", __func__, FormatMoney(pindex->nMoneySupply));
-
-            pindex->nMoneySupply += Params().InvalidAmountFiltered();
-            LogPrintf("%s : Adding filtered funds to supply + %s : supply=%s\n", __func__, FormatMoney(Params().InvalidAmountFiltered()), FormatMoney(pindex->nMoneySupply));
-
-            CAmount nLocked = GetInvalidUTXOValue();
-            pindex->nMoneySupply -= nLocked;
-            LogPrintf("%s : Removing locked from supply - %s : supply=%s\n", __func__, FormatMoney(nLocked), FormatMoney(pindex->nMoneySupply));
-        }
-
         assert(pblocktree->WriteBlockIndex(CDiskBlockIndex(pindex)));
 
         if (pindex->nHeight < chainActive.Height())
@@ -3218,7 +3209,7 @@ bool ReindexAccumulators(list<uint256>& listMissingCheckpoints, string& strError
 bool UpdateZPIVSupply(const CBlock& block, CBlockIndex* pindex)
 {
     std::list<CZerocoinMint> listMints;
-    bool fFilterInvalid = pindex->nHeight >= Params().Zerocoin_Block_RecalculateAccumulators();
+    bool fFilterInvalid = true; // PIVX checkpoint cleanup
     BlockToZerocoinMintList(block, listMints, fFilterInvalid);
     std::list<libzerocoin::CoinDenomination> listSpends = ZerocoinSpendListFromBlock(block, fFilterInvalid);
 
@@ -3469,13 +3460,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    //A one-time event where money supply counts were off and recalculated on a certain block.
-    if (pindex->nHeight == Params().Zerocoin_Block_RecalculateAccumulators() + 1) {
-        RecalculateZPIVMinted();
-        RecalculateZPIVSpent();
-        RecalculatePIVSupply(Params().Zerocoin_StartHeight());
-    }
-
     //Track zPDG money supply in the block index
     if (!UpdateZPIVSupply(block, pindex))
         return state.DoS(100, error("%s: Failed to calculate new zPDG supply for block=%s height=%d", __func__,
@@ -3600,10 +3584,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     nTimeCallbacks += nTime4 - nTime3;
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
-    //Continue tracking possible movement of fraudulent funds until they are completely frozen
-    if (pindex->nHeight >= Params().Zerocoin_Block_FirstFraudulent() && pindex->nHeight <= Params().Zerocoin_Block_RecalculateAccumulators() + 1)
-        AddInvalidSpendsToMap(block);
-
     //Remove zerocoinspends from the pending map
     for (const uint256& txid : vSpendsInBlock) {
         auto it = mapZerocoinspends.find(txid);
@@ -3611,7 +3591,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    pwalletMain->ProcessFileContract(&block); // TODO: find best place
+    pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
 
     return true;
 }
@@ -4574,7 +4554,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
     vector<CBigNum> vBlockSerials;
     for (const CTransaction& tx : block.vtx) {
-        if (!CheckTransaction(tx, fZerocoinActive, chainActive.Height() + 1 >= Params().Zerocoin_Block_EnforceSerialRange(), state))
+        if (!CheckTransaction(tx, fZerocoinActive, state))
             return error("CheckBlock() : CheckTransaction failed");
 
         // double check that there are no double spent zPDG spends in this block

@@ -132,7 +132,7 @@ static const int64_t FILE_STALLING_TIMEOUT = 2 * 60 * 1000 * 1000;
 static const unsigned int MAX_FILE_SEND_COUNT = 5;
 
 /* Max file at node send size buffer */
-static const unsigned int MAX_FILE_SIZE = 10 * 1000 * 1000;
+static const unsigned int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 
 /** Required file expiration date. Timeout in micros. 0.5 hour */
@@ -733,7 +733,7 @@ bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsVi
 void UpdateCoins(const CTransaction& tx, CValidationState& state, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight);
 
 /** Context-independent validity checks */
-bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fRejectBadUTXO, CValidationState& state);
+bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, CValidationState& state);
 bool CheckZerocoinMint(const uint256& txHash, const CTxOut& txout, CValidationState& state, bool fCheckOnly = false);
 bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidationState& state);
 bool ContextualCheckZerocoinSpend(const CTransaction& tx, const libzerocoin::CoinSpend& spend, CBlockIndex* pindex);

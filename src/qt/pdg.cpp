@@ -516,18 +516,18 @@ WId BitcoinApplication::getMainWinId() const
 
 //**********************//
 
-// TODO: PDG 5 remove after debug
+// TODO: PDG5 remove after debug
 void CalcHash() {
     printf("CalcHash\n");
 
     CBlock genesis;
-    const char* pszTimestamp = "U.S. News & World Report Jan 28 2016 With His Absence, Trump Dominates Another Debate";
+    const char* pszTimestamp = "14th anniversary of the launch the Swift orbital observatory from Cape Canaveral on November 20, 2004";
     CMutableTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
     txNew.vin[0].scriptSig = CScript() << 486604799 << CScriptNum(4) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-    txNew.vout[0].nValue = 250 * COIN;
-    txNew.vout[0].scriptPubKey = CScript() << ParseHex("04c10e83b2703ccf322f7dbd62dd5855ac7c10bd055814ce121ba32607d573b8810c02c0582aed05b4deb9c4b77b26d92428c61256cd42774babea0a073b2ed0c9") << OP_CHECKSIG;
+    txNew.vout[0].nValue = 1 * COIN;
+    txNew.vout[0].scriptPubKey = CScript() << ParseHex(GetArg("-pubkey", "0x0")) << OP_CHECKSIG; //"04c10e83b2703ccf322f7dbd62dd5855ac7c10bd055814ce121ba32607d573b8810c02c0582aed05b4deb9c4b77b26d92428c61256cd42774babea0a073b2ed0c9"
     genesis.vtx.push_back(txNew);
     genesis.hashPrevBlock = 0;
     genesis.hashMerkleRoot = genesis.BuildMerkleTree();
@@ -537,9 +537,10 @@ void CalcHash() {
     genesis.nBits = std::stoul(GetArg("-bits", "0x0"), nullptr, 16);
     genesis.nTime = (uint32_t) GetArg("-time", 0L);
 
-    printf("nBits ethalon: %d\n", 0x1e0ffff0);
-    printf("nBits: %d\n", genesis.nBits);
+    printf("pubkey: %s\n", GetArg("-pubkey", "0x0").c_str());
     printf("nTime: %d\n", genesis.nTime);
+    printf("nBits: %d\n", genesis.nBits);
+    printf("nBits ethalon: %d\n", 0x1e0ffff0);
 
     //////////////////////////////////////
 
