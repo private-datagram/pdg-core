@@ -251,7 +251,6 @@ struct RequiredFile {
 
 struct FileRepositoryBlockSyncState {
     bool isSync;                    //! Synchronization status.
-    bool IsHasTransfer;             //! Any file be transfer
     int nProcessedSourceBlocks;     //! Number complete handle of file
     int nProcessedTempBlocks;       //! Number complete handle temp of file
 
@@ -261,24 +260,22 @@ struct FileRepositoryBlockSyncState {
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
     {
         READWRITE(isSync);
-        READWRITE(IsHasTransfer);
         READWRITE(nProcessedSourceBlocks);
         READWRITE(nProcessedTempBlocks);
     }
 
-    FileRepositoryBlockSyncState() : isSync(false), IsHasTransfer(false), nProcessedSourceBlocks(-1), nProcessedTempBlocks(-1) {}
+    FileRepositoryBlockSyncState() : isSync(false), nProcessedSourceBlocks(-1), nProcessedTempBlocks(-1) {}
 
-    FileRepositoryBlockSyncState(const bool isSync,const bool isHasTransfer, const int nProcessedSourceBlocks, int nProcessedTempBlocks) : isSync(isSync), IsHasTransfer(isHasTransfer), nProcessedSourceBlocks(nProcessedSourceBlocks), nProcessedTempBlocks(nProcessedTempBlocks) {}
+    FileRepositoryBlockSyncState(const bool isSync, const int nProcessedSourceBlocks, int nProcessedTempBlocks) : isSync(isSync), nProcessedSourceBlocks(nProcessedSourceBlocks), nProcessedTempBlocks(nProcessedTempBlocks) {}
     void SetNull()
     {
         isSync = false;
-        IsHasTransfer = false;
         nProcessedSourceBlocks = -1;
         nProcessedTempBlocks = -1;
     }
 
     bool IsNull() {
-        return !isSync && !IsHasTransfer && nProcessedSourceBlocks == -1 && nProcessedTempBlocks == -1;
+        return !isSync && nProcessedSourceBlocks == -1 && nProcessedTempBlocks == -1;
     }
 };
 
@@ -1041,7 +1038,7 @@ private:
 
     bool RenameTmpOriginalFileBlockDisk(int tmpFileNumber);
 
-    bool FinishSync(FileRepositoryBlockSyncState &syncState);
+    bool FinishFileRepositorySync(FileRepositoryBlockSyncState &syncState);
 
     void FlushFileRepositoryBlock(int nLastBlockIndex, unsigned int nLastBlockSize, bool fFinalize = false, bool isTmp = false);
 

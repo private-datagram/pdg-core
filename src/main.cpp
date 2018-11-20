@@ -8418,14 +8418,14 @@ bool CFileRepositoryManager::LoadFileRepositoryState() {
     nLastFileRepositoryBlock = vFileRepositoryBlockInfo.size() - 1;
 
     //is sync not null - failed previous repository block sync. Reindex block files.
-    if (!syncState.IsNull() && !FinishSync(syncState)) {
+    if (!syncState.IsNull() && !FinishFileRepositorySync(syncState)) {
         return error("%s: Filed to finish the synchronization.\n", __func__);
     }
 
     return true;
 }
 
-bool CFileRepositoryManager::FinishSync(FileRepositoryBlockSyncState &syncState) {
+bool CFileRepositoryManager::FinishFileRepositorySync(FileRepositoryBlockSyncState &syncState) {
     LogPrintf("%s Finish sync.\n", __func__);
 
     filesystem::path filesDir = GetDataDir() / "files";
@@ -8433,18 +8433,14 @@ bool CFileRepositoryManager::FinishSync(FileRepositoryBlockSyncState &syncState)
         return error("%s: Filed to read temp repository block files.\n", __func__);
     }
 
-    if (!syncState.IsHasTransfer) {
-       LogPrintf("%s Transfered files not found.\n", __func__);
-    } else {
-        for (unsigned int i = 0; i <= syncState.nProcessedTempBlocks; i++) {
-            filesystem::path source = GetDataDir() / "files" / strprintf("blk%05u.dat", i);
-            if (!filesystem::exists(source)) {
-                return error("%s: Filed to rename temp repository block file. File not found.  file number: %d\n", __func__, i);
-            } else {
-                LogPrintf("%s Rename temp repository block file to original. File number: %d\n", __func__, i);
-                if (!RenameTmpOriginalFileBlockDisk(i)) {
-                    return error("%s: Filed to rename temp repository block file. File number: %d\n", __func__, i);
-                }
+    for (unsigned int i = 0; i <= syncState.nProcessedTempBlocks; i++) {
+        filesystem::path source = GetDataDir() / "files" / strprintf("blk%05u.dat", i);
+        if (!filesystem::exists(source)) {
+            return error("%s: Filed to rename temp repository block file. File not found.  file number: %d\n", __func__, i);
+        } else {
+            LogPrintf("%s Rename temp repository block file to original. File number: %d\n", __func__, i);
+            if (!RenameTmpOriginalFileBlockDisk(i)) {
+                return error("%s: Filed to rename temp repository block file. File number: %d\n", __func__, i);
             }
         }
     }
