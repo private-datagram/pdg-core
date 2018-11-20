@@ -84,7 +84,7 @@ src/qt/test/moc*.cpp
 
 # Compilation and Qt preprocessor part
 *.qm
-Makefile
+#Makefile
 pdg-qt
 PDG-Qt.app
 
