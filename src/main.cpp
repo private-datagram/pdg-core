@@ -8327,7 +8327,7 @@ bool CFileRepositoryManager::LoadFileDBState() {
 }
 
 bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
-    LogPrint("file", "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d", __func__, vblockFileInfo.size(), lastBlockFileIndex);
+    LogPrint("file"FileRepositoryBlockSyncState syncState, "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d", __func__, vblockFileInfo.size(), lastBlockFileIndex);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
     bool blockChanged = false;
     for (std::vector<CFileRepositoryBlockInfo>::const_iterator it = vblockFileInfo.begin(); it != vblockFileInfo.end(); it++) {
@@ -8859,7 +8859,7 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     LogPrint("file", "%s - FILES. Fill temp files.\n", __func__);
 
     //write sync start status
-    FileRepositoryBlockSyncState syncState(true, false, 0, 0);
+    FileRepositoryBlockSyncState syncState(true, 0, 0);
     if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
         LogPrint("file", "%s - FILES. Filed to write repository block synchronization state.\n", __func__);
         return;
