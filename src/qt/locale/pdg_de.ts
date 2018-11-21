@@ -5257,8 +5257,12 @@ Präge entweder höhere Stückelungen (damit weniger Eingaben benötigt werdenn)
         <translation>Copyright (C) 2014-%i The Dash Core Developers</translation>
     </message>
     <message>
-        <source>Copyright (C) 2015-%i The PDG Core Developers</source>
-        <translation>Copyright (C) 2015-%i The PDG Core Developers</translation>
+        <source>Copyright (C) 2015-%i The PIVX Core Developers</source>
+        <translation>Copyright (C) 2015-%i The PIVX Core Developers</translation>
+    </message>
+    <message>
+        <source>Copyright (C) %i The PDG Core Developers</source>
+        <translation>Copyright (C) %i The PDG Core Developers</translation>
     </message>
     <message>
         <source>Corrupted block database detected</source>

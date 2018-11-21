@@ -81,8 +81,8 @@ void SendFilesDialog::on_uploadFile_clicked()
 {
     QString filename = QFileDialog::getOpenFileName(
                 this,
-                tr("Open File"),
-                "/home/",
+                tr("Select file"),
+                "./",
                 "All files (*.*)"
                 );
 
@@ -272,7 +272,7 @@ void SendFilesDialog::send(QList<SendCoinsRecipient> recipients, const PtrContai
     }
 
     CAmount txFee = currentTransaction.getTransactionFee();
-    QString questionString = tr("Are you sure you want to send payment request for file?");
+    QString questionString = tr("Are you sure you want to send file invoice?");
     questionString.append("<br /><br />%1");
 
     if (txFee > 0) {
