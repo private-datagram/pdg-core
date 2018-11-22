@@ -421,6 +421,10 @@
         <translation>&amp;Отправить</translation>
     </message>
     <message>
+        <source>Files</source>
+        <translation>Файлы</translation>
+    </message>
+    <message>
         <source>&amp;Receive</source>
         <translation>&amp;Получить</translation>
     </message>
@@ -627,6 +631,10 @@
     <message>
         <source>&amp;File</source>
         <translation>&amp;Файл</translation>
+    </message>
+    <message>
+        <source>&amp;Files</source>
+        <translation>&amp;Файлы</translation>
     </message>
     <message>
         <source>&amp;Settings</source>
@@ -2227,6 +2235,10 @@ https://www.transifex.com/pdg-project/pdg-project-translations</translation>
         <translation>Последние транзакции</translation>
     </message>
     <message>
+        <source>Recent file invoices</source>
+        <translation>Последние запросы на оплату файла</translation>
+    </message>
+    <message>
         <source>out of sync</source>
         <translation>несинронизировано</translation>
     </message>
@@ -3616,7 +3628,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>SEND</source>
-        <translation>отправить</translation>
+        <translation>ОТПРАВИТЬ</translation>
     </message>
     <message>
         <source>Coin Control Features</source>
@@ -3629,6 +3641,517 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Quantity:</source>
         <translation>Количество:</translation>
+    </message>
+    <message>
+        <source>Bytes:</source>
+        <translation>Байты:</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Сумма:</translation>
+    </message>
+    <message>
+        <source>Priority:</source>
+        <translation>Приоритет:</translation>
+    </message>
+    <message>
+        <source>medium</source>
+        <translation>промежуточный</translation>
+    </message>
+    <message>
+        <source>Fee:</source>
+        <translation>Комиссия:</translation>
+    </message>
+    <message>
+        <source>Dust:</source>
+        <translation>Пыль:</translation>
+    </message>
+    <message>
+        <source>no</source>
+        <translation>нет</translation>
+    </message>
+    <message>
+        <source>After Fee:</source>
+        <translation>После комиссии:</translation>
+    </message>
+    <message>
+        <source>Change:</source>
+        <translation>Изменить:</translation>
+    </message>
+    <message>
+        <source>If this is activated, but the change address is empty or invalid, change will be sent to a newly generated address.</source>
+        <translation>Если это активировано, но адрес изменения пуст или недействителен, изменение будет отправлено на вновь сгенерированный адрес.</translation>
+    </message>
+    <message>
+        <source>Custom change address</source>
+        <translation>Пользовательский адрес изменения</translation>
+    </message>
+    <message>
+        <source>Split UTXO</source>
+        <translation>Разделить UTXO</translation>
+    </message>
+    <message>
+        <source># of outputs</source>
+        <translation># выходов</translation>
+    </message>
+    <message>
+        <source>UTXO Size:</source>
+        <translation>UTXO Размер:</translation>
+    </message>
+    <message>
+        <source>0 PDG</source>
+        <translation>0 PDG</translation>
+    </message>
+    <message>
+        <source>Transaction Fee:</source>
+        <translation>Комиссия за транзакцию:</translation>
+    </message>
+    <message>
+        <source>Choose...</source>
+        <translation>Выберите:</translation>
+    </message>
+    <message>
+        <source>collapse fee-settings</source>
+        <translation>коллапс</translation>
+    </message>
+    <message>
+        <source>Minimize</source>
+        <translation>Свернуть</translation>
+    </message>
+    <message>
+        <source>per kilobyte</source>
+        <translation>за килобайт</translation>
+    </message>
+    <message>
+        <source>total at least</source>
+        <translation>не менее</translation>
+    </message>
+    <message>
+        <source>(read the tooltip)</source>
+        <translation>(читать всплывающую подсказку)</translation>
+    </message>
+    <message>
+        <source>Custom:</source>
+        <translation>Таможня:</translation>
+    </message>
+    <message>
+        <source>(Smart fee not initialized yet. This usually takes a few blocks...)</source>
+        <translation>(Умный платеж еще не инициализирован. Обычно это занимает несколько блоков....)</translation>
+    </message>
+    <message>
+        <source>SwiftX</source>
+        <translation>SwiftX</translation>
+    </message>
+    <message>
+        <source>Confirmation time:</source>
+        <translation>Количество подтверждений:</translation>
+    </message>
+    <message>
+        <source>Open Coin Control...</source>
+        <translation>Открытый контроль монеты</translation>
+    </message>
+    <message>
+        <source>Coins automatically selected</source>
+        <translation>Монеты автоматически выбираются</translation>
+    </message>
+    <message>
+        <source>If the custom fee is set to 1000 uPDGs and the transaction is only 250 bytes, then "per kilobyte" only pays 250 uPDGs in fee,&lt;br /&gt;while "at least" pays 1000 uPDGs. For transactions bigger than a kilobyte both pay by kilobyte.</source>
+        <translation>Если пользовательская плата установлена в 1000 uPDGs, а транзакция составляет всего 250 байт, тогда «за килобайт» платит только 250 uPDGs,&lt;br /&gt;а «по крайней мере» платит 1000 uPDG. Для транзакций, превышающих килобайт, оплата за килобайт</translation>
+    </message>
+    <message>
+        <source>If the custom fee is set to 1000 uPDGs and the transaction is only 250 bytes, then "per kilobyte" only pays 250 uPDGs in fee,&lt;br /&gt;while "total at least" pays 1000 uPDGs. For transactions bigger than a kilobyte both pay by kilobyte.</source>
+        <translation>Если пользовательская плата установлена в 1000 uPDGs, а транзакция составляет всего 250 байт, тогда «за килобайт» платит только 250 uPDGs,&lt;br /&gt;а «по крайней мере» платит 1000 uPDG. Для транзакций, превышающих килобайт, оплата за килобайт</translation>
+    </message>
+    <message>
+        <source>Paying only the minimum fee is just fine as long as there is less transaction volume than space in the blocks.&lt;br /&gt;But be aware that this can end up in a never confirming transaction once there is more demand for PDG transactions than the network can process.</source>
+        <translation>Платить только минимальную плату просто отлично, если в блоке меньше объема транзакции, чем места в блоке.&lt;br /&gt; Но имейте в виду, что это может закончиться никогда не подтверждающей транзакцией, если будет больше спроса на транзакции PDG, чем сеть может обрабатывать.</translation>
+    </message>
+    <message>
+        <source>normal</source>
+        <translation>нормально</translation>
+    </message>
+    <message>
+        <source>fast</source>
+        <translation>быстро</translation>
+    </message>
+    <message>
+        <source>Recommended</source>
+        <translation>рекомендуемые</translation>
+    </message>
+    <message>
+        <source>Send as zero-fee transaction if possible</source>
+        <translation>Отправляйте  транзакции с нулевой оплатой, если возможно</translation>
+    </message>
+    <message>
+        <source>(confirmation may take longer)</source>
+        <translation>(подтверждение может занять больше времени)</translation>
+    </message>
+    <message>
+        <source>Confirm the send action</source>
+        <translation>Подтвердите действие отправки</translation>
+    </message>
+    <message>
+        <source>S&amp;end</source>
+        <translation>S&amp;end</translation>
+    </message>
+    <message>
+        <source>Clear all fields of the form.</source>
+        <translation>Очистить все поля этой формы.</translation>
+    </message>
+    <message>
+        <source>Clear &amp;All</source>
+        <translation>Очистить &amp;Все</translation>
+    </message>
+    <message>
+        <source>Send to multiple recipients at once</source>
+        <translation>Отправить сразу нескольким получателям</translation>
+    </message>
+    <message>
+        <source>Add &amp;Recipient</source>
+        <translation>Добавить &amp;Получателя</translation>
+    </message>
+    <message>
+        <source>Anonymized PDG</source>
+        <translation>Анонимный PDG</translation>
+    </message>
+    <message>
+        <source>Balance:</source>
+        <translation>Баланс:</translation>
+    </message>
+    <message>
+        <source>Copy quantity</source>
+        <translation>Копировать количество</translation>
+    </message>
+    <message>
+        <source>Copy amount</source>
+        <translation>Копировать сумму</translation>
+    </message>
+    <message>
+        <source>Copy fee</source>
+        <translation>Копировать комиссию</translation>
+    </message>
+    <message>
+        <source>Copy after fee</source>
+        <translation>Копировать после вознаграждения </translation>
+    </message>
+    <message>
+        <source>Copy bytes</source>
+        <translation>Копировать байты</translation>
+    </message>
+    <message>
+        <source>Copy priority</source>
+        <translation>Копировать приоритет</translation>
+    </message>
+    <message>
+        <source>Copy dust</source>
+        <translation>Копировать пыль</translation>
+    </message>
+    <message>
+        <source>Copy change</source>
+        <translation>Копировать изменение</translation>
+    </message>
+    <message>
+        <source>The split block tool does not work when sending to outside addresses. Try again.</source>
+        <translation>Инструмент разделения блоков не работает при отправке на внешние адреса. Попробуй еще раз.</translation>
+    </message>
+    <message>
+        <source>The split block tool does not work with multiple addresses. Try again.</source>
+        <translation>Инструмент разделения блоков не работает с несколькими адресами. Попробуй еще раз.</translation>
+    </message>
+    <message>
+        <source>Warning: Invalid PDG address</source>
+        <translation>Предупреждение: неправильный PDG адрес</translation>
+    </message>
+    <message>
+        <source>%1 to %2</source>
+        <translation>%1 до %2</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to send?</source>
+        <translation>Вы уверены, что хотите отправить?</translation>
+    </message>
+    <message>
+        <source>Send File</source>
+        <translation>Отправить файл</translation>
+    </message>
+    <message>
+        <source>Filename</source>
+        <translation>Название файла</translation>
+    </message>
+    <message>
+        <source>File price</source>
+        <translation>Цена за файл</translation>
+    </message>
+    <message>
+        <source>are added as transaction fee</source>
+        <translation>добавляются как плата за транзакцию</translation>
+    </message>
+    <message>
+        <source>Total Amount = &lt;b&gt;%1&lt;/b&gt;&lt;br /&gt;= %2</source>
+        <translation>Итого = &lt;b&gt;%1&lt;/b&gt;&lt;br /&gt;= %2</translation>
+    </message>
+    <message>
+        <source>Confirm send coins</source>
+        <translation>Подтвердить отправку монет</translation>
+    </message>
+    <message>
+        <source>A fee %1 times higher than %2 per kB is considered an insanely high fee.</source>
+        <translation>Плата в %1 раз выше, чем %2 за КБ, считается безумно высокой.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Estimated to begin confirmation within %n block(s).</source>
+        <translation><numerusform>Предполагается начать подтверждение в пределах %n блоков.</numerusform><numerusform>Предполагается начать подтверждение в пределах %n блоков.</numerusform><numerusform>Предполагается начать подтверждение в пределах %n блоков.</numerusform><numerusform>Предполагается начать подтверждение в пределах %n блоков.</numerusform></translation>
+    </message>
+    <message>
+        <source>The recipient address is not valid, please recheck.</source>
+        <translation>Адрес получателя недействителен, повторите проверку.</translation>
+    </message>
+    <message>
+        <source>using SwiftX</source>
+        <translation>используйте SwiftX</translation>
+    </message>
+    <message>
+        <source> split into %1 outputs using the UTXO splitter.</source>
+        <translation>разделить на %1 выходы с использованием разделителя UTXO.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;(%1 of %2 entries displayed)&lt;/b&gt;</source>
+        <translation>&lt;b&gt;(%1 из %2 отображаемых записей)&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>The amount to pay must be larger than 0.</source>
+        <translation>Сумма для платежа должна быть больше, чем 0.</translation>
+    </message>
+    <message>
+        <source>The amount exceeds your balance.</source>
+        <translation>Сумма превышает ваш баланс.</translation>
+    </message>
+    <message>
+        <source>The total exceeds your balance when the %1 transaction fee is included.</source>
+        <translation>Сумма превышает ваш баланс, когда включена комиссия за транзакцию %1.</translation>
+    </message>
+    <message>
+        <source>Duplicate address found, can only send to each address once per send operation.</source>
+        <translation>Дублированный адрес найден, можно отправлять только на каждый адрес один раз за операцию отправки.</translation>
+    </message>
+    <message>
+        <source>Transaction creation failed!</source>
+        <translation>Не удалось создать транзакцию!</translation>
+    </message>
+    <message>
+        <source>The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.</source>
+        <translation>Сделка была отклонена! Это может произойти, если некоторые из монет в вашем кошельке уже были потрачены, например, если вы использовали копию wallet.dat и монеты были потрачены в копии, но не отмечены как потраченные здесь.</translation>
+    </message>
+    <message>
+        <source>Error: The wallet was unlocked only to anonymize coins.</source>
+        <translation>Ошибка: кошелек был разблокирован только для анонимизации монет.</translation>
+    </message>
+    <message>
+        <source>Error: The wallet was unlocked only to anonymize coins. Unlock canceled.</source>
+        <translation>Ошибка: кошелек был разблокирован только для анонимизации монет. Разблокировка отменена.</translation>
+    </message>
+    <message>
+        <source>Pay only the minimum fee of %1</source>
+        <translation>Платите только минимальный взнос %1</translation>
+    </message>
+    <message>
+        <source>Warning: Unknown change address</source>
+        <translation>Предупреждение: Неизвестный адрес </translation>
+    </message>
+    <message>
+        <source>(no label)</source>
+        <translation>(нет метки)</translation>
+    </message>
+</context>
+<context>
+    <name>SendFilesDialog</name>
+    <message>
+        <source>Send file</source>
+        <translation>Отправить файл</translation>
+    </message>
+    <message>
+        <source>FILES</source>
+        <translation>ФАЙЛЫ</translation>
+    </message>
+    <message>
+        <source>Coin Control Features</source>
+        <translation>Особенности управления монетами</translation>
+    </message>
+    <message>
+        <source>Upload file:</source>
+        <translation>Загружаемый файл:</translation>
+    </message>
+    <message>
+        <source>Input file path or use &quot;Select file&quot; button</source>
+        <translation>Введите путь к файлу или нажмите кнопку &quot;Выбрать файл&quot;</translation>
+    </message>
+    <message>
+        <source>Price:</source>
+        <translation>Цена:</translation>
+    </message>
+    <message>
+        <source>Send To:</source>
+        <translation>Отправить кому:</translation>
+    </message>
+    <message>
+        <source>Description:</source>
+        <translation>Описание:</translation>
+    </message>
+    <message>
+        <source>Description message (viewed publicly)</source>
+        <translation>Описание (доступно публично)</translation>
+    </message>
+    <message>
+        <source>&amp;Send file</source>
+        <translation>Отправить</translation>
+    </message>
+    <message>
+        <source>Select file</source>
+        <translation>Выбрать файл</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Очистить</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>File cost</source>
+        <translation>Цена файла</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>Размер файла</translation>
+    </message>
+    <message>
+        <source>Received files</source>
+        <translation>Принятые файлы</translation>
+    </message>
+    <message>
+        <source>Invoices</source>
+        <translation>Счета на оплату</translation>
+    </message>
+    <message>
+        <source>Confirm send file</source>
+        <translation>Подтвердите отправку файла</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to send file invoice?</source>
+        <translation>Вы действительно хотите отправить счет на оплату файла?</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to pay for file?</source>
+        <translation>Вы действительно хотите отправить оплату за файл?</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to send?</source>
+        <translation>Вы действительно хотите отправить?</translation>
+    </message>
+    <message>
+        <source>are file transaction extra fee</source>
+        <translation>комиссия за файловую транзакцию</translation>
+    </message>
+    <message>
+        <source>Insufficient funds!</source>
+        <translation>Недостаточно средств</translation>
+    </message>
+    <message>
+        <source>Unable to find file transaction</source>
+        <translation>Не удалось найти транзакцию с файлом</translation>
+    </message>
+    <message>
+        <source>Unable to find file payment transaction</source>
+        <translation>Не удалось найти транзакцию с оплатой файла</translation>
+    </message>
+    <message>
+        <source>Decrypt file error. Failed to load file keys. Possible wallet is damaged</source>
+        <translation>Не удаслось загрузить ключи для расшифровки файла. Возможно кошелек поврежден</translation>
+    </message>
+    <message>
+        <source>Save File: %1</source>
+        <translation>Сохранение файла: %1</translation>
+    </message>
+    <message>
+        <source>Decrypt file error. Hash mismatch</source>
+        <translation>Ошибка расшифровки файла. Хеш не совпадает</translation>
+    </message>
+    <message>
+        <source>Unable to open file for writing</source>
+        <translation>Не удалось открыть файл для записи</translation>
+    </message>
+    <message>
+        <source>File saved successfully</source>
+        <translation>Файл успешно сохранен</translation>
+    </message>
+    <message>
+        <source>Save file error</source>
+        <translation>Ошибка сохранения файла</translation>
+    </message>
+    <message>
+        <source>File size is too large. Max file size: %1</source>
+        <translation>Размер файла превышает максимально допустимый размер: %1</translation>
+    </message>
+    <message>
+        <source>Save file</source>
+        <translation>Сохранить файл</translation>
+    </message>
+    <message>
+        <source>Unable to find file in local storage. Please wait while file will synchronize or resync file storage</source>
+        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже</translation>
+    </message>
+    <message>
+        <source>File hash doesn't match. File corrupted</source>
+        <translation>Хеш файла не совпадает. Файл поврежден</translation>
+    </message>
+    <message>
+        <source>Error opening file</source>
+        <translation>Не удалось открыть файл</translation>
+    </message>
+    <message>
+        <source>Input filename</source>
+        <translation>Введите путь к файлу</translation>
+    </message>
+    <message>
+        <source>Input recipient address</source>
+        <translation>Введите адрес получателя</translation>
+    </message>
+    <message>
+        <source>Invoice successfully sent</source>
+        <translation>Счет на оплату файла успешно отправлен</translation>
+    </message>
+    <message>
+        <source>Filed to send invoice</source>
+        <translation>Не удалось отправить счет на оплату файла</translation>
+    </message>
+    <message>
+        <source>File can not be empty</source>
+        <translation>Файл не может быть пустым</translation>
+    </message>
+    <message>
+        <source>File size is too large. Max file size: %1</source>
+        <translation>Размер файла слишком большой. Максимальный размер: %1</translation>
+    </message>
+    <message>
+        <source>Description length exceeded, max length is %1 symbols</source>
+        <translation>Превышен максимальный размер описания в %1 символа(ов)</translation>
+    </message>
+    <message>
+        <source>Quantity:</source>
+        <translation>Количество:</translation>
+    </message>
+    <message>
+        <source>Invalid or non-wallet transaction id</source>
+        <translation>Транзакция неверная или не найдена</translation>
+    </message>
+    <message>
+        <source>Decrypt file error</source>
+        <translation>Ошибка расшифровки файла</translation>
+    </message>
+    <message>
+        <source>Decrypt meta data error</source>
+        <translation>Ошибка расшифровки мета данных файла</translation>
     </message>
     <message>
         <source>Bytes:</source>
@@ -4026,6 +4549,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Введите метку для адреса чтобы добавить в адресную книгу</translation>
     </message>
 </context>
+
 <context>
     <name>ShutdownWindow</name>
     <message>
@@ -4504,11 +5028,11 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Mined</source>
-        <translation>заминированный</translation>
+        <translation>добыто</translation>
     </message>
     <message>
         <source>Obfuscated</source>
-        <translation>затемненный</translation>
+        <translation>обфусцированный</translation>
     </message>
     <message>
         <source>File payment request</source>
@@ -4568,6 +5092,60 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
 </context>
 <context>
+    <name>FileTransactionTableModel</name>
+    <message>
+        <source>Date</source>
+        <translation>Дата</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>Тип</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation>Адрес</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>Размер файла</translation>
+    </message>
+    <message>
+        <source>File cost</source>
+        <translation>Цена файла</translation>
+    </message>
+</context>
+<context>
+    <name>PaymentTransactionTableModel</name>
+    <message>
+        <source>Date</source>
+        <translation>Дата</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>Тип</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation>Адрес</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>Размер файла</translation>
+    </message>
+    <message>
+        <source>File cost</source>
+        <translation>Цена файла</translation>
+    </message>
+</context>
+<context>
     <name>TransactionView</name>
     <message>
         <source>All</source>
@@ -4615,7 +5193,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Mined</source>
-        <translation>заминированный</translation>
+        <translation>добыто</translation>
     </message>
     <message>
         <source>Minted</source>
@@ -5184,8 +5762,12 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Copyright (C) 2014-%i Разработчики Dash Core</translation>
     </message>
     <message>
-        <source>Copyright (C) 2015-%i The PDG Core Developers</source>
-        <translation>Copyright (C) 2015-%i Разработчики PDG Core</translation>
+        <source>Copyright (C) 2015-%i The PIVX Core Developers</source>
+        <translation>Copyright (C) 2015-%i Разработчики PIVX Core</translation>
+    </message>
+    <message>
+        <source>Copyright (C) %i The PDG Core Developers</source>
+        <translation>Copyright (C) %i Разработчики PDG Core</translation>
     </message>
     <message>
         <source>Corrupted block database detected</source>

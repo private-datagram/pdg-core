@@ -14,6 +14,7 @@
 #include <openssl/engine.h>
 #include <openssl/pem.h>
 #include <iostream>
+#include <util.h>
 
 #define PADDING RSA_PKCS1_PADDING
 
@@ -111,7 +112,7 @@ namespace crypto {
 
             int len = RSA_public_encrypt(dataSize, reinterpret_cast<const unsigned char *>(data), encrypted, pubKey, PADDING);
             if (len == -1) {
-                printf("ERROR: RSA_public_encrypt: %s\n", ERR_error_string(ERR_get_error(), NULL)); // TODO: to log
+                LogPrint("ERROR: RSA_public_encrypt: %s\n", ERR_error_string(ERR_get_error(), NULL)); // TODO: to log
                 delete encrypted;
                 return false;
             }
@@ -137,7 +138,7 @@ namespace crypto {
             unsigned char *decrypted = (unsigned char *) malloc(rsaLen);
             int len = RSA_private_decrypt(encryptedSize, reinterpret_cast<const unsigned char *>(encryptedData), decrypted, privKey, PADDING);
             if (len == -1) {
-                printf("ERROR: RSA_private_decrypt: %s\n", ERR_error_string(ERR_get_error(), NULL));
+                LogPrint("ERROR: RSA_private_decrypt: %s\n", ERR_error_string(ERR_get_error(), NULL));
                 free(decrypted);
                 return false;
             }

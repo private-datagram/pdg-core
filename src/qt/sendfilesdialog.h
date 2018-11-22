@@ -56,7 +56,7 @@ public slots:
 
 private:
     Ui::SendFilesDialog* ui;
-    void send(QList<SendCoinsRecipient> recipients, const PtrContainer<CTransactionMeta>& meta, QString strFee, QStringList formatted);
+    void send(const QList<SendCoinsRecipient> &recipients, const PtrContainer<CTransactionMeta>& meta, QString strFee, QStringList formatted);
     WalletModel* model;
     bool fNewRecipientAllowed;
     SendCoinsRecipient recipient;
@@ -71,6 +71,7 @@ private:
     // Additional parameter msgArg can be used via .arg(msgArg).
     void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString(), bool fPrepare = false);
     bool readFile(const string &filename, vector<char> &vchFile) const;
+    long getFileSize(const std::string &filename) const;
     bool saveFileMeta(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const;
     void saveFileFromTx(const uint256 &txHash);
     virtual void resizeEvent(QResizeEvent* event);

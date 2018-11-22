@@ -1127,7 +1127,7 @@ void ThreadSocketHandler()
                 } else if (nTime - pnode->nLastRecv > (pnode->nVersion > BIP0031_VERSION ? TIMEOUT_INTERVAL : 90 * 60)) {
                     LogPrintf("socket receive timeout: %is\n", nTime - pnode->nLastRecv);
                     pnode->fDisconnect = true;
-                } else if (pnode->nPingNonceSent && pnode->nPingUsecStart + TIMEOUT_INTERVAL * 1000000 < GetTimeMicros()) {
+                } else if (pnode->nPingNonceSent && pnode->nPingUsecStart + (int64_t)TIMEOUT_INTERVAL * 1000000L < GetTimeMicros()) {
                     LogPrintf("ping timeout: %fs\n", 0.000001 * (GetTimeMicros() - pnode->nPingUsecStart));
                     pnode->fDisconnect = true;
                 }
@@ -1538,10 +1538,10 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 }
 
 //region file handle
-// TODO: select optimal nodes
-// TODO: include locks
+// TODO: PDG2 select optimal nodes
+// TODO: PDG2 add locks
 int GetAvailableToSendFilesCount() {
-    int available = MAX_FILE_SEND_COUNT; // MAX_FILE_SEND_COUNT = 5
+    int available = MAX_FILE_SEND_COUNT;
 
     LOCK(cs_vNodes);
 
@@ -1549,7 +1549,9 @@ int GetAvailableToSendFilesCount() {
         if (pnode->fDisconnect)
             continue;
 
-        if (pnode->nSendSize >= MAX_FILE_SIZE * 1.5f) {
+        if (!CanSendToNode(pnode)) {
+            LogPrint("file", "%s - FILES. Send file to node unavailable. Buffer size: %d\n", __func__, pnode->nSendSize);
+
             --available;
             if (available <= 0)
                 return 0;
@@ -1560,7 +1562,7 @@ int GetAvailableToSendFilesCount() {
 }
 
 bool CanSendToNode(const CNode *peer) {
-    return peer->nSendSize < MAX_FILE_SIZE * 1.5;
+    return peer->nSendSize < (SendBufferSize() - MAX_FILE_SIZE);
 }
 
 void SendFileRequest(const uint256 &fileTxHash, CNode *pto) {
@@ -2185,8 +2187,8 @@ bool CAddrDB::Read(CAddrMan& addr)
     return true;
 }
 
-unsigned int ReceiveFloodSize() { return 1000 * GetArg("-maxreceivebuffer", 5 * 1000); }
-unsigned int SendBufferSize() { return 1000 * GetArg("-maxsendbuffer", 1 * 1000); }
+unsigned int ReceiveFloodSize() { return 1000 * GetArg("-maxreceivebuffer", 25 * 1000); }
+unsigned int SendBufferSize() { return 1000 * GetArg("-maxsendbuffer", 11 * 1000); }
 
 CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fInboundIn) : ssSend(SER_NETWORK, INIT_PROTO_VERSION), setAddrKnown(5000)
 {
@@ -2217,7 +2219,7 @@ CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fIn
     nStartingHeight = -1;
     fGetAddr = false;
     fRelayTxes = false;
-    setInventoryKnown.max_size(SendBufferSize() / 1000);
+    setInventoryKnown.max_size(SendBufferSize() / 5000);
     pfilter = new CBloomFilter();
     nPingNonceSent = 0;
     nPingUsecStart = 0;
