@@ -383,7 +383,7 @@ void PrivacyDialog::sendzPIV()
     }
 
     // General info
-    QString strQuestionString = tr("Are you sure you want to send?<br /><br />");
+    QString strQuestionString = tr("Are you sure you want to send?") + "<br /><br />";
     QString strAmount = "<b>" + QString::number(dAmount, 'f', 8) + " zPDG</b>";
     QString strAddress = tr(" to address ") + QString::fromStdString(address.ToString()) + strAddressLabel + " <br />";
 

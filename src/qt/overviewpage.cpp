@@ -28,7 +28,8 @@
 
 #define DECORATION_SIZE 48
 #define ICON_OFFSET 16
-#define NUM_ITEMS 9
+#define NUM_ITEMS 6
+#define NUM_INVOICE_ITEMS 3
 
 extern CWallet* pwalletMain;
 
@@ -117,6 +118,92 @@ public:
 
     int unit;
 };
+
+class InvoiceViewDelegate : public QAbstractItemDelegate
+{
+Q_OBJECT
+public:
+    InvoiceViewDelegate() : QAbstractItemDelegate(), unit(BitcoinUnits::PDG)
+    {
+    }
+
+    inline void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
+    {
+        painter->save();
+
+        QIcon icon = QIcon(":/icons/tx_file_invoice");
+        QRect mainRect = option.rect;
+        mainRect.moveLeft(ICON_OFFSET);
+        QRect decorationRect(mainRect.topLeft(), QSize(DECORATION_SIZE, DECORATION_SIZE));
+        int xspace = DECORATION_SIZE + 8;
+        int ypad = 6;
+        int halfheight = (mainRect.height() - 2 * ypad) / 2;
+        QRect amountRect(mainRect.left() + xspace, mainRect.top() + ypad, mainRect.width() - xspace - ICON_OFFSET, halfheight);
+        QRect addressRect(mainRect.left() + xspace, mainRect.top() + ypad + halfheight, mainRect.width() - xspace, halfheight);
+        icon.paint(painter, decorationRect);
+
+        QDateTime date = index.data(PaymentTransactionTableModel::DateRole).toDateTime();
+        QString address = index.data(Qt::DisplayRole).toString();
+        qint64 amount = index.data(PaymentTransactionTableModel::AmountRole).toLongLong();
+        bool confirmed = index.data(PaymentTransactionTableModel::ConfirmedRole).toBool();
+
+        // Check transaction status
+        int nStatus = index.data(TransactionTableModel::StatusRole).toInt();
+        bool fConflicted = false;
+        if (nStatus == TransactionStatus::Conflicted || nStatus == TransactionStatus::NotAccepted) {
+            fConflicted = true; // Most probably orphaned, but could have other reasons as well
+        }
+        bool fImmature = false;
+        if (nStatus == TransactionStatus::Immature) {
+            fImmature = true;
+        }
+
+        QVariant value = index.data(Qt::ForegroundRole);
+        QColor foreground = COLOR_BLACK;
+        if (value.canConvert<QBrush>()) {
+            QBrush brush = qvariant_cast<QBrush>(value);
+            foreground = brush.color();
+        }
+
+        painter->setPen(foreground);
+        QRect boundingRect;
+        painter->drawText(addressRect, Qt::AlignLeft | Qt::AlignVCenter, address, &boundingRect);
+
+        if (index.data(TransactionTableModel::WatchonlyRole).toBool()) {
+            QIcon iconWatchonly = qvariant_cast<QIcon>(index.data(TransactionTableModel::WatchonlyDecorationRole));
+            QRect watchonlyRect(boundingRect.right() + 5, mainRect.top() + ypad + halfheight, 16, halfheight);
+            iconWatchonly.paint(painter, watchonlyRect);
+        }
+
+        if(fConflicted) { // No need to check anything else for conflicted transactions
+            foreground = COLOR_CONFLICTED;
+        } else if (!confirmed || fImmature) {
+            foreground = COLOR_UNCONFIRMED;
+        } else if (amount < 0) {
+            foreground = COLOR_NEGATIVE;
+        } else {
+            foreground = COLOR_BLACK;
+        }
+        painter->setPen(foreground);
+        QString amountText = BitcoinUnits::formatWithUnit(unit, amount, true, BitcoinUnits::separatorAlways);
+        if (!confirmed) {
+            amountText = QString("[") + amountText + QString("]");
+        }
+        painter->drawText(amountRect, Qt::AlignRight | Qt::AlignVCenter, amountText);
+
+        painter->setPen(COLOR_BLACK);
+        painter->drawText(amountRect, Qt::AlignLeft | Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+
+        painter->restore();
+    }
+
+    inline QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const
+    {
+        return QSize(DECORATION_SIZE, DECORATION_SIZE);
+    }
+
+    int unit;
+};
 #include "overviewpage.moc"
 
 OverviewPage::OverviewPage(QWidget* parent) : QWidget(parent),
@@ -133,6 +220,7 @@ OverviewPage::OverviewPage(QWidget* parent) : QWidget(parent),
                                               currentWatchUnconfBalance(-1),
                                               currentWatchImmatureBalance(-1),
                                               txdelegate(new TxViewDelegate()),
+                                              invoiceDelegate(new InvoiceViewDelegate()),
                                               filter(0)
 {
     nDisplayUnit = 0; // just make sure it's not unitialized
@@ -145,6 +233,12 @@ OverviewPage::OverviewPage(QWidget* parent) : QWidget(parent),
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
+
+    // Recent file invoices
+    ui->listInvoices->setItemDelegate(invoiceDelegate);
+    ui->listInvoices->setIconSize(QSize(DECORATION_SIZE, DECORATION_SIZE));
+    ui->listInvoices->setMinimumHeight(NUM_INVOICE_ITEMS * (DECORATION_SIZE + 2));
+    ui->listInvoices->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     // init "out of sync" warning labels
     ui->labelWalletStatus->setText("(" + tr("out of sync") + ")");
@@ -359,6 +453,21 @@ void OverviewPage::setWalletModel(WalletModel* model)
 
         ui->listTransactions->setModel(filter);
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
+
+        // Set up invoice list
+        paymentTransactionTableModel = new PaymentTransactionTableModel(pwalletMain, model);
+
+        invoiceFilter = new TransactionFilterProxy();
+        invoiceFilter->setSourceModel(paymentTransactionTableModel);
+        invoiceFilter->setLimit(NUM_ITEMS);
+        invoiceFilter->setDynamicSortFilter(true);
+        invoiceFilter->setSortRole(Qt::EditRole);
+        invoiceFilter->setShowInactive(false);
+        invoiceFilter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
+        invoiceFilter->setTypeFilter(TransactionFilterProxy::TYPE(TransactionRecord::RecvFilePaymentRequest));
+
+        ui->listInvoices->setModel(invoiceFilter);
+        ui->listInvoices->setModelColumn(PaymentTransactionTableModel::ToAddress);
 
         // Keep up to date with wallet
         setBalance(model->getBalance(), model->getUnconfirmedBalance(), model->getImmatureBalance(),

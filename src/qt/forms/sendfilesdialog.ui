@@ -349,6 +349,9 @@
                   <property name="text">
                    <string>Description:</string>
                   </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
                  </widget>
                 </item>
                </layout>
@@ -452,7 +455,7 @@
                </sizepolicy>
               </property>
               <attribute name="title">
-               <string>Payment requests</string>
+               <string>Invoices</string>
               </attribute>
               <layout class="QVBoxLayout" name="verticalLayoutPaymentRequest">
                <property name="sizeConstraint">
@@ -553,6 +556,18 @@
    <header>qvalidatedlineedit.h</header>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>fileNameField</tabstop>
+  <tabstop>uploadFile</tabstop>
+  <tabstop>priceField</tabstop>
+  <tabstop>addressField</tabstop>
+  <tabstop>descriptionField</tabstop>
+  <tabstop>sendFileToAddressButton</tabstop>
+  <tabstop>clearButton</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>tableFileTransactions</tabstop>
+  <tabstop>tablePaymentRequests</tabstop>
+ </tabstops>
  <resources>
   <include location="../pdg.qrc"/>
  </resources>

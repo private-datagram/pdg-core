@@ -8,11 +8,14 @@
 
 #include "amount.h"
 
+#include "paymenttransactiontablemodel.h"
+
 #include <QWidget>
 
 class ClientModel;
 class TransactionFilterProxy;
 class TxViewDelegate;
+class InvoiceViewDelegate;
 class WalletModel;
 
 namespace Ui
@@ -63,7 +66,10 @@ private:
     void getPercentage(CAmount nTotalBalance, CAmount nZerocoinBalance, QString& sPIVPercentage, QString& szPIVPercentage);
 
     TxViewDelegate* txdelegate;
+    InvoiceViewDelegate* invoiceDelegate;
     TransactionFilterProxy* filter;
+    PaymentTransactionTableModel* paymentTransactionTableModel;
+    TransactionFilterProxy* invoiceFilter;
 
 private slots:
     void updateDisplayUnit();
