@@ -556,6 +556,18 @@
    <header>qvalidatedlineedit.h</header>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>fileNameField</tabstop>
+  <tabstop>uploadFile</tabstop>
+  <tabstop>priceField</tabstop>
+  <tabstop>addressField</tabstop>
+  <tabstop>descriptionField</tabstop>
+  <tabstop>sendFileToAddressButton</tabstop>
+  <tabstop>clearButton</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>tableFileTransactions</tabstop>
+  <tabstop>tablePaymentRequests</tabstop>
+ </tabstops>
  <resources>
   <include location="../pdg.qrc"/>
  </resources>

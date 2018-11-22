@@ -796,7 +796,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER && tx.type != TX_FILE_PAYMENT_REQUEST) { // TODO: make safe
+        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER && tx.type != TX_FILE_PAYMENT_REQUEST && tx.type != TX_FILE_PAYMENT_CONFIRM) { // TODO: make safe
             reason = "dust";
             return false;
         }

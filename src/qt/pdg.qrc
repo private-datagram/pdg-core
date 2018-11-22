@@ -36,6 +36,8 @@
         <file alias="export">res/icons/export.png</file>
         <file alias="synced">res/icons/synced.png</file>
         <file alias="remove">res/icons/remove.png</file>
+        <file alias="tx_file">res/icons/tx_file.png</file>
+        <file alias="tx_file_invoice">res/icons/tx_file_invoice.png</file>
         <file alias="tx_mined">res/icons/tx_mined.png</file>
         <file alias="tx_input">res/icons/tx_input.png</file>
         <file alias="tx_output">res/icons/tx_output.png</file>

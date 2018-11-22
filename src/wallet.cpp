@@ -2730,7 +2730,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 if (coinControl && !coinControl->fSplitBlock) {
                     BOOST_FOREACH (const PAIRTYPE(CScript, CAmount) & s, vecSend) {
                         CTxOut txout(s.second, s.first);
-                        if (txout.IsDust(::minRelayTxFee) && wtxNew.type != TX_FILE_PAYMENT_REQUEST) {
+                        if (txout.IsDust(::minRelayTxFee) && wtxNew.type != TX_FILE_PAYMENT_REQUEST && wtxNew.type != TX_FILE_PAYMENT_CONFIRM) {
                             strFailReason = _("Transaction amount too small");
                             return false;
                         }
@@ -5432,10 +5432,34 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
 
-    // prepare data
-    CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
+    const std::map<uint256, CWalletTx>::iterator mi = mapWallet.find(tx.GetHash());
+    if (mi == mapWallet.end()) {
+        return error("%s : Failed to find wallet transaction - %s", __func__, tx.GetHash().ToString());
+    }
 
-    // TODO: check LifeTime
+    const CWalletTx &paymentTx = mi->second;
+
+    // prepare data
+    const CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
+
+    uint256 blockHash;
+    CTransaction paymentRequestTx;
+    if (!GetTransaction(paymentConfirm->requestTxid, paymentRequestTx, blockHash, true)) {
+        return error("%s : Payment request transaction not found. Request tx hash - %s", __func__, paymentConfirm->requestTxid.ToString());
+    }
+
+    if (paymentRequestTx.type != TX_FILE_PAYMENT_REQUEST) {
+        return error("%s : Invalid payment confirm. Request transaction type mismatch. - %s", __func__, paymentConfirm->requestTxid.ToString());
+    }
+
+    const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
+
+    CAmount receivedAmount = paymentTx.GetCredit(ISMINE_ALL) - paymentTx.GetDebit(ISMINE_ALL);
+    if (receivedAmount < paymentRequest.nPrice) { // TODO: PDG5 check
+        return error("%s : Insufficiently amount received for tx - %s. File price: %d. Received: %d", __func__, tx.GetHash().ToString(), paymentRequest.nPrice, tx.GetValueOut());
+    }
+
+    // TODO: PDG4 check LifeTime
 
     CWalletDB walletDB(strWalletFile);
 
@@ -5449,6 +5473,10 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
         if (!walletDB.ReadWalletFileTx(paymentConfirm->requestTxid, walletFileTx))
             return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+
+        if (walletFileTx.vchBytes.size() == 0) {
+            return error("%s : Failed to read file or file is empty", __func__, paymentConfirm->requestTxid.ToString());
+        }
 
         inputFile.reserve(10000);
         inputFile.write(&walletFileTx.vchBytes[0], walletFileTx.vchBytes.size());

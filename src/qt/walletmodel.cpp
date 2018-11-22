@@ -302,7 +302,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
                 CScript scriptPubKey(scriptStr, scriptStr + out.script().size());
                 vecSend.push_back(std::pair<CScript, CAmount>(scriptPubKey, out.amount()));
             }
-            if (subtotal <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST) { // TODO: find better solution
+            if (subtotal <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST && transaction.getTransaction()->type != TX_FILE_PAYMENT_CONFIRM) { // TODO: find better solution
                 return InvalidAmount;
             }
             total += subtotal;
@@ -310,7 +310,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             if (!validateAddress(rcp.address)) {
                 return InvalidAddress;
             }
-            if (rcp.amount <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST) { // TODO: find better solution
+            if (rcp.amount <= 0 && transaction.getTransaction()->type != TX_FILE_PAYMENT_REQUEST && transaction.getTransaction()->type != TX_FILE_PAYMENT_CONFIRM) { // TODO: find better solution
                 return InvalidAmount;
             }
             setAddress.insert(rcp.address);

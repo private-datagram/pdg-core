@@ -259,6 +259,8 @@ RES_ICONS = \
   qt/res/icons/transaction0.png \
   qt/res/icons/transaction2.png \
   qt/res/icons/transaction_conflicted.png \
+  qt/res/icons/tx_file.png \
+  qt/res/icons/tx_file_invoice.png \
   qt/res/icons/tx_inout.png \
   qt/res/icons/tx_input.png \
   qt/res/icons/tx_output.png \

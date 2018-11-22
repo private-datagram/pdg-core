@@ -2235,6 +2235,10 @@ https://www.transifex.com/pdg-project/pdg-project-translations</translation>
         <translation>Последние транзакции</translation>
     </message>
     <message>
+        <source>Recent file invoices</source>
+        <translation>Последние запросы на оплату файла</translation>
+    </message>
+    <message>
         <source>out of sync</source>
         <translation>несинронизировано</translation>
     </message>
@@ -4054,8 +4058,100 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Недостаточно средств</translation>
     </message>
     <message>
+        <source>Unable to find file transaction</source>
+        <translation>Не удалось найти транзакцию с файлом</translation>
+    </message>
+    <message>
+        <source>Unable to find file payment transaction</source>
+        <translation>Не удалось найти транзакцию с оплатой файла</translation>
+    </message>
+    <message>
+        <source>Decrypt file error. Failed to load file keys. Possible wallet is damaged</source>
+        <translation>Не удаслось загрузить ключи для расшифровки файла. Возможно кошелек поврежден</translation>
+    </message>
+    <message>
+        <source>Save File: %1</source>
+        <translation>Сохранение файла: %1</translation>
+    </message>
+    <message>
+        <source>Decrypt file error. Hash mismatch</source>
+        <translation>Ошибка расшифровки файла. Хеш не совпадает</translation>
+    </message>
+    <message>
+        <source>Unable to open file for writing</source>
+        <translation>Не удалось открыть файл для записи</translation>
+    </message>
+    <message>
+        <source>File saved successfully</source>
+        <translation>Файл успешно сохранен</translation>
+    </message>
+    <message>
+        <source>Save file error</source>
+        <translation>Ошибка сохранения файла</translation>
+    </message>
+    <message>
+        <source>File size is too large. Max file size: %1</source>
+        <translation>Размер файла превышает максимально допустимый размер: %1</translation>
+    </message>
+    <message>
+        <source>Save file</source>
+        <translation>Сохранить файл</translation>
+    </message>
+    <message>
+        <source>Unable to find file in local storage. Please wait while file will synchronize or resync file storage</source>
+        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже</translation>
+    </message>
+    <message>
+        <source>File hash doesn't match. File corrupted</source>
+        <translation>Хеш файла не совпадает. Файл поврежден</translation>
+    </message>
+    <message>
+        <source>Error opening file</source>
+        <translation>Не удалось открыть файл</translation>
+    </message>
+    <message>
+        <source>Input filename</source>
+        <translation>Введите путь к файлу</translation>
+    </message>
+    <message>
+        <source>Input recipient address</source>
+        <translation>Введите адрес получателя</translation>
+    </message>
+    <message>
+        <source>Invoice successfully sent</source>
+        <translation>Счет на оплату файла успешно отправлен</translation>
+    </message>
+    <message>
+        <source>Filed to send invoice</source>
+        <translation>Не удалось отправить счет на оплату файла</translation>
+    </message>
+    <message>
+        <source>File can not be empty</source>
+        <translation>Файл не может быть пустым</translation>
+    </message>
+    <message>
+        <source>File size is too large. Max file size: %1</source>
+        <translation>Размер файла слишком большой. Максимальный размер: %1</translation>
+    </message>
+    <message>
+        <source>Description length exceeded, max length is %1 symbols</source>
+        <translation>Превышен максимальный размер описания в %1 символа(ов)</translation>
+    </message>
+    <message>
         <source>Quantity:</source>
         <translation>Количество:</translation>
+    </message>
+    <message>
+        <source>Invalid or non-wallet transaction id</source>
+        <translation>Транзакция неверная или не найдена</translation>
+    </message>
+    <message>
+        <source>Decrypt file error</source>
+        <translation>Ошибка расшифровки файла</translation>
+    </message>
+    <message>
+        <source>Decrypt meta data error</source>
+        <translation>Ошибка расшифровки мета данных файла</translation>
     </message>
     <message>
         <source>Bytes:</source>

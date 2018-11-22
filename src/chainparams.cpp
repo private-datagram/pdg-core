@@ -129,7 +129,7 @@ public:
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 101; // Premine maturation
+        nLastPOWBlock = 101; // Premine maturation // TODO: PDG5 revert
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 0;
         nZerocoinStartTime = 1542585600; // Before blockchain start
