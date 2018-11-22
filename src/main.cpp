@@ -8320,7 +8320,7 @@ bool CFileRepositoryManager::EraseFile(CDBFile& file) {
 }
 
 bool CFileRepositoryManager::SaveFileRepositoryState() {
-    SaveFileRepositoryState(vFileRepositoryBlockInfo, nLastFileRepositoryBlock);
+    return SaveFileRepositoryState(vFileRepositoryBlockInfo, nLastFileRepositoryBlock);
 }
 
 bool CFileRepositoryManager::LoadFileDBState() {
