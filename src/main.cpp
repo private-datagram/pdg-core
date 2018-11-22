@@ -3652,7 +3652,9 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            if (!SaveFileRepositoryState()) {
+            bool isSaveFileRepositoryState = SaveFileRepositoryState();
+            LogPrint("file", "%s - FILES. Save file blockfiles state RESULT: %s.\n", __func__, (isSaveFileRepositoryState ? "state saved" : "state don't saved"));
+            if (!isSaveFileRepositoryState) {
                 return state.Abort("Failed to save fileblock file state");
             }
 
@@ -8327,7 +8329,7 @@ bool CFileRepositoryManager::LoadFileDBState() {
 }
 
 bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
-    LogPrint("file", "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d", __func__, vblockFileInfo.size(), lastBlockFileIndex);
+    LogPrint("file", "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d \n", __func__, vblockFileInfo.size(), lastBlockFileIndex);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
     bool blockChanged = false;
     for (std::vector<CFileRepositoryBlockInfo>::const_iterator it = vblockFileInfo.begin(); it != vblockFileInfo.end(); it++) {
@@ -8336,14 +8338,15 @@ bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlock
 
         unsigned long nFile = it - vblockFileInfo.begin();
         if (!pblockfiletree->WriteFileRepositoryBlockInfo(nFile, vblockFileInfo[nFile])) {
-            LogPrint("file", "%s - FILES. Failed to write to fileBlock index", __func__);
+            LogPrint("file", "%s - FILES. Failed to write to fileBlock index \n", __func__);
             return false;
         }
         blockChanged = true;
     }
 
+    LogPrint("file", "%s - FILES. Write to file block index . %s\n", __func__, dbFileRepositoryState.ToString());
     if (blockChanged && !pblockfiletree->WriteLastFileRepositoryBlock(lastBlockFileIndex) && !pblockfiletree->Sync()) {
-        LogPrint("file", "%s - FILES. Failed to write to file block index", __func__);
+        LogPrint("file", "%s - FILES. Failed to write to file block index \n", __func__);
         return false;
     }
 
@@ -8351,10 +8354,11 @@ bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlock
 
     LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, dbFileRepositoryState.ToString());
     if (!pblockfiletree->WriteCDBFileRepositoryState(dbFileRepositoryState) && !pblockfiletree->Sync()) {
-        LogPrint("file", "%s - FILES. Error write file blockfiles state in db. Create new", __func__);
+        LogPrint("file", "%s - FILES. Error write file blockfiles state in db. Create new \n", __func__);
         return false;
     }
 
+    LogPrint("file", "%s - FILES. Save file blockfiles state FINISH.\n", __func__);
     return true;
 }
 
