@@ -1516,10 +1516,10 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant* grantOu
 }
 
 //region file handle
-// TODO: select optimal nodes
-// TODO: include locks
+// TODO: PDG2 select optimal nodes
+// TODO: PDG2 add locks
 int GetAvailableToSendFilesCount() {
-    int available = MAX_FILE_SEND_COUNT; // MAX_FILE_SEND_COUNT = 5
+    int available = MAX_FILE_SEND_COUNT;
 
     LOCK(cs_vNodes);
 
