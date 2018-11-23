@@ -5519,6 +5519,12 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (!SendFileTx(txFile, fileMeta, fileDestination, fileTxHash)) {
         if (!EraseFileDB(dbFile))
             LogPrintf("Remove file in DB failed\n");
+
+#ifdef ENABLE_WALLET
+        if (pwalletMain) {
+            uiInterface.ThreadSafeMessageBox(_("File transfer error"), _("Failed to send file"), CClientUIInterface::MSG_ERROR);
+        }
+#endif
         return false;
     }
 

@@ -6063,9 +6063,9 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source> mints deleted
-</source>
+        </source>
         <translation>удалены монеты
-</translation>
+        </translation>
     </message>
     <message>
         <source> mints updated, </source>
@@ -6073,9 +6073,9 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source> unconfirmed transactions removed
-</source>
+        </source>
         <translation>удалены неподтвержденные транзакции
-</translation>
+        </translation>
     </message>
     <message>
         <source>Disable all PDG specific functionality (Masternodes, Zerocoin, SwiftX, Budgeting) (0-1, default: %u)</source>
@@ -6828,6 +6828,30 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>wallet.dat corrupt, salvage failed</source>
         <translation>wallet.dat коррумпирован, сбор не выполнен</translation>
+    </message>
+    <message>
+        <source>File transfer</source>
+        <translation>Передача файла</translation>
+    </message>
+    <message>
+        <source>File transfer error</source>
+        <translation>Ошибка передачи файла</translation>
+    </message>
+    <message>
+        <source>Failed to send file</source>
+        <translation>Ошибка отправки файла</translation>
+    </message>
+    <message>
+        <source>File sending started</source>
+        <translation>Началась отправка файла</translation>
+    </message>
+    <message>
+        <source>Failed to save received file. Check disk space and see log for details</source>
+        <translation>Не удалось сохранить полученный файл. Проверьте дисковое пространство или смотрите лог для подробного описания ошибки</translation>
+    </message>
+    <message>
+        <source>File received</source>
+        <translation>Файл получен</translation>
     </message>
 </context>
 </TS>

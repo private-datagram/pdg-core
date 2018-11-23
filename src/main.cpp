@@ -6925,7 +6925,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 if (!SaveFileDB(file)) {
                     LogPrint("file", "FILES. File save to DB error\n");
                     // TODO: stop all request for 5 min
-                    // if wallet notify
+
+#ifdef ENABLE_WALLET
+                    if (pwalletMain) {
+                        uiInterface.ThreadSafeMessageBox(_("File transfer error"), _("Failed to save received file. Check disk space and see log for details"), CClientUIInterface::MSG_ERROR);
+                    }
+#endif
                 } else {
                     LogPrint("file", "FILES. File save OK\n");
 
@@ -6950,10 +6955,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         //processFileRequests(); // TODO: PDG 3 optimize, run process file
                     }
 
-                    // TODO: PDG 5: ui notification
-//                    if (isMyTx(tx) && wallet) {
-//                        notifications.sendNotification("File synced: ", tx); // уведомление на UI
-//                    }
+#ifdef ENABLE_WALLET
+                    if (pwalletMain && pwalletMain->IsMine(tx)) {
+                        uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File received"), CClientUIInterface::MSG_INFORMATION);
+                    }
+#endif
                 }
             }
         }
@@ -7839,6 +7845,13 @@ void ProcessFileRequests() {
         // send
         LogPrint("file", "%s - FILES. Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
         pNode->PushMessage("file", fileTxHash, dbFile);
+
+#ifdef ENABLE_WALLET
+        if (pwalletMain) {
+            uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File sending started"),
+                                             CClientUIInterface::MSG_INFORMATION);
+        }
+#endif
 
         // remove
         requestMap.erase(pair.second);
