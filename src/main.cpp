@@ -8240,12 +8240,12 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
 std::string CBlockFileInfo::ToString() const
 {
-    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
+    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, nTimeFirst > 0 ? DateTimeStrFormat("%Y-%m-%d", nTimeFirst) : "NULL", nTimeLast ? DateTimeStrFormat("%Y-%m-%d", nTimeLast) : "NULL");
 }
 
 std::string CFileRepositoryBlockInfo::ToString() const
 {
-    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)", nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
+    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)", nBlockSize, nFilesCount, firstWriteTime > 0 ? DateTimeStrFormat("%Y-%m-%d", firstWriteTime) : "NULL", lastWriteTime > 0 ? DateTimeStrFormat("%Y-%m-%d", lastWriteTime) : "NULL");
 }
 
 std::string CDBFileRepositoryState::ToString() const
