@@ -8265,7 +8265,7 @@ public:
 } instance_of_cmaincleanup;
 
 
-CFileRepositoryManager::CFileRepositoryManager(): cs_RepositoryReadWriteLock(), vFileRepositoryBlockInfo(), nLastFileRepositoryBlock(0), dbFileRepositoryState(), lastUpdateTime(GetTimeMillis())  {
+CFileRepositoryManager::CFileRepositoryManager(): vFileRepositoryBlockInfo(), nLastFileRepositoryBlock(0), dbFileRepositoryState(), lastUpdateTime(GetTimeMillis()), cs_RepositoryReadWriteLock()  {
 }
 
 bool CFileRepositoryManager::SaveFile(CDBFile& file) {
@@ -8437,8 +8437,8 @@ bool CFileRepositoryManager::FinishFileRepositorySync(FileRepositoryBlockSyncSta
         return error("%s: Filed to read temp repository block files.\n", __func__);
     }
 
-    for (unsigned int i = 0; i <= syncState.nProcessedTempBlocks; i++) {
-        filesystem::path source = GetDataDir() / "files" / strprintf("blk%05u.dat", i);
+    for (int i = 0; i <= syncState.nProcessedTempBlocks; i++) {
+        filesystem::path source = GetDataDir() / "files" / strprintf("blk%05d.dat", i);
         if (!filesystem::exists(source)) {
             return error("%s: Filed to rename temp repository block file. File not found.  file number: %d\n", __func__, i);
         } else {
@@ -8848,7 +8848,7 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
 
             LogPrint("file", "%s - FILES. Cursor on file index. file position: %d/%d .\n", __func__, pos.nBlockFileIndex, pos.nOffset);
 
-            repositoryFileMap[pos] = NULL;
+            repositoryFileMap.erase(pos);
 
             pcursor->Next();
         } catch (std::exception& e) {
