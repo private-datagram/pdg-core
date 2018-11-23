@@ -79,7 +79,7 @@ uint256 CBlockIndex::GetBlockTrust() const
     }
 }
 
-CDBFile::CDBFile() : vBytes(), isMine(false), removed(false) {
+CDBFile::CDBFile() : fileHash(0), fileExpiredDate(0), isMine(false), removed(false), vBytes() {
     UpdateFileHash();
 }
 

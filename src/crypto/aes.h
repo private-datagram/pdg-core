@@ -104,7 +104,7 @@ namespace crypto {
             unsigned long read;
 
             if (size < AES_BLOCK_SIZE * 2) {
-                LogPrintStr("DecryptAES error. size < AES_BLOCK_SIZE * 2. size: " + size);
+                LogPrintf("DecryptAES error. size < AES_BLOCK_SIZE * 2. size: %d", size);
                 return false;
             }
 
