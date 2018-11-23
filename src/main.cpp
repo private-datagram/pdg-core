@@ -4339,7 +4339,7 @@ bool ReceivedBlockTransactions(const CBlock& block, CValidationState& state, CBl
     return true;
 }
 
-bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, uint64_t nTime, bool fKnown = false)
+bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, int64_t nTime, bool fKnown = false)
 {
     LOCK(cs_LastBlockFile);
 
@@ -8240,12 +8240,12 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
 std::string CBlockFileInfo::ToString() const
 {
-    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, nTimeFirst > 0 ? DateTimeStrFormat("%Y-%m-%d", nTimeFirst) : "NULL", nTimeLast ? DateTimeStrFormat("%Y-%m-%d", nTimeLast) : "NULL");
+    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
 
 std::string CFileRepositoryBlockInfo::ToString() const
 {
-    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)", nBlockSize, nFilesCount, firstWriteTime > 0 ? DateTimeStrFormat("%Y-%m-%d", firstWriteTime) : "NULL", lastWriteTime > 0 ? DateTimeStrFormat("%Y-%m-%d", lastWriteTime) : "NULL");
+    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)", nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
 }
 
 std::string CDBFileRepositoryState::ToString() const
@@ -8278,7 +8278,7 @@ public:
 } instance_of_cmaincleanup;
 
 
-CFileRepositoryManager::CFileRepositoryManager(): vFileRepositoryBlockInfo(), nLastFileRepositoryBlock(0), dbFileRepositoryState(), lastUpdateTime(GetTimeMillis()), cs_RepositoryReadWriteLock()  {
+CFileRepositoryManager::CFileRepositoryManager(): vFileRepositoryBlockInfo(), nLastFileRepositoryBlock(0), dbFileRepositoryState(), lastUpdateTime(GetTimeMillis() / 1000), cs_RepositoryReadWriteLock()  {
 }
 
 bool CFileRepositoryManager::SaveFile(CDBFile& file) {

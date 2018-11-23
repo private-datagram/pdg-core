@@ -356,8 +356,8 @@ class CFileRepositoryBlockInfo
 public:
     uint32_t nBlockSize;                //! number of used bytes of block file.
     uint32_t nFilesCount;               //! number of files stored in file.
-    uint64_t firstWriteTime;            //! earliest time of block in file.
-    uint64_t lastWriteTime;             //! latest time of block in file.
+    int64_t firstWriteTime;            //! earliest time of block in file.
+    int64_t lastWriteTime;             //! latest time of block in file.
     bool isFull;                        //! file is full.
 
     ADD_SERIALIZE_METHODS;
@@ -367,8 +367,8 @@ public:
     {
         READWRITE(VARINT(nBlockSize));
         READWRITE(VARINT(nFilesCount));
-        READWRITE(VARINT(firstWriteTime));
-        READWRITE(VARINT(lastWriteTime));
+        READWRITE(firstWriteTime);
+        READWRITE(lastWriteTime);
         READWRITE(isFull);
     }
 
@@ -401,7 +401,7 @@ public:
     void AddFile(unsigned int nAddSize)
     {
         if (nFilesCount == 0)
-            firstWriteTime = GetTimeMillis();
+            firstWriteTime = GetTimeMillis() / 1000;
 
         nFilesCount++;
         nBlockSize += nAddSize;
@@ -428,7 +428,7 @@ public:
     }
 
     void UpdateLastWrite() {
-        lastWriteTime = GetTimeMillis();
+        lastWriteTime = GetTimeMillis() / 1000;
     }
 };
 
@@ -884,8 +884,8 @@ public:
     unsigned int nUndoSize;    //! number of used bytes in the undo file
     unsigned int nHeightFirst; //! lowest height of block in file
     unsigned int nHeightLast;  //! highest height of block in file
-    uint64_t nTimeFirst;       //! earliest time of block in file
-    uint64_t nTimeLast;        //! latest time of block in file
+    int64_t nTimeFirst;       //! earliest time of block in file
+    int64_t nTimeLast;        //! latest time of block in file
 
     ADD_SERIALIZE_METHODS;
 
@@ -897,8 +897,8 @@ public:
         READWRITE(VARINT(nUndoSize));
         READWRITE(VARINT(nHeightFirst));
         READWRITE(VARINT(nHeightLast));
-        READWRITE(VARINT(nTimeFirst));
-        READWRITE(VARINT(nTimeLast));
+        READWRITE(nTimeFirst);
+        READWRITE(nTimeLast);
     }
 
     void SetNull()
@@ -920,7 +920,7 @@ public:
     std::string ToString() const;
 
     /** update statistics (does not update nSize) */
-    void AddBlock(unsigned int nHeightIn, uint64_t nTimeIn)
+    void AddBlock(unsigned int nHeightIn, int64_t nTimeIn)
     {
         if (nBlocks == 0 || nHeightFirst > nHeightIn)
             nHeightFirst = nHeightIn;
@@ -1021,7 +1021,7 @@ private:
     std::vector<CFileRepositoryBlockInfo> vFileRepositoryBlockInfo;
     int nLastFileRepositoryBlock;
     CDBFileRepositoryState dbFileRepositoryState;
-    uint64_t lastUpdateTime;
+    int64_t lastUpdateTime;
     mutable boost::shared_mutex cs_RepositoryReadWriteLock;
 
     bool RemoveFileRepositoryBlockFromDisk(int fileNumber, bool isTmp);
