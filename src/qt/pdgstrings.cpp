@@ -235,10 +235,10 @@ QT_TRANSLATE_NOOP("pdg-core", ""
 QT_TRANSLATE_NOOP("pdg-core", ""
 "You must specify a masternodeprivkey in the configuration. Please see "
 "documentation for help."),
-QT_TRANSLATE_NOOP("pdg-core", "(51472 could be used only on mainnet)"),
+QT_TRANSLATE_NOOP("pdg-core", "(37712 could be used only on mainnet)"),
 QT_TRANSLATE_NOOP("pdg-core", "(default: %s)"),
 QT_TRANSLATE_NOOP("pdg-core", "(default: 1)"),
-QT_TRANSLATE_NOOP("pdg-core", "(must be 51472 for mainnet)"),
+QT_TRANSLATE_NOOP("pdg-core", "(must be 37712 for mainnet)"),
 QT_TRANSLATE_NOOP("pdg-core", "<category> can be:"),
 QT_TRANSLATE_NOOP("pdg-core", "Accept command line and JSON-RPC commands"),
 QT_TRANSLATE_NOOP("pdg-core", "Accept connections from outside (default: 1 if no -proxy or -connect)"),
