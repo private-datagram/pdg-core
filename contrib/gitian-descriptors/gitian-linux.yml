@@ -1,5 +1,5 @@
 ---
-name: "pdg-linux-3.1"
+name: "pdg-linux-1.0"
 enable_cache: true
 suites:
 - "trusty"

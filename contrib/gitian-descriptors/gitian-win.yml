@@ -1,5 +1,5 @@
 ---
-name: "pdg-win-3.1"
+name: "pdg-win-1.0"
 enable_cache: true
 suites:
 - "trusty"

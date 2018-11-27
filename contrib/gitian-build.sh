@@ -237,7 +237,7 @@ echo ${COMMIT}
 if [[ $setup = true ]]
 then
     sudo apt-get install ruby apache2 git apt-cacher-ng python-vm-builder qemu-kvm qemu-utils
-    git clone https://github.com/pdg-project/gitian.sigs.git
+    git clone https://github.com/private-datagram/gitian.sigs.git
     git clone https://github.com/private-datagram/pdg-core-detached-sigs.git
     git clone https://github.com/devrandom/gitian-builder.git
     pushd ./gitian-builder
@@ -252,7 +252,7 @@ then
 fi
 
 # Set up build
-pushd ./pdg
+pushd ./pdg-core
 git fetch
 git checkout ${COMMIT}
 popd
@@ -271,7 +271,7 @@ then
 	mkdir -p inputs
 	wget -N -P inputs $osslPatchUrl
 	wget -N -P inputs $osslTarUrl
-	make -C ../pdg/depends download SOURCES_PATH=`pwd`/cache/common
+	make -C ../pdg-core/depends download SOURCES_PATH=`pwd`/cache/common
 
 	# Linux
 	if [[ $linux = true ]]

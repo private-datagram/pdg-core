@@ -96,7 +96,7 @@ BITCOIN_CORE_H = \
   accumulatorcheckpoints.json.h \
   accumulatormap.h \
   addrman.h \
-  aes.h \
+  crypto/aes.h \
   alert.h \
   allocators.h \
   amount.h \
@@ -117,6 +117,7 @@ BITCOIN_CORE_H = \
   compat/sanity.h \
   compressor.h \
   containers.h \
+  crypto/rsa.h \
   primitives/block.h \
   primitives/deterministicmint.h \
   primitives/transaction.h \
@@ -164,7 +165,6 @@ BITCOIN_CORE_H = \
   rpcclient.h \
   rpcprotocol.h \
   rpcserver.h \
-  rsa.h \
   scheduler.h \
   script/interpreter.h \
   script/script.h \
