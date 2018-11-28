@@ -238,6 +238,13 @@ bool CalculateAccumulatorCheckpoint(int nHeight, uint256& nCheckpoint, Accumulat
 
     //Accumulate all coins over the last ten blocks that havent been accumulated (height - 20 through height - 11)
     int nTotalMintsFound = 0;
+
+    // TODO: PDG5 check twice for zero nHeightCheckpoint
+    if (nHeightCheckpoint < 20) {
+        nCheckpoint = chainActive[nHeight - 1]->nAccumulatorCheckpoint;
+        return true;
+    }
+
     CBlockIndex *pindex = chainActive[nHeightCheckpoint - 20];
 
     while (pindex->nHeight < nHeight - 10) {
