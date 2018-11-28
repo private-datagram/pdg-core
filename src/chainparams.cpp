@@ -129,7 +129,7 @@ public:
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 101; // Premine maturation // TODO: PDG5 revert
+        nLastPOWBlock = 10000; // Premine maturation // TODO: PDG5 revert
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 0;
         nZerocoinStartTime = 1542895000; // Before blockchain start
@@ -139,7 +139,7 @@ public:
         //nBlockLastGoodCheckpoint = 891730; //Last valid accumulator checkpoint
         //nBlockEnforceInvalidUTXO = 902850; //Start enforcing the invalid UTXO's
         //nInvalidAmountFiltered = 268200*COIN; //Amount of invalid coins filtered through exchanges, that should be considered valid
-        nBlockZerocoinV2 = 101; // TODO: check and activate //!> Officially by PIVX the block that zerocoin v2 becomes active - roughly Tuesday, May 8, 2018 4:00:00 AM GMT
+        nBlockZerocoinV2 = 1; // TODO: check and activate //!> Officially by PIVX the block that zerocoin v2 becomes active - roughly Tuesday, May 8, 2018 4:00:00 AM GMT
         //nEnforceNewSporkKey = 1525158000; //!> Sporks signed after (GMT): Tuesday, May 1, 2018 7:00:00 AM GMT must use the new spork key
 
         /**

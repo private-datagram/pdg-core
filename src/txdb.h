@@ -11,6 +11,7 @@
 #include "main.h"
 #include "timedata.h"
 #include "primitives/zerocoin.h"
+#include "filerepositorymanager.h"
 
 #include <map>
 #include <string>

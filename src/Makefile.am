@@ -131,6 +131,7 @@ BITCOIN_CORE_H = \
   eccryptoverify.h \
   ecwrapper.h \
   files.h \
+  filerepositorymanager.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -192,6 +193,7 @@ BITCOIN_CORE_H = \
   utilmoneystr.h \
   utiltime.h \
   validationinterface.h \
+  validationstate.h \
   version.h \
   wallet.h \
   wallet_ismine.h \
@@ -269,6 +271,7 @@ libbitcoin_wallet_a_SOURCES = \
   db.cpp \
   crypter.cpp \
   files.cpp \
+  filerepositorymanager.cpp \
   swifttx.cpp \
   masternode.cpp \
   masternode-budget.cpp \
