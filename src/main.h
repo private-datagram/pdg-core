@@ -702,8 +702,8 @@ public:
     unsigned int nUndoSize;    //! number of used bytes in the undo file
     unsigned int nHeightFirst; //! lowest height of block in file
     unsigned int nHeightLast;  //! highest height of block in file
-    int64_t nTimeFirst;       //! earliest time of block in file
-    int64_t nTimeLast;        //! latest time of block in file
+    uint64_t nTimeFirst;       //! earliest time of block in file
+    uint64_t nTimeLast;        //! latest time of block in file
 
     ADD_SERIALIZE_METHODS;
 
@@ -715,8 +715,8 @@ public:
         READWRITE(VARINT(nUndoSize));
         READWRITE(VARINT(nHeightFirst));
         READWRITE(VARINT(nHeightLast));
-        READWRITE(nTimeFirst);
-        READWRITE(nTimeLast);
+        READWRITE(VARINT(nTimeFirst));
+        READWRITE(VARINT(nTimeLast));
     }
 
     void SetNull()
@@ -738,7 +738,7 @@ public:
     std::string ToString() const;
 
     /** update statistics (does not update nSize) */
-    void AddBlock(unsigned int nHeightIn, int64_t nTimeIn)
+    void AddBlock(unsigned int nHeightIn, uint64_t nTimeIn)
     {
         if (nBlocks == 0 || nHeightFirst > nHeightIn)
             nHeightFirst = nHeightIn;

@@ -1536,22 +1536,24 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 // Force recalculation of accumulators.
                 if (GetBoolArg("-reindexaccumulators", false)) {
-                    CBlockIndex* pindex = chainActive[Params().Zerocoin_StartHeight()];
-                    while (pindex->nHeight < chainActive.Height()) {
-                        if (!count(listAccCheckpointsNoDB.begin(), listAccCheckpointsNoDB.end(), pindex->nAccumulatorCheckpoint))
-                            listAccCheckpointsNoDB.emplace_back(pindex->nAccumulatorCheckpoint);
-                        pindex = chainActive.Next(pindex);
+                    if (chainActive.Height() > Params().Zerocoin_StartHeight()) {
+                        CBlockIndex *pindex = chainActive[Params().Zerocoin_StartHeight()];
+                        while (pindex->nHeight < chainActive.Height()) {
+                            if (!count(listAccCheckpointsNoDB.begin(), listAccCheckpointsNoDB.end(),
+                                       pindex->nAccumulatorCheckpoint))
+                                listAccCheckpointsNoDB.emplace_back(pindex->nAccumulatorCheckpoint);
+                            pindex = chainActive.Next(pindex);
+                        }
+                        // PDG: recalculate Accumulator Checkpoints that failed to database properly
+                        if (!listAccCheckpointsNoDB.empty()) {
+                            uiInterface.InitMessage(_("Calculating missing accumulators..."));
+                            LogPrintf("%s : finding missing checkpoints\n", __func__);
+
+                            string strError;
+                            if (!ReindexAccumulators(listAccCheckpointsNoDB, strError))
+                                return InitError(strError);
+                        }
                     }
-                }
-
-                // PDG: recalculate Accumulator Checkpoints that failed to database properly
-                if (!listAccCheckpointsNoDB.empty()) {
-                    uiInterface.InitMessage(_("Calculating missing accumulators..."));
-                    LogPrintf("%s : finding missing checkpoints\n", __func__);
-
-                    string strError;
-                    if (!ReindexAccumulators(listAccCheckpointsNoDB, strError))
-                        return InitError(strError);
                 }
 
                 uiInterface.InitMessage(_("Verifying blocks..."));

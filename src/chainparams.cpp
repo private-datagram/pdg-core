@@ -131,7 +131,7 @@ public:
         /** Height or Time Based Activations **/
         nLastPOWBlock = 10000; // Premine maturation // TODO: PDG5 revert
         nModifierUpdateBlock = 0;
-        nZerocoinStartHeight = 0;
+        nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895000; // Before blockchain start
         //nBlockEnforceSerialRange = 895400; //Enforce serial range starting this block
         //nBlockRecalculateAccumulators = 908000; //Trigger a recalculation of accumulators
