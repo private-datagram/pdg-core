@@ -821,9 +821,14 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
         nBlockTime = GetAdjustedTime();
     if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
         return true;
-    BOOST_FOREACH (const CTxIn& txin, tx.vin)
-        if (!txin.IsFinal())
+    BOOST_FOREACH (const CTxIn& txin, tx.vin) {
+        bool isFinal = txin.IsFinal();
+        //if (nBlockHeight > 5)
+        //   isFinal = false;
+
+        if (!isFinal)
             return false;
+    }
     return true;
 }
 

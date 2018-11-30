@@ -826,6 +826,7 @@ public:
     char fFromMe;
     std::string strFromAccount;
     int64_t nOrderPos; //! position in ordered transaction list
+    uint32_t freezeTime;
 
     int32_t type;
     PtrContainer<CTransactionMeta> meta;
@@ -915,6 +916,9 @@ public:
         nImmatureWatchCreditCached = 0;
         nChangeCached = 0;
         nOrderPos = -1;
+
+        //todo: PDG 5 remove after distribution
+        freezeTime = 0;
 
         // TODO: refactor
         type = ((CMerkleTx*)this)->type;
