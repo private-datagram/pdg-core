@@ -439,7 +439,7 @@ bool AbortNode(const std::string& msg, const std::string& userMessage = "");
 /** Get statistics from node state */
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats& stats);
 /** Increase a node's misbehavior score. */
-void Misbehaving(NodeId nodeid, int howmuch, std::string file = NULL, int line = 0);
+void Misbehaving(NodeId nodeid, int howmuch, std::string file = "", int line = 0);
 /** Flush all state, indexes and buffers to disk. */
 void FlushStateToDisk();
 

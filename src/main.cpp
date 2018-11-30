@@ -2617,7 +2617,7 @@ void CheckForkWarningConditionsOnNewFork(CBlockIndex* pindexNewForkTip)
 }
 
 // Requires cs_main.
-void Misbehaving(NodeId pnode, int howmuch, std::string file, int line = 0)
+void Misbehaving(NodeId pnode, int howmuch, std::string file, int line)
 {
     if (howmuch == 0)
         return;
@@ -2629,10 +2629,10 @@ void Misbehaving(NodeId pnode, int howmuch, std::string file, int line = 0)
     state->nMisbehavior += howmuch;
     int banscore = GetArg("-banscore", 100);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore) {
-        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED. %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file ? file : "", line);
+        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED. %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file, line);
         state->fShouldBan = true;
     } else
-        LogPrintf("Misbehaving: %s (%d -> %d). %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file ? file : "", line);
+        LogPrintf("Misbehaving: %s (%d -> %d). %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file, line);
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
