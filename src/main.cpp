@@ -2617,7 +2617,7 @@ void CheckForkWarningConditionsOnNewFork(CBlockIndex* pindexNewForkTip)
 }
 
 // Requires cs_main.
-void Misbehaving(NodeId pnode, int howmuch)
+void Misbehaving(NodeId pnode, int howmuch, std::string file, int line = 0)
 {
     if (howmuch == 0)
         return;
@@ -2629,10 +2629,10 @@ void Misbehaving(NodeId pnode, int howmuch)
     state->nMisbehavior += howmuch;
     int banscore = GetArg("-banscore", 100);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore) {
-        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior);
+        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED. %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file ? file : "", line);
         state->fShouldBan = true;
     } else
-        LogPrintf("Misbehaving: %s (%d -> %d)\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior);
+        LogPrintf("Misbehaving: %s (%d -> %d). %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file ? file : "", line);
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
@@ -2659,7 +2659,7 @@ void static InvalidBlockFound(CBlockIndex* pindex, const CValidationState& state
             CBlockReject reject = {state.GetRejectCode(), state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), pindex->GetBlockHash()};
             State(it->second)->rejects.push_back(reject);
             if (nDoS > 0)
-                Misbehaving(it->second, nDoS);
+                Misbehaving(it->second, nDoS, __FILE__, __LINE__);
         }
     }
     if (!state.CorruptionPossible()) {
@@ -6100,7 +6100,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (pfrom->nVersion != 0) {
             pfrom->PushMessage("reject", strCommand, REJECT_DUPLICATE, string("Duplicate version message"));
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 1);
+            Misbehaving(pfrom->GetId(), 1, __FILE__, __LINE__);
             return false;
         }
 
@@ -6218,7 +6218,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     else if (pfrom->nVersion == 0) {
         // Must have a version message before anything else
         LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 1);
+        Misbehaving(pfrom->GetId(), 1, __FILE__, __LINE__);
         return false;
     }
 
@@ -6243,7 +6243,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             return true;
         if (vAddr.size() > 1000) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20);
+            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
             return error("message addr size() = %u", vAddr.size());
         }
 
@@ -6302,7 +6302,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> vInv;
         if (vInv.size() > MAX_INV_SZ) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20);
+            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
             return error("message inv size() = %u", vInv.size());
         }
 
@@ -6353,7 +6353,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             if (fileKnown.events > HAS_FILE_EVENTS_MAX_COUNT) {
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE. Node max events exceeded. Misbehaving.\n", __func__);
 
-                                Misbehaving(pfrom->GetId(), 50);
+                                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                                 RemoveKnownFileHashesByNode(pfrom->GetId());
                             } else {
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE. Node already notified file known.\n", __func__);
@@ -6408,7 +6408,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                 LogPrint("file", "%s - FILES. File request found. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
                                 if (fileRequest->events > HAS_FILE_REQUEST_EVENTS_MAX_COUNT) {
                                     LogPrint("file", "%s - FILES. HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                                    Misbehaving(fileRequest->node, 10);
+                                    Misbehaving(fileRequest->node, 10, __FILE__, __LINE__);
                                     RemoveHasFileRequestsByNode(fileRequest->node);
                                 } else {
                                     LogPrint("file", "%s - FILES. update data at file request. node: %d, fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
@@ -6435,7 +6435,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             } else
                             if (tx.type != TX_FILE_TRANSFER) {
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
-                                Misbehaving(pfrom->GetId(), 50);
+                                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                             } else {
                                 bool hasBlock = (bool) mapBlockIndex.count(blockHash);
                                 if (!hasBlock) {
@@ -6444,7 +6444,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                                 if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
-                                    Misbehaving(pfrom->GetId(), 5);
+                                    Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
                                 } else
                                 if (!IsFileExist(tx.vfiles[0].fileHash) && fMasterNode) {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to requests map.\n", __func__);
@@ -6486,7 +6486,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                             if (fileRequest->events > FILE_REQUEST_EVENTS_BAN_THRESHOLD) {
                                 // ban
-                                Misbehaving(fileRequest->node, 50);
+                                Misbehaving(fileRequest->node, 50, __FILE__, __LINE__);
                                 RemoveFileRequestsByNode(fileRequest->node);
                             } else {
                                 // update date and increment counter
@@ -6510,11 +6510,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                         if (!GetTransaction(txHash, tx, blockHash, true)) { // TODO: optimize, make caching
                             LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Transaction by fileTxHash not found. Misbehaving.\n", __func__);
-                            Misbehaving(pfrom->GetId(), 20);
+                            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
                         } else
                         if (tx.type != TX_FILE_TRANSFER) {
                             LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", tx.type, __func__);
-                            Misbehaving(pfrom->GetId(), 50);
+                            Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                         } else {
                             const uint256 &fileHash = tx.vfiles[0].fileHash;
                             bool hasBlock = (bool) mapBlockIndex.count(blockHash);
@@ -6524,10 +6524,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                             if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
                                 LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
-                                Misbehaving(pfrom->GetId(), 5);
+                                Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
                             } else if (!IsFileExist(fileHash)) {
                                 LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File not found. Misbehaving.\n", __func__);
-                                Misbehaving(pfrom->GetId(), 10);
+                                Misbehaving(pfrom->GetId(), 10, __FILE__, __LINE__);
                             } else {
                                 LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Validate OK. Adding to file requests map.\n", __func__);
 
@@ -6547,7 +6547,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             GetMainSignals().Inventory(inv.hash);
 
             if (pfrom->nSendSize > (SendBufferSize() * 2)) {
-                Misbehaving(pfrom->GetId(), 50);
+                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                 return error("send buffer size() = %u", pfrom->nSendSize);
             }
         }
@@ -6562,7 +6562,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> vInv;
         if (vInv.size() > MAX_INV_SZ) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20);
+            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
             return error("message getdata size() = %u", vInv.size());
         }
 
@@ -6749,7 +6749,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         int nDos = 0;
                         if(stateDummy.IsInvalid(nDos) && nDos > 0) {
                             // Punish peer that gave us an invalid orphan tx
-                            Misbehaving(fromPeer, nDos);
+                            Misbehaving(fromPeer, nDos, __FILE__, __LINE__);
                             setMisbehaving.insert(fromPeer);
                             LogPrint("mempool", "   invalid orphan tx %s\n", orphanHash.ToString());
                         }
@@ -6800,7 +6800,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                 state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0)
-                Misbehaving(pfrom->GetId(), nDoS);
+                Misbehaving(pfrom->GetId(), nDoS, __FILE__, __LINE__);
         }
     }
 
@@ -6813,7 +6813,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         unsigned int nCount = ReadCompactSize(vRecv);
         if (nCount > MAX_HEADERS_RESULTS) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20);
+            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
             return error("headers message size = %u", nCount);
         }
         headers.resize(nCount);
@@ -6832,7 +6832,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         BOOST_FOREACH (const CBlockHeader& header, headers) {
             CValidationState state;
             if (pindexLast != NULL && header.hashPrevBlock != pindexLast->GetBlockHash()) {
-                Misbehaving(pfrom->GetId(), 20);
+                Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
                 return error("non-continuous headers sequence");
             }
 
@@ -6843,7 +6843,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 int nDoS;
                 if (state.IsInvalid(nDoS)) {
                     if (nDoS > 0)
-                        Misbehaving(pfrom->GetId(), nDoS);
+                        Misbehaving(pfrom->GetId(), nDoS, __FILE__, __LINE__);
                     std::string strError = "invalid header received " + header.GetHash().ToString();
                     return error(strError.c_str());
                 }
@@ -6880,7 +6880,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!requiredFilesMap.count(fileTxHash)) {
             LogPrint("file", "FILES. Received file not required %s\n", fileTxHash.ToString());
             // TODO: protect ddos
-            Misbehaving(pfrom->GetId(), 2);
+            Misbehaving(pfrom->GetId(), 2, __FILE__, __LINE__);
         } else {
             const uint256 &fileHash = file.fileHash;
 
@@ -6891,7 +6891,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                 LOCK(cs_KnownHasFilesMap);
                 RemoveKnownFileHashesByNode(pfrom->GetId());
-                Misbehaving(pfrom->GetId(), 50);
+                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
             } else {
                 LogPrint("file", "FILES. File hash OK\n");
 
@@ -7125,7 +7125,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 // peer might be an older or different implementation with
                 // a different signature key, etc.
                 LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), 10);
+                Misbehaving(pfrom->GetId(), 10, __FILE__, __LINE__);
             }
         }
     }
@@ -7136,7 +7136,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                  strCommand == "filterclear")) {
         LogPrintf("bloom message=%s\n", strCommand);
         LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 100);
+        Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
     }
 
     else if (strCommand == "filterload") {
@@ -7146,7 +7146,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!filter.IsWithinSizeConstraints()) {
             // There is no excuse for sending a too-large filter
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 100);
+            Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
         } else {
             LOCK(pfrom->cs_filter);
             delete pfrom->pfilter;
@@ -7165,14 +7165,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         // and thus, the maximum size any matched object can have) in a filteradd message
         if (vData.size() > MAX_SCRIPT_ELEMENT_SIZE) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 100);
+            Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
         } else {
             LOCK(pfrom->cs_filter);
             if (pfrom->pfilter)
                 pfrom->pfilter->insert(vData);
             else {
                 LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), 100);
+                Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
             }
         }
     }
@@ -8018,7 +8018,7 @@ void ProcessKnownHashes() {
 
     BOOST_FOREACH (const NodeId &nodeId, misbehavingNodes) {
         LogPrint("file", "%s - FILES. Node: %d - misbehaving. \n", __func__, nodeId);
-        Misbehaving(nodeId, 10);
+        Misbehaving(nodeId, 10, __FILE__, __LINE__);
         RemoveKnownFileHashesByNode(nodeId);
     }
 }
