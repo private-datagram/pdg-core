@@ -5266,11 +5266,6 @@ bool static LoadBlockIndexDB(string& strError)
         }
     }
 
-    LogPrintf("%s: Load file repository state: \n", __func__);
-    if (!fileRepositoryManager.LoadFileRepositoryState()) {
-        LogPrintf("%s: Failed load file repository state: \n", __func__);
-    }
-
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     set<int> setBlkDataFiles;
@@ -7558,14 +7553,14 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             }
         }
 
-        // TODO:
+        // TODO: ?
+        /*
         //!pto->fClient ??
-        //if (!pto->fDisconnect &&  fFetch && state.nFilesInFlight < MAX_FILES_IN_TRANSIT_PER_PEER) {
-            //реализация выбора очереди файлов у данного нода
+        if (!pto->fDisconnect &&  fFetch && state.nFilesInFlight < MAX_FILES_IN_TRANSIT_PER_PEER) {
 
-        }
+        }*/
 
-            //
+        //
         // Message: getdata (non-blocks)
         //
         while (!pto->fDisconnect && !pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow) {
@@ -8116,8 +8111,8 @@ bool SaveFileRepositoryState() {
     return fileRepositoryManager.SaveFileRepositoryState();
 }
 
-bool InitFileDBState() {
-    return fileRepositoryManager.LoadFileDBState();
+bool LoadFileManagerState() {
+    return fileRepositoryManager.LoadManagerState();
 }
 
 bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
@@ -8223,12 +8218,14 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
 std::string CBlockFileInfo::ToString() const
 {
-    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
+    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)",
+                     nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
 
 std::string CFileRepositoryBlockInfo::ToString() const
 {
-    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)", nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
+    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)",
+                     nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
 }
 
 std::string CDBFileRepositoryState::ToString() const

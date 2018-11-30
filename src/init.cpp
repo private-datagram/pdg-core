@@ -40,6 +40,7 @@
 #include "utilmoneystr.h"
 #include "validationinterface.h"
 #include "accumulatorcheckpoints.h"
+#include "tinyformat.h"
 
 #ifdef ENABLE_WALLET
 #include "db.h"
@@ -1458,8 +1459,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
-                if (!InitFileDBState()) {
-                    LogPrint("file", "%s - FILES. Error loading meta files data from DB.\n", __func__);
+                uiInterface.InitMessage(_("Loading files index..."));
+                if (!LoadFileManagerState()) {
+                    LogPrint("file", "%s - FILES. Error loading files manager state.\n", __func__);
                     strLoadError = _("Error initializing file database");
                     break;
                 }

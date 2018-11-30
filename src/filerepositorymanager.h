@@ -70,7 +70,7 @@ public:
     unsigned int nBlocksCount;                 //! number of block files
     unsigned int filesCount;                  //! number of all files in all blocks
 
-    // TODO PDG 5 rename
+    // TODO: PDG 5 rename
 
     uint64_t removeCandidatesTotalSize;       //! number of bytes of all mark remove files in db
     unsigned int removeCandidatesFilesCount;  //! number of mark removed files in db
@@ -249,7 +249,7 @@ private:
     bool FindAndAllocateBlockFile(CValidationState &state, CFileRepositoryBlockDiskPos &pos,
                                   const uint32_t nAddSize, int &lastBlockFileIndex, vector<CFileRepositoryBlockInfo> &vblockFileInfo, bool isTmp);
 
-    bool SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex);
+    bool SaveManagerState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex);
 
     FILE* OpenFileRepositoryBlock(const CFileRepositoryBlockDiskPos& pos, bool fReadOnly, bool isTmp);
 
@@ -331,7 +331,7 @@ public:
     //todo: PDG 5 remove
     void FillTestData();
 
-    bool LoadFileRepositoryState();
+    bool LoadManagerState();
 
     bool GetFile(const uint256& fileHash, CDBFile& fileOut);
 

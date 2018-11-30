@@ -99,8 +99,8 @@ public:
     bool WriteRequiredFiles(const map<uint256, RequiredFile>& requiredFilesMap);
     bool ReadRequiredFiles(map<uint256, RequiredFile>& requiredFilesMap);
 
-    bool WriteCDBFileRepositoryState(const CDBFileRepositoryState& diskFileState);
-    bool ReadCDBFileRepositoryState(CDBFileRepositoryState& diskFileState);
+    bool WriteCDBFileRepositoryState(const CDBFileRepositoryState& fileRepositoryState);
+    bool ReadCDBFileRepositoryState(CDBFileRepositoryState& fileRepositoryState);
 };
 
 class CZerocoinDB : public CLevelDBWrapper

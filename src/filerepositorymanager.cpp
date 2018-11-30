@@ -87,15 +87,20 @@ bool CFileRepositoryManager::EraseFile(CDBFile& file) {
 }
 
 bool CFileRepositoryManager::SaveFileRepositoryState() {
-    return SaveFileRepositoryState(vFileRepositoryBlockInfo, nLastFileRepositoryBlock);
+    LogPrint("file", "%s - FILES. Saving file repository state.%s\n", __func__, dbFileRepositoryState.ToString()); // TODO: PDG 2 remove after debug
+
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
+    return SaveManagerState(vFileRepositoryBlockInfo, nLastFileRepositoryBlock);
 }
 
 bool CFileRepositoryManager::LoadFileDBState() {
-    LogPrint("file", "%s - FILES. Loaded file blockFiles State.%s\n", __func__, dbFileRepositoryState.ToString()); // TODO: PDG 2 remove after debug
+    LogPrint("file", "%s - FILES. Loading file repository state.%s\n", __func__, dbFileRepositoryState.ToString()); // TODO: PDG 2 remove after debug
+
+    READ_LOCK(cs_RepositoryReadWriteLock);
     return pblockfiletree->ReadCDBFileRepositoryState(dbFileRepositoryState);
 }
 
-bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
+bool CFileRepositoryManager::SaveManagerState(vector<CFileRepositoryBlockInfo> &vblockFileInfo, int &lastBlockFileIndex) {
     LogPrint("file", "%s - FILES. Save file repository state. vBlockFileSize=%d, lastBlockFileIndex=%d \n", __func__, vblockFileInfo.size(), lastBlockFileIndex);
     WRITE_LOCK(cs_RepositoryReadWriteLock);
     bool blockChanged = false;
@@ -112,7 +117,7 @@ bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlock
     }
 
     LogPrint("file", "%s - FILES. Write to file block index . %s\n", __func__, dbFileRepositoryState.ToString());
-    if (blockChanged && !pblockfiletree->WriteLastFileRepositoryBlock(lastBlockFileIndex) && !pblockfiletree->Sync()) {
+    if (blockChanged && (!pblockfiletree->WriteLastFileRepositoryBlock(lastBlockFileIndex) || !pblockfiletree->Sync())) {
         LogPrint("file", "%s - FILES. Failed to write to file block index \n", __func__);
         return false;
     }
@@ -120,8 +125,8 @@ bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlock
     dbFileRepositoryState.nBlocksCount = lastBlockFileIndex + 1;
 
     LogPrint("file", "%s - FILES. Write file blockfiles state. %s\n", __func__, dbFileRepositoryState.ToString());
-    if (!pblockfiletree->WriteCDBFileRepositoryState(dbFileRepositoryState) && !pblockfiletree->Sync()) {
-        LogPrint("file", "%s - FILES. Error write file blockfiles state in db. Create new \n", __func__);
+    if (!pblockfiletree->WriteCDBFileRepositoryState(dbFileRepositoryState) || !pblockfiletree->Sync()) {
+        LogPrint("file", "%s - FILES. Error write file blockfiles state in db\n", __func__);
         return false;
     }
 
@@ -129,8 +134,8 @@ bool CFileRepositoryManager::SaveFileRepositoryState(vector<CFileRepositoryBlock
     return true;
 }
 
-bool CFileRepositoryManager::LoadFileRepositoryState() {
-    READ_LOCK(cs_RepositoryReadWriteLock);
+bool CFileRepositoryManager::LoadManagerState() {
+    WRITE_LOCK(cs_RepositoryReadWriteLock);
 
     //Load sync file state
     FileRepositoryBlockSyncState syncState;
@@ -187,6 +192,31 @@ bool CFileRepositoryManager::LoadFileRepositoryState() {
     }
 
     nLastFileRepositoryBlock = vFileRepositoryBlockInfo.size() - 1;
+
+    bool loadedDbFileRepositoryState = pblockfiletree->ReadCDBFileRepositoryState(dbFileRepositoryState);
+
+    if (fReindex || !loadedDbFileRepositoryState) {
+        dbFileRepositoryState.SetNull();
+
+        LogPrintf("%s: Start reindex FileRepositoryState\n", __func__);
+
+        uint64_t totalFilesSize = 0;
+        uint32_t filesCount = 0;
+
+        for (unsigned int nFile = 0; nFile < vFileRepositoryBlockInfo.size(); nFile++) {
+            filesCount += vFileRepositoryBlockInfo[nFile].nFilesCount;
+            totalFilesSize += vFileRepositoryBlockInfo[nFile].nBlockSize;
+        }
+
+        // update dbFileRepositoryState
+        dbFileRepositoryState.nBlocksCount = (unsigned int) vFileRepositoryBlockInfo.size();
+        dbFileRepositoryState.filesCount = filesCount;
+        dbFileRepositoryState.nTotalFileStorageSize = totalFilesSize;
+
+        if (!SaveFileRepositoryState()) {
+            return error("%s: Filed to save file FileRepositoryState on reindex\n", __func__);
+        }
+    }
 
     //is sync not null - failed previous repository block sync. Reindex block files.
     if (!syncState.IsNull() && !FinishFileRepositorySync(syncState)) {
@@ -304,6 +334,9 @@ bool CFileRepositoryManager::RenameTmpOriginalFileBlockDisk(int tmpFileNumber)
 }
 
 void CFileRepositoryManager::FlushBlockFiles() {
+    if (vFileRepositoryBlockInfo.empty())
+        return;
+
     FlushFileRepositoryBlock(nLastFileRepositoryBlock, vFileRepositoryBlockInfo[nLastFileRepositoryBlock].nBlockSize);
 }
 
@@ -724,7 +757,7 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
 
     vFileRepositoryBlockInfo = vNewTempFileRepositoryBlockInfo;
     nLastFileRepositoryBlock = nNewRepositoryBlockIndex;
-    if (!SaveFileRepositoryState(vNewTempFileRepositoryBlockInfo, nNewRepositoryBlockIndex)) {
+    if (!SaveManagerState(vNewTempFileRepositoryBlockInfo, nNewRepositoryBlockIndex)) {
         LogPrint("file", "%s - FILES. Filed to save new file repository block info. size: %d, nFile: %d", __func__, vNewTempFileRepositoryBlockInfo.size(), nNewRepositoryBlockIndex);
         return;
     }

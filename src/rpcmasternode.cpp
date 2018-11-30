@@ -600,8 +600,14 @@ UniValue getmasternodeoutputs (const UniValue& params, bool fHelp)
             "\nExamples:\n" +
             HelpExampleCli("getmasternodeoutputs", "") + HelpExampleRpc("getmasternodeoutputs", ""));
 
-    // Find possible candidates
-    vector<COutput> possibleCoins = activeMasternode.SelectCoinsMasternode();
+
+    vector<COutput> possibleCoins;
+    {
+        LOCK(pwalletMain->cs_wallet);
+
+        // Find possible candidates
+        possibleCoins = activeMasternode.SelectCoinsMasternode();
+    }
 
     UniValue ret(UniValue::VARR);
     BOOST_FOREACH (COutput& out, possibleCoins) {

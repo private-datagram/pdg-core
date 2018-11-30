@@ -30,6 +30,7 @@
         <file alias="add">res/icons/add.png</file>
         <file alias="bitcoin_testnet">res/icons/bitcoin_testnet.png</file>
         <file alias="edit">res/icons/edit.png</file>
+        <file alias="files">res/icons/files.png</file>
         <file alias="history">res/icons/history.png</file>
         <file alias="overview">res/icons/overview.png</file>
         <file alias="masternodes">res/icons/masternodes.png</file>

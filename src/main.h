@@ -350,7 +350,7 @@ bool InitBlockIndex();
 /** Load the required files from database */
 bool LoadFileSyncData();
 /** */
-bool InitFileDBState();
+bool LoadFileManagerState();
 /** Load the block tree and coins database from disk */
 bool LoadBlockIndex(std::string& strError);
 /** Unload database information */
