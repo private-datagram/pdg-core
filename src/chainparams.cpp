@@ -171,9 +171,9 @@ public:
         assert(hashGenesisBlock == uint256("0000072ee60da885b53cf6bdc2ef9dc342785b2c7aa9f8065317aa6554cd576e"));
         assert(genesis.hashMerkleRoot == uint256("d23d2f59df533a88071d5306ea19b5d851b73ba54ae59315134406a2ac48e780"));
 
-        vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
+        //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
+        //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
+        //vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 30);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 13);
