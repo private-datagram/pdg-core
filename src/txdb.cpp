@@ -149,14 +149,14 @@ bool CBlockFileTreeDB::ReadRequiredFiles(map<uint256, RequiredFile> &requiredFil
     return true;
 }
 
-bool CBlockFileTreeDB::WriteCDBFileRepositoryState(const CDBFileRepositoryState& diskFileState)
+bool CBlockFileTreeDB::WriteCDBFileRepositoryState(const CDBFileRepositoryState& fileRepositoryState)
 {
-    return Write(string("dfs"), diskFileState);
+    return Write(string("dfs"), fileRepositoryState);
 }
 
-bool CBlockFileTreeDB::ReadCDBFileRepositoryState(CDBFileRepositoryState& diskFileState)
+bool CBlockFileTreeDB::ReadCDBFileRepositoryState(CDBFileRepositoryState& fileRepositoryState)
 {
-    return Read(string("dfs"), diskFileState);
+    return Read(string("dfs"), fileRepositoryState);
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)
