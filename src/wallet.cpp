@@ -2862,17 +2862,12 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                     reservekey.ReturnKey();
 
                 // Fill vin
+                BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
+                                txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
                 //todo: PDG 5 remove after distribution
-                if (wtxNew.freezeTime != -1) {
+                if (wtxNew.freezeTime != 0) {
                     txNew.nLockTime = wtxNew.freezeTime;
-
-                    BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
-                                    txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second, 20));
-
-                } else {
-                    BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
-                                    txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
                 }
 
                 // Fill meta
