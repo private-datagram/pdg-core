@@ -1228,7 +1228,8 @@ CAmount CWalletTx::GetDenominatedCredit(bool unconfirmed, bool fUseCache) const
     int nDepth = GetDepthInMainChain(false);
     if (nDepth < 0) return 0;
 
-    bool isUnconfirmed = !IsFinalTx(*this) || (!IsTrusted() && nDepth == 0);
+    LogPrint("freeze", "FREEZE:GetDenominatedCredit \n");
+    bool isUnconfirmed = !IsFinalTx(*this) || (!IsTrusted() && nDepth == 0) || IsFreezeTx(*this);
     if (unconfirmed != isUnconfirmed) return 0;
 
     if (fUseCache) {
@@ -1842,6 +1843,7 @@ CAmount CWallet::GetUnconfirmedBalance() const
         LOCK2(cs_main, cs_wallet);
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it) {
             const CWalletTx* pcoin = &(*it).second;
+            //  IsFreezeTx(*pcoin)
             if (!IsFinalTx(*pcoin) || (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0))
                 nTotal += pcoin->GetAvailableCredit();
         }
@@ -1884,7 +1886,8 @@ CAmount CWallet::GetUnconfirmedWatchOnlyBalance() const
         LOCK2(cs_main, cs_wallet);
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it) {
             const CWalletTx* pcoin = &(*it).second;
-            if (!IsFinalTx(*pcoin) || (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0))
+            LogPrint("freeze", "FREEZE:GetUnconfirmedWatchOnlyBalance \n");
+            if (!IsFinalTx(*pcoin) || (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0) || IsFreezeTx(*pcoin))
                 nTotal += pcoin->GetAvailableWatchOnlyCredit();
         }
     }
@@ -2863,7 +2866,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
 
                 // Fill vin
                 BOOST_FOREACH (const PAIRTYPE(const CWalletTx*, unsigned int) & coin, setCoins)
-                                txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
+                     txNew.vin.push_back(CTxIn(coin.first->GetHash(), coin.second));
 
                 //todo: PDG 5 remove after distribution
                 if (wtxNew.freezeTime != 0) {
@@ -3593,6 +3596,7 @@ std::map<CTxDestination, CAmount> CWallet::GetAddressBalances()
         BOOST_FOREACH (PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
             CWalletTx* pcoin = &walletEntry.second;
 
+            //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(tx)
             if (!IsFinalTx(*pcoin) || !pcoin->IsTrusted())
                 continue;
 

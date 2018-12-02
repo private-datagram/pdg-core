@@ -827,6 +827,30 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
     return true;
 }
 
+//todo -> move to static in class
+vector<string> teamDistributionTx = {
+        "8aa92fa0b13f808bb7f011a388ec46492d741cfc06d7421e57700fc3b9ca941f",
+        "125538dd3ff8eededfc6f0bcc4abd1957bfb44d811054c1931295c50bac09577",
+};
+
+//PDG team freeze deposit.
+bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
+    if (tx.nLockTime == 0)
+        return false;
+    if (nBlockHeight == 0)
+        nBlockHeight = chainActive.Height();
+    if (nBlockTime == 0)
+        nBlockTime = GetAdjustedTime();
+
+    if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
+        return false;
+
+    if (std::find(teamDistributionTx.begin(), teamDistributionTx.end(), tx.GetHash().ToString()) != teamDistributionTx.end())
+        return true;
+
+    return false;
+}
+
 /**
  * Check transaction inputs to mitigate two
  * potential denial-of-service attacks:
@@ -1646,6 +1670,14 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
         return state.DoS(0,
             error("AcceptToMemoryPool : nonstandard transaction: %s", reason),
             REJECT_NONSTANDARD, reason);
+
+    LogPrint("freeze", "FREEZE:AcceptToMemoryPool \n");
+    if (IsFreezeTx(tx)) {
+        //todo: PDG 5 ddos?
+        LogPrintf("AcceptToMemoryPool: freeze transaction \n");
+        return false;
+    }
+
     // is it already in the memory pool?
     uint256 hash = tx.GetHash();
     if (pool.exists(hash)) {
