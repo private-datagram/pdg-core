@@ -306,16 +306,6 @@ private:
         return true;
     }
 
-/*    template< typename Iterator >
-    void bubble_sort( Iterator First, Iterator Last )
-    {
-        while( First < --Last )
-            for( Iterator i = First; i < Last; ++i )
-                if ( *(i + 1) < *i )
-                    std::iter_swap( i, i + 1 );
-    }*/
-
-
 public:
 
     CFileRepositoryManager(int removedFilesSizeShrinkPercent);

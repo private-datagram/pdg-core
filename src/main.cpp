@@ -3438,9 +3438,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            bool isSaveFileRepositoryState = SaveFileRepositoryState();
-            LogPrint("file", "%s - FILES. Save file blockfiles state RESULT: %s.\n", __func__, (isSaveFileRepositoryState ? "state saved" : "state don't saved"));
-            if (!isSaveFileRepositoryState) {
+            if (!SaveFileRepositoryState()) {
                 return state.Abort("Failed to save fileblock file state");
             }
 

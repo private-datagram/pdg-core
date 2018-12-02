@@ -270,9 +270,9 @@ public:
         hashGenesisBlock = genesis.GetHash();
         assert(hashGenesisBlock == uint256("00000ded622b5f09afea7daec1b67f0f8f0d5d516ec9188a3182caf1e8cb7ea3"));
 
-        vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
+        //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
+        //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
+        //vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 139); // Testnet pdg addresses start with 'x' or 'y'
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 19);  // Testnet pdg script addresses start with '8' or '9'

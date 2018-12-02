@@ -48,13 +48,13 @@
 
 // Erase expired file at DB every 1 hour (3600s)
 //TODO: PDG 5 return after check
-//#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
-#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 30
+//#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 30
+#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
 
 // Erase expired file at DB every 2 hours (1 hour - 3600s)
 //TODO: PDG 5 return after check
-//#define ERASE_FILES_INTERVAL 2 * 3600
-#define ERASE_FILES_INTERVAL 2 * 30
+//#define ERASE_FILES_INTERVAL 2 * 30
+#define ERASE_FILES_INTERVAL 2 * 3600
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
