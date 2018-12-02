@@ -6,11 +6,13 @@
 #define PDG_FILES_H
 
 #include <inttypes.h>
+#include <stdio.h>
 #include <string>
 #include <algorithm>
 #include <vector>
 #include <fstream>
 #include <climits>
+
 #include "util.h"
 #include "hash.h"
 #include "crypto/aes.h"
@@ -18,8 +20,14 @@
 #include "primitives/transaction.h"
 #include "streams.h"
 
+#include <boost/filesystem.hpp>
+
 using namespace crypto::aes;
 using namespace crypto::rsa;
+
+
+FILE* OpenDiskFile(unsigned int nPos, boost::filesystem::path& path, bool fReadOnly);
+
 
 template <typename Stream>
 bool PrepareMeta(Stream& inputFile, const std::string filename, const AESKey& key, const vector<char> vfPublicKey, const uint256& confirmTxHash, CFileMeta& outFileMeta) {

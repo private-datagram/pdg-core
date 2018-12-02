@@ -121,7 +121,9 @@ src/eccryptoverify.h
 src/ecwrapper.cpp
 src/ecwrapper.h
 src/files.cpp
+src/filerepositorymanager.cpp
 src/files.h
+src/filerepositorymanager.h
 src/hash.cpp
 src/hash.h
 src/httprpc.cpp
@@ -745,6 +747,7 @@ src/utiltime.cpp
 src/utiltime.h
 src/validationinterface.cpp
 src/validationinterface.h
+src/validationstate.h
 src/version.h
 src/wallet.cpp
 src/wallet.h

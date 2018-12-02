@@ -45,7 +45,7 @@ share/setup.nsi
 share/qt/Info.plist
 contrib/devtools/split-debug.sh
 
-src/univalue/gen
+#src/univalue/gen
 
 src/qt/*.moc
 src/qt/moc_*.cpp

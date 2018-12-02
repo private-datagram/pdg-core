@@ -6215,7 +6215,11 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Loading block index...</source>
-        <translation>Загружается индекс блока ...</translation>
+        <translation>Загрузка индекса блока...</translation>
+    </message>
+    <message>
+        <source>Loading files index...</source>
+        <translation>Загрузка индексов файлов...</translation>
     </message>
     <message>
         <source>Loading files synchronization data...</source>

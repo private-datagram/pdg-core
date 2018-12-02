@@ -329,7 +329,7 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     tabGroup->addAction(sendCoinsAction);
 
 
-    sendFilesAction = new QAction(QIcon(":/icons/send"), tr("&Files"), this);
+    sendFilesAction = new QAction(QIcon(":/icons/files"), tr("&Files"), this);
     sendFilesAction->setStatusTip(tr("Send files to a PDG address"));
     sendFilesAction->setToolTip(sendFilesAction->statusTip());
     sendFilesAction->setCheckable(true);
