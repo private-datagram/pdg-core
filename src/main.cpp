@@ -6655,6 +6655,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             filesInFlightMap.erase(fileTxHash);
         }
 
+        LogPrint("file", "FILES. NOT LOCK Received file of tx %s from peer=%d\n", fileTxHash.ToString(), pfrom->id);
+
         if (!requiredFilesMap.count(fileTxHash)) {
             LogPrint("file", "FILES. Received file not required %s\n", fileTxHash.ToString());
             // TODO: protect ddos
@@ -7626,7 +7628,19 @@ void ProcessFilesPendingScheduler() {
     LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending: %d\n", __func__, filesPendingMap.size());
 
     {
-        LOCK2(cs_FilesPendingMap, cs_FilesInFlightMap);
+        TRY_LOCK(cs_FilesInFlightMap, isInFligthLock);
+        if (!isInFligthLock) {
+            LogPrint("file", "%s - FILES. Files In Fligth LOCK %d\n", __func__, filesPendingMap.size());
+            return;
+        }
+
+        TRY_LOCK(cs_FilesPendingMap, isFilePendingLock);
+        if (!isFilePendingLock) {
+            LogPrint("file", "%s - FILES. Files Pending LOCK %d\n", __func__, filesPendingMap.size());
+            return;
+        }
+
+        LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending NOT LOCK: %d\n", __func__, filesPendingMap.size());
 
         for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
             const uint256 &fileTxHash = it->first;
