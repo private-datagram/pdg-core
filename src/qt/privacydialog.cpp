@@ -99,6 +99,7 @@ PrivacyDialog::PrivacyDialog(QWidget* parent) : QDialog(parent),
     else{
         fMinimizeChange = settings.value("fMinimizeChange").toBool();
     }
+
     ui->checkBoxMinimizeChange->setChecked(fMinimizeChange);
 
     // Start with displaying the "out of sync" warnings

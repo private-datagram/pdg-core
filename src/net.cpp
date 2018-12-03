@@ -283,7 +283,6 @@ bool AddLocal(const CService& addr, int nScore)
 bool AddLocal(const CNetAddr& addr, int nScore)
 {
     return AddLocal(CService(addr, GetListenPort()), nScore);
-
 }
 
 bool RemoveLocal(const CService& addr)
@@ -524,7 +523,6 @@ void CNode::ClearBanned()
         setBanned.clear();
         setBannedIsDirty = true;
     }
-
     DumpBanlist(); // store banlist to Disk
     uiInterface.BannedListChanged();
 }
@@ -752,7 +750,7 @@ bool CNode::ReceiveMsgBytes(const char* pch, unsigned int nBytes)
         if (handled < 0)
             return false;
 
-        if (msg.in_data && msg.hdr.nMessageSize > MAX_PROTOCOL_MESSAGE_LENGTH) { // TODO: PDG increase max size
+        if (msg.in_data && msg.hdr.nMessageSize > MAX_PROTOCOL_MESSAGE_LENGTH) {
             LogPrint("net", "Oversized message from peer=%i, disconnecting", GetId());
             return false;
         }
@@ -2219,7 +2217,7 @@ CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fIn
     nStartingHeight = -1;
     fGetAddr = false;
     fRelayTxes = false;
-    setInventoryKnown.max_size(SendBufferSize() / 5000);
+    setInventoryKnown.max_size(SendBufferSize() / 2000); // TODO: PDG3 check if actual size
     pfilter = new CBloomFilter();
     nPingNonceSent = 0;
     nPingUsecStart = 0;

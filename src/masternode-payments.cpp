@@ -341,6 +341,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
 
         LogPrint("masternode","Masternode payment of %s to %s\n", FormatMoney(masternodePayment).c_str(), address2.ToString().c_str());
     } else {
+        // TODO: PDG2 remove on POW disable
         if (!fProofOfStake) {
             txNew.vout[0].nValue = blockValue - masternodePayment;
         }
@@ -368,9 +369,9 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         int nCountNeeded;
         vRecv >> nCountNeeded;
 
-        if (Params().NetworkID() == CBaseChainParams::MAIN) {
+        if (Params().NetworkID() == CBaseChainParams::MAIN) { // TODO: PDG5 check on misbehaving
             if (pfrom->HasFulfilledRequest("mnget")) {
-                LogPrint("masternode","mnget - peer already asked me for the list\n");
+                LogPrintf("CMasternodePayments::ProcessMessageMasternodePayments() : mnget - peer already asked me for the list\n");
                 Misbehaving(pfrom->GetId(), 20);
                 return;
             }
@@ -417,8 +418,10 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         }
 
         if (!winner.SignatureValid()) {
-            // LogPrint("masternode","mnw - invalid signature\n");
-            if (masternodeSync.IsSynced()) Misbehaving(pfrom->GetId(), 20);
+            if (masternodeSync.IsSynced()) {
+                LogPrintf("CMasternodePayments::ProcessMessageMasternodePayments() : mnw - invalid signature\n");
+                Misbehaving(pfrom->GetId(), 20);
+            }
             // it could just be a non-synced masternode
             mnodeman.AskForMN(pfrom, winner.vinMasternode);
             return;

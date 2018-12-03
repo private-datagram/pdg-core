@@ -3310,30 +3310,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     bool fScriptChecks = pindex->nHeight >= Checkpoints::GetTotalBlocksEstimate();
 
-    // Do not allow blocks that contain transactions which 'overwrite' older transactions,
-    // unless those are already completely spent.
-    // If such overwrites are allowed, coinbases and transactions depending upon those
-    // can be duplicated to remove the ability to spend the first instance -- even after
-    // being sent to another address.
-    // See BIP30 and http://r6.ca/blog/20120206T005236Z.html for more information.
-    // This logic is not necessary for memory pool transactions, as AcceptToMemoryPool
-    // already refuses previously-known transaction ids entirely.
-    // This rule was originally applied all blocks whose timestamp was after March 15, 2012, 0:00 UTC.
-    // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
-    // two in the chain that violate it. This prevents exploiting the issue against nodes in their
-    // initial block download.
-    bool fEnforceBIP30 = (!pindex->phashBlock) || // Enforce on CreateNewBlock invocations which don't have a hash.
-                         !((pindex->nHeight == 91842 && pindex->GetBlockHash() == uint256("0x00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec")) ||
-                             (pindex->nHeight == 91880 && pindex->GetBlockHash() == uint256("0x00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721")));
-    if (fEnforceBIP30) {
-        BOOST_FOREACH (const CTransaction& tx, block.vtx) {
-            const CCoins* coins = view.AccessCoins(tx.GetHash());
-            if (coins && !coins->IsPruned())
-                return state.DoS(100, error("ConnectBlock() : tried to overwrite transaction"),
-                    REJECT_INVALID, "bad-txns-BIP30");
-        }
-    }
-
     CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : NULL);
 
     int64_t nTimeStart = GetTimeMicros();
@@ -6317,7 +6293,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->AddInventoryKnown(inv);
 
             bool fAlreadyHave = AlreadyHave(inv);
-            LogPrint("net", "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->GetId());
+            LogPrint("net", "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->id);
 
             if (!fAlreadyHave && !fImporting && !fReindex && inv.type != MSG_BLOCK && !IsMsgFile(inv.type))
                 pfrom->AskFor(inv);
@@ -6372,7 +6348,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         }
                     }
 
-                    // TODO: позже предусмотреть, если этот тот хеш который мы ждали, запустить pending сразу
+                    // TODO: PDG2 позже предусмотреть, если этот тот хеш который мы ждали, запустить pending сразу
                 }
             }
 
