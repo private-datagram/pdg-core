@@ -5766,8 +5766,6 @@ bool static AlreadyHave(const CInv& inv)
         return mapObfuscationBroadcastTxes.count(inv.hash);
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
-
-
     case MSG_HAS_FILE_REQUEST:
         return false;
     case MSG_HAS_FILE:
@@ -5775,7 +5773,7 @@ bool static AlreadyHave(const CInv& inv)
             LOCK(cs_KnownHasFilesMap);
             return knownHasFilesMap.count(inv.hash);
         }
-        case MSG_FILE_REQUEST:
+    case MSG_FILE_REQUEST:
         return false;
     case MSG_TXLOCK_REQUEST:
         return mapTxLockReq.count(inv.hash) ||
@@ -5925,7 +5923,6 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
-
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
