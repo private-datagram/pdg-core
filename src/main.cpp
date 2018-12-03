@@ -7682,7 +7682,9 @@ void ProcessFilesPendingScheduler() {
 
             LogPrint("file", "%s - FILES. File not in flight. Trying to request file. fileTxHash: %s\n", __func__, fileTxHash.ToString());
             if (CanRequestFile()) {
+                LogPrint("file", "%s - FILES. Search free nodes\n", __func__); // TODO: PDG5 remove
                 CNode *pNode = FindFreeNode(it->second.nodes);
+                LogPrint("file", "%s - FILES. Search free nodes result\n", __func__); // TODO: PDG5 remove
                 if (pNode == nullptr) {
                     LogPrint("file", "%s - FILES. node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
                     it = filesPendingMap.erase(it);
@@ -7945,7 +7947,9 @@ CNode *FindFreeNode(const set<NodeId> &nodes) {
             continue;
         // endregion
 
+        LogPrint("file", "%s - FILES. Search free node: %d\n", __func__, nodeId); // TODO: PDG5 remove
         pNode = FindNode(nodeId);
+        LogPrint("file", "%s - FILES. Search free node result: %d. %s\n", __func__, nodeId, pNode ? "found" : "not found"); // TODO: PDG5 remove
         if (pNode == nullptr || pNode->fDisconnect)
             continue;
 
