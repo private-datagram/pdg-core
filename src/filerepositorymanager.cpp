@@ -605,7 +605,17 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     //set to zero
     dbFileRepositoryState.SetNull();
 
-    //todo: PDG 5 sync true - log and return
+    FileRepositoryBlockSyncState syncState;
+    if (!pblockfiletree->ReadFileRepositoryBlockSyncState(syncState)) {
+        LogPrint("file", "%s - FILES. ERROR. Filed to read repository block synchronization state.\n", __func__);
+        return;
+    }
+
+    if (!syncState.IsNull()) {
+        LogPrint("file", "%s - FILES. ERROR. Previous sync not completed .\n", __func__);
+        return;
+    }
+
     boost::scoped_ptr<leveldb::Iterator> pcursor(pblockfiletree->NewIterator());
 
     CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
@@ -663,7 +673,7 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     LogPrint("file", "%s - FILES. Fill temp files.\n", __func__);
 
     //write sync start status
-    FileRepositoryBlockSyncState syncState(true, 0, 0);
+    syncState.SetNull();
     if (!pblockfiletree->WriteFileRepositoryBlockSyncState(syncState)) {
         LogPrint("file", "%s - FILES. Filed to write repository block synchronization state.\n", __func__);
         return;

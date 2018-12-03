@@ -4458,7 +4458,7 @@ bool IsFileExist(const uint256& fileHash) {
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
-    if (!fMasterNode || !pwalletMain->IsMine(tx)) {
+    if (!fMasterNode && !pwalletMain->IsMine(tx)) {
         LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
         return false;
     }
