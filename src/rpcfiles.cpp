@@ -55,7 +55,7 @@ void join(const set<int>& v, char c, std::string& s);
 /**
  * File sync state info
  **/
-/*
+
 UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -228,4 +228,4 @@ void join(const set<int>& v, char c, std::string& s) {
         s.resize(s.length() - 1);
     }
 
-}*/
+}
