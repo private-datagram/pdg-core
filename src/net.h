@@ -44,7 +44,7 @@ class thread_group;
 /** Time between pings automatically sent out for latency probing and keepalive (in seconds). */
 static const int PING_INTERVAL = 2 * 60;
 /** Time after which to disconnect, after waiting for a ping response (or inactivity). */
-static const int TIMEOUT_INTERVAL = 2 * 60 * 60; // TODO: PDG3 revert after fragmenting file implementation
+static const int TIMEOUT_INTERVAL = 60 * 60; // TODO: PDG3 revert after fragmenting file implementation
 /** The maximum number of entries in an 'inv' protocol message */
 static const unsigned int MAX_INV_SZ = 50000;
 /** The maximum number of new addresses to accumulate before announcing. */

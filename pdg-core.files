@@ -566,6 +566,7 @@ src/rpcblockchain.cpp
 src/rpcclient.cpp
 src/rpcclient.h
 src/rpcdump.cpp
+src/rpcfiles.cpp
 src/rpcmasternode-budget.cpp
 src/rpcmasternode.cpp
 src/rpcmining.cpp
