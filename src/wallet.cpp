@@ -5378,38 +5378,49 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
     return true;
 }
 
-bool CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
+void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
     if (!pblock)
-        return false;
+        return;
+
+    if (IsFromMe(tx) || !IsMine(tx)) {
+        return; // ignore transactions that we send
+    }
 
     // remove already processed transactions
     if (tx.type == TX_FILE_TRANSFER) {
         CFileMeta *meta = &tx.meta.get<CFileMeta>();
+
+        LogPrint("%s : FILE_TRANSFER transaction received. Deleting maturation confirm transaction. Tx hash: %s. Maturation Tx hash: %s", __func__, tx.GetHash().ToString(), meta->confirmTxId.ToString());
+
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
             mapMaturationPaymentConfirmTransactions.erase(meta->confirmTxId);
             SaveMaturationTransactions();
         }
 
-        return false;
+        return;
     }
 
     // add transaction in order waiting confirmation
     if (tx.type == TX_FILE_PAYMENT_CONFIRM) {
         if (mapMaturationPaymentConfirmTransactions.count(tx.GetHash()))
-            return true;
+            return;
+
+        LogPrint("%s : FILE_PAYMENT_CONFIRM transaction received. Adding transaction to maturation map. Tx hash: %s", __func__, tx.GetHash().ToString());
 
         // TODO: check in walletdb before
         CBlockIndex *blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
+
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
             mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
             SaveMaturationTransactions();
         }
-        return true;
+
+        return;
     }
 
-    return false;
+    return;
 }
 
 bool CWallet::ProcessFileContract(const CBlock* pblock) {
@@ -5454,24 +5465,35 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
 
-    const std::map<uint256, CWalletTx>::iterator mi = mapWallet.find(tx.GetHash());
-    if (mi == mapWallet.end()) {
+    const std::map<uint256, CWalletTx>::iterator paymentTxIterator = mapWallet.find(tx.GetHash());
+    if (paymentTxIterator == mapWallet.end()) {
         return error("%s : Failed to find wallet transaction - %s", __func__, tx.GetHash().ToString());
     }
 
-    const CWalletTx &paymentTx = mi->second;
+    const CWalletTx &paymentTx = paymentTxIterator->second;
 
     // prepare data
     const CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
 
-    uint256 blockHash;
     CTransaction paymentRequestTx;
-    if (!GetTransaction(paymentConfirm->requestTxid, paymentRequestTx, blockHash, true)) {
-        return error("%s : Payment request transaction not found. Request tx hash - %s", __func__, paymentConfirm->requestTxid.ToString());
+
+    const std::map<uint256, CWalletTx>::iterator paymentConfirmTxIterator = mapWallet.find(paymentConfirm->requestTxid);
+    if (paymentConfirmTxIterator == mapWallet.end()) {
+        LogPrint("%s : Payment request transaction in wallet not found. Request tx hash - %s. Trying to find in blockchain", __func__, paymentConfirm->requestTxid.ToString());
+
+        uint256 blockHash;
+        if (!GetTransaction(paymentConfirm->requestTxid, paymentRequestTx, blockHash, true)) {
+            return error("%s : Payment request transaction not found. Tx hash - %s. Trying to find in wallet", __func__, paymentConfirm->requestTxid.ToString());
+        }
+
+        LogPrint("%s : Payment request transaction found in blockchain. Tx hash - %s", __func__, paymentConfirm->requestTxid.ToString());
+    } else {
+        paymentRequestTx = *(CTransaction *) &paymentConfirmTxIterator->second;
     }
 
+
     if (paymentRequestTx.type != TX_FILE_PAYMENT_REQUEST) {
-        return error("%s : Invalid payment confirm. Request transaction type mismatch. - %s", __func__, paymentConfirm->requestTxid.ToString());
+        return error("%s : Invalid payment confirm. Request transaction type mismatch. %s", __func__, paymentConfirm->requestTxid.ToString());
     }
 
     const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
