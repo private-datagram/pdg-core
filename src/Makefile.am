@@ -233,6 +233,7 @@ libbitcoin_server_a_SOURCES = \
   pow.cpp \
   rest.cpp \
   rpcblockchain.cpp \
+  rpcfiles.cpp \
   rpcmasternode.cpp \
   rpcmasternode-budget.cpp \
   rpcmining.cpp \
@@ -281,6 +282,7 @@ libbitcoin_wallet_a_SOURCES = \
   masternodeman.cpp \
   mintpool.cpp \
   rpcdump.cpp \
+  rpcfiles.cpp \
   primitives/deterministicmint.cpp \
   primitives/zerocoin.cpp \
   crypto/rsa.cpp \
