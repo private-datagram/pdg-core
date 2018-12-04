@@ -92,21 +92,6 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 
     MetaToJSON(wtx.meta, entry);
 
-    // TODO: add files info
-    /*// files
-    UniValue files(UniValue::VARR);
-    std::vector<CFile>::const_iterator it = wtx.vfiles.begin();
-    while (it != wtx.vfiles.end()) {
-        UniValue fileEntry(UniValue::VOBJ);
-        fileEntry.push_back(Pair("flags", (int) it->nFlags));
-        fileEntry.push_back(Pair("hash", it->fileHash.ToString()));
-        fileEntry.push_back(Pair("bytes", (char *) &it->vBytes[0]));
-        files.push_back(fileEntry);
-        ++it;
-    }
-
-    entry.push_back(Pair("files", files));*/
-
     entry.push_back(Pair("time", wtx.GetTxTime()));
     entry.push_back(Pair("timereceived", (int64_t)wtx.nTimeReceived));
     BOOST_FOREACH (const PAIRTYPE(string, string) & item, wtx.mapValue)
@@ -2276,6 +2261,7 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
             "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n"
             "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n"
             "  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": x.xxxx,         (numeric) the transaction fee configuration, set in PIV/kB\n"
             "}\n"
 
             "\nExamples:\n" +
@@ -2291,6 +2277,7 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("keypoolsize", (int)pwalletMain->GetKeyPoolSize()));
     if (pwalletMain->IsCrypted())
         obj.push_back(Pair("unlocked_until", nWalletUnlockTime));
+    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
     return obj;
 }
 

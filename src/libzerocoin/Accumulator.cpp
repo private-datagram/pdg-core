@@ -108,9 +108,9 @@ void AccumulatorWitness::resetValue(const Accumulator& checkpoint, const PublicC
 }
 
 void AccumulatorWitness::AddElement(const PublicCoin& c) {
-	if(element.getValue() != c.getValue()) {
-		witness += c;
-	}
+    if(element.getValue() != c.getValue()) {
+        witness += c;
+    }
 }
 
 //warning check pubcoin value & denom outside of this function!
@@ -119,12 +119,12 @@ void AccumulatorWitness::addRawValue(const CBigNum& bnValue) {
 }
 
 const CBigNum& AccumulatorWitness::getValue() const {
-	return this->witness.getValue();
+    return this->witness.getValue();
 }
 
 bool AccumulatorWitness::VerifyWitness(const Accumulator& a, const PublicCoin &publicCoin) const {
-	Accumulator temp(witness);
-	temp += element;
+    Accumulator temp(witness);
+    temp += element;
     if (!(temp == a)) {
         std::cout << "VerifyWitness: failed verify temp does not equal a\n";
         return false;
@@ -133,7 +133,7 @@ bool AccumulatorWitness::VerifyWitness(const Accumulator& a, const PublicCoin &p
         return false;
     }
 
-	return true;
+    return true;
 }
 
 AccumulatorWitness& AccumulatorWitness::operator +=(
