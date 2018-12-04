@@ -229,7 +229,11 @@ struct FileRequest {
     //how much this node informed us about this file.
     int events;
 
-    FileRequest() : node(-1), date(0), events(1) {}
+    FileRequest() : node(-1), date(0), events(1) {
+
+
+
+    }
     FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
     FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) : node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
 };

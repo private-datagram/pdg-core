@@ -55,6 +55,7 @@ void join(const set<int>& v, char c, std::string& s);
 /**
  * File sync state info
  **/
+/*
 UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -99,16 +100,19 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 
                 "\nExamples:\n" +
                 HelpExampleCli("getfilesyncstate", "") + HelpExampleRpc("getfilesyncstate", ""));
+*/
 /*
 #ifdef ENABLE_WALLET
         LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
 #else
     LOCK(cs_main);
 #endif
- */
+ *//*
+
 
     UniValue obj(UniValue::VOBJ);
 
+    //
     UniValue requiredFilesList(UniValue::VARR);
     for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
         UniValue item(UniValue::VOBJ);
@@ -118,6 +122,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     }
     obj.push_back(Pair("requiredFilesMap", requiredFilesList));
 
+    //
     // TODO: fix incomplete type error
     UniValue filePendingList(UniValue::VARR);
     for (auto it = filesPendingMap.begin(); it != filesPendingMap.end(); it++) {
@@ -135,7 +140,78 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     }
     obj.push_back(Pair("filesPendingMap", filePendingList));
 
-        // ValueFromAmount()
+    //
+    UniValue fileInFlightList(UniValue::VARR);
+    for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); it++) {
+        const uint256 &fileTxHash = it->first;
+
+        UniValue item(UniValue::VOBJ);
+
+        item.push_back(Pair("key", fileTxHash.ToString()));
+        item.push_back(Pair("nodeId", nodeId));
+        item.push_back(Pair("fileTxHash", fileTxHash.ToString()));
+        item.push_back(Pair("nTime", nTime));
+
+        fileInFlightList.push_back(item);
+    }
+    obj.push_back(Pair("fileInFlightList", fileInFlightList));
+
+    //
+    UniValue hasFileRequestedNodesList(UniValue::VARR);
+    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end(); it++) {
+        const uint256 &fileTxHash = it->first;
+
+        UniValue item(UniValue::VOBJ);
+        item.push_back(Pair("key", fileTxHash.ToString()));
+
+        UniValue fileRequestNodesList(UniValue::VARR);
+        BOOST_FOREACH (const FileRequest& fileRequest, it->second) {
+            fileRequestNodesList.push_back(Pair("node", fileRequest.node));
+            fileRequestNodesList.push_back(Pair("date", fileRequest.date));
+            fileRequestNodesList.push_back(Pair("events", fileRequest.events));
+
+            if (txin.fileHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash));
+            }
+
+            if (txin.fileTxHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash));
+            }
+        }
+
+        item.push_back(Pair("fileRequestNodesList", fileRequestNodesList));
+        hasFileRequestedNodesList.push_back(item);
+    }
+    obj.push_back(Pair("hasFileRequestedNodesList", hasFileRequestedNodesList));
+
+    //
+    UniValue hasFileRequestedNodesList(UniValue::VARR);
+    for (auto it = FileRequestMapType.begin(); it != FileRequestMapType.end(); it++) {
+        const uint256 &fileTxHash = it->first;
+
+        UniValue item(UniValue::VOBJ);
+        item.push_back(Pair("key", fileTxHash.ToString()));
+
+        UniValue fileRequestNodesList(UniValue::VARR);
+        BOOST_FOREACH (const FileRequest& fileRequest, it->second) {
+            fileRequestNodesList.push_back(Pair("node", fileRequest.node));
+            fileRequestNodesList.push_back(Pair("date", fileRequest.date));
+            fileRequestNodesList.push_back(Pair("events", fileRequest.events));
+
+            if (txin.fileHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash));
+            }
+
+            if (txin.fileTxHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash));
+            }
+        }
+
+        item.push_back(Pair("fileRequestNodesList", fileRequestNodesList));
+        hasFileRequestedNodesList.push_back(item);
+    }
+
+    // ValueFromAmount()
     return obj;
 }
 
@@ -152,4 +228,4 @@ void join(const set<int>& v, char c, std::string& s) {
         s.resize(s.length() - 1);
     }
 
-}
+}*/
