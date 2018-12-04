@@ -2933,6 +2933,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 if (txNew.type == TX_FILE_PAYMENT_CONFIRM) {
                     const CPaymentConfirm &paymentConfirm = txNew.meta.get<CPaymentConfirm>();
                     nFeeNeeded += GetFileFee(paymentConfirm);
+                    LogPrint("file", "%s - FILES. txFilePaymentConfirm fee: %d\n", __func__, nFeeNeeded);
                 }
 
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up

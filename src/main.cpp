@@ -7925,6 +7925,7 @@ CAmount GetFileFee(const CPaymentConfirm &paymentConfirm) {
     uint256 blockHash;
     if (GetTransaction(paymentConfirm.requestTxid, requestTx, blockHash, true)) {
         CPaymentRequest &paymentRequest = requestTx.meta.get<CPaymentRequest>();
+        LogPrint("file", "%s - FILES. txFilePaymentConfirm fee. File size: %d\n", __func__, paymentRequest.nFileSize);
         return minFileFee.GetFee(paymentRequest.nFileSize, (uint32_t) round((float) paymentConfirm.nLifeTime / 86400));
     }
 
