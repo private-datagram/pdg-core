@@ -116,6 +116,7 @@ public:
     int Zerocoin_StartHeight() const { return nZerocoinStartHeight; }
     int Zerocoin_StartTime() const { return nZerocoinStartTime; }
     int Zerocoin_Block_V2_Start() const { return nBlockZerocoinV2; }
+    const vector<uint256>& PremineFreezeTxes() const { return vPremineFreezeTxes; }
 
 protected:
     CChainParams() {}
@@ -176,6 +177,8 @@ protected:
     //int nBlockLastGoodCheckpoint;
     //int nBlockEnforceInvalidUTXO;
     int nBlockZerocoinV2;
+
+    vector<uint256> vPremineFreezeTxes;
 };
 
 /**

@@ -715,7 +715,6 @@ UniValue getreceivedbyaddress(const UniValue& params, bool fHelp)
     for (std::map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
         const CWalletTx& wtx = (*it).second;
 
-        //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(tx)
         if (wtx.IsCoinBase() || !IsFinalTx(wtx))
             continue;
 
@@ -769,7 +768,6 @@ UniValue getreceivedbyaccount(const UniValue& params, bool fHelp)
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
         const CWalletTx& wtx = (*it).second;
 
-        //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(tx)
         if (wtx.IsCoinBase() || !IsFinalTx(wtx))
             continue;
 
@@ -793,7 +791,6 @@ CAmount GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMi
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
         const CWalletTx& wtx = (*it).second;
 
-        //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(wtx)
         if (!IsFinalTx(wtx) || wtx.GetBlocksToMaturity() > 0 || wtx.GetDepthInMainChain() < 0)
             continue;
 
@@ -869,7 +866,6 @@ UniValue getbalance(const UniValue& params, bool fHelp)
         for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
             const CWalletTx& wtx = (*it).second;
 
-            //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(tx)
             if (!IsFinalTx(wtx) || wtx.GetBlocksToMaturity() > 0 || wtx.GetDepthInMainChain() < 0)
                 continue;
 
@@ -1207,7 +1203,6 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
         const CWalletTx& wtx = (*it).second;
 
-        //TODO: PDG 5 добавить тут после внутренних проверок IsFreezeTx(tx)
         if (wtx.IsCoinBase() || !IsFinalTx(wtx))
             continue;
 
