@@ -54,29 +54,29 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 // + Contains no strange transactions
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
-    (0, uint256("0000072ee60da885b53cf6bdc2ef9dc342785b2c7aa9f8065317aa6554cd576e"));
+    (0, uint256("00000a46d8a2a95c5b7ebbdd1449f87b12822699a73960f1fbd3a10cd47fdf38"));
     // TODO: PDG5 add checkpoint after coin freeze
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
-    1542896000, // * UNIX timestamp of last checkpoint block
+    1544005400, // * UNIX timestamp of last checkpoint block
     0,    // * total number of transactions between genesis and last checkpoint
                 //   (the tx=... number in the SetBestChain debug.log lines)
     2000        // * estimated number of transactions per day after checkpoint
 };
 
 static Checkpoints::MapCheckpoints mapCheckpointsTestnet =
-    boost::assign::map_list_of(0, uint256("00000ded622b5f09afea7daec1b67f0f8f0d5d516ec9188a3182caf1e8cb7ea3"));
+    boost::assign::map_list_of(0, uint256("00000de80b4a4d0044e95cbf1b3d55bfc8e0ad5867bc9f8ef6719a9447a30a5a"));
 static const Checkpoints::CCheckpointData dataTestnet = {
     &mapCheckpointsTestnet,
-    1542896001,
+    1544005401,
     0,
     250};
 
 static Checkpoints::MapCheckpoints mapCheckpointsRegtest =
-    boost::assign::map_list_of(0, uint256("58544573ab3226ef38ec2489bd86b3d3b38f85f91af655725a9631220ab28ae8"));
+    boost::assign::map_list_of(0, uint256("0ea7f8a410e2371a271279aa436a14ad1e8d7bf375b7fdf1480db438862d3e4f"));
 static const Checkpoints::CCheckpointData dataRegtest = {
     &mapCheckpointsRegtest,
-    1542896002,
+    1544005402,
     0,
     100};
 
@@ -135,18 +135,11 @@ public:
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 10000; // Premine maturation // TODO: PDG5 revert
+        nLastPOWBlock = 1000;
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895000; // Before blockchain start
-        //nBlockEnforceSerialRange = 895400; //Enforce serial range starting this block
-        //nBlockRecalculateAccumulators = 908000; //Trigger a recalculation of accumulators
-        //nBlockFirstFraudulent = 891737; //First block that bad serials emerged
-        //nBlockLastGoodCheckpoint = 891730; //Last valid accumulator checkpoint
-        //nBlockEnforceInvalidUTXO = 902850; //Start enforcing the invalid UTXO's
-        //nInvalidAmountFiltered = 268200*COIN; //Amount of invalid coins filtered through exchanges, that should be considered valid
         nBlockZerocoinV2 = 20; // TODO: check and activate //!> Officially by PIVX the block that zerocoin v2 becomes active - roughly Tuesday, May 8, 2018 4:00:00 AM GMT
-        //nEnforceNewSporkKey = 1525158000; //!> Sporks signed after (GMT): Tuesday, May 1, 2018 7:00:00 AM GMT must use the new spork key
 
         /**
          * Build the genesis block. Note that the output of the genesis coinbase cannot
@@ -169,12 +162,12 @@ public:
         genesis.hashPrevBlock = 0;
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
         genesis.nVersion = 4;
-        genesis.nTime = 1542896000;
+        genesis.nTime = 1544005400;
         genesis.nBits = 0x1e0ffff0;
-        genesis.nNonce = 2278660;
+        genesis.nNonce = 19141;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("0000072ee60da885b53cf6bdc2ef9dc342785b2c7aa9f8065317aa6554cd576e"));
+        assert(hashGenesisBlock == uint256("00000a46d8a2a95c5b7ebbdd1449f87b12822699a73960f1fbd3a10cd47fdf38"));
         assert(genesis.hashMerkleRoot == uint256("d23d2f59df533a88071d5306ea19b5d851b73ba54ae59315134406a2ac48e780"));
 
         //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
@@ -254,29 +247,21 @@ public:
         nMinerThreads = 0;
         nTargetTimespan = 1 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
-        nLastPOWBlock = 200;
+        nLastPOWBlock = 1000;
         nMaturity = 15;
         nMasternodeCountDrift = 4;
         nModifierUpdateBlock = 0;
         nMaxMoneyOut = 128000000 * COIN;
-        nZerocoinStartHeight = 101;
+        nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895001;
-        //nBlockEnforceSerialRange = 1; //Enforce serial range starting this block
-        //nBlockRecalculateAccumulators = 9908000; //Trigger a recalculation of accumulators
-        //nBlockFirstFraudulent = 9891737; //First block that bad serials emerged
-        //nBlockLastGoodCheckpoint = 9891730; //Last valid accumulator checkpoint
-        //nBlockEnforceInvalidUTXO = 9902850; //Start enforcing the invalid UTXO's
-        //nInvalidAmountFiltered = 0; //Amount of invalid coins filtered through exchanges, that should be considered valid
         nBlockZerocoinV2 = 101; //!> The block that zerocoin v2 becomes active
-        //nEnforceNewSporkKey = 1521604800; //!> Sporks signed after Wednesday, March 21, 2018 4:00:00 AM GMT must use the new spork key
-        //nRejectOldSporkKey = 1522454400; //!> Reject old spork key after Saturday, March 31, 2018 12:00:00 AM GMT
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
-        genesis.nTime = 1542896001;
-        genesis.nNonce = 558559;
+        genesis.nTime = 1544005401;
+        genesis.nNonce = 1778996;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("00000ded622b5f09afea7daec1b67f0f8f0d5d516ec9188a3182caf1e8cb7ea3"));
+        assert(hashGenesisBlock == uint256("00000de80b4a4d0044e95cbf1b3d55bfc8e0ad5867bc9f8ef6719a9447a30a5a"));
 
         //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
         //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
@@ -340,16 +325,16 @@ public:
         nTargetTimespan = 24 * 60 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;        // PDG: 1 minutes
         bnProofOfWorkLimit = ~uint256(0) >> 1;
-        genesis.nTime = 1542896002;
+        genesis.nTime = 1544005402;
         genesis.nBits = 0x207fffff;
-        genesis.nNonce = 1;
+        genesis.nNonce = 0;
 
         hashGenesisBlock = genesis.GetHash();
         nDefaultPort = 37716;
-        assert(hashGenesisBlock == uint256("58544573ab3226ef38ec2489bd86b3d3b38f85f91af655725a9631220ab28ae8"));
+        assert(hashGenesisBlock == uint256("0ea7f8a410e2371a271279aa436a14ad1e8d7bf375b7fdf1480db438862d3e4f"));
 
-        vFixedSeeds.clear(); //! Testnet mode doesn't have any fixed seeds.
-        vSeeds.clear();      //! Testnet mode doesn't have any DNS seeds.
+        vFixedSeeds.clear(); //! RegTest mode doesn't have any fixed seeds.
+        vSeeds.clear();      //! RegTest mode doesn't have any DNS seeds.
 
         fMiningRequiresPeers = false;
         fAllowMinDifficultyBlocks = true;
