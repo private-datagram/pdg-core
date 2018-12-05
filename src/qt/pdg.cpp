@@ -514,65 +514,6 @@ WId BitcoinApplication::getMainWinId() const
 }
 
 
-//**********************//
-
-// TODO: PDG5 remove after debug
-void CalcHash() {
-    printf("CalcHash\n");
-
-    CBlock genesis;
-    const char* pszTimestamp = "14th anniversary of the launch the Swift orbital observatory from Cape Canaveral on November 20, 2004";
-    CMutableTransaction txNew;
-    txNew.vin.resize(1);
-    txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << 486604799 << CScriptNum(4) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-    txNew.vout[0].nValue = 1 * COIN;
-    txNew.vout[0].scriptPubKey = CScript() << ParseHex(GetArg("-pubkey", "0x0")) << OP_CHECKSIG; //"04c10e83b2703ccf322f7dbd62dd5855ac7c10bd055814ce121ba32607d573b8810c02c0582aed05b4deb9c4b77b26d92428c61256cd42774babea0a073b2ed0c9"
-    genesis.vtx.push_back(txNew);
-    genesis.hashPrevBlock = 0;
-    genesis.hashMerkleRoot = genesis.BuildMerkleTree();
-    genesis.nVersion = 4;
-
-
-    genesis.nBits = std::stoul(GetArg("-bits", "0x0"), nullptr, 16);
-    genesis.nTime = (uint32_t) GetArg("-time", 0L);
-
-    printf("pubkey: %s\n", GetArg("-pubkey", "0x0").c_str());
-    printf("nTime: %d\n", genesis.nTime);
-    printf("nBits: %d\n", genesis.nBits);
-    printf("nBits ethalon: %d\n", 0x1e0ffff0);
-
-    //////////////////////////////////////
-
-    //
-    // Search
-    //
-    CBlock* pblock = &genesis; // TODO: past prepared block
-
-
-    pblock->nNonce = 0;
-    uint256 hashTarget = uint256().SetCompact(pblock->nBits);
-
-    uint256 hash;
-    while (true) {
-        hash = pblock->GetHash();
-        if (hash <= hashTarget) {
-	        // Found a solution
-	        printf("BitcoinMiner:\n");
-	        printf("proof-of-work found  \n  hash: %s  \n  nonce: %d  \n  merkle root: %s  \ntarget: %s\n", hash.GetHex().data(), pblock->nNonce, pblock->hashMerkleRoot.GetHex().data(), hashTarget.GetHex().data());
-
-	        break;
-        }
-        pblock->nNonce += 1;
-       
-
-        if (pblock->nNonce >= 0xffff0000)
-            break;
-    }
-}
-
-//*************************//
-
 #ifndef BITCOIN_QT_TEST
 int main(int argc, char* argv[])
 {
@@ -581,13 +522,6 @@ int main(int argc, char* argv[])
     /// 1. Parse command-line options. These take precedence over anything else.
     // Command-line options take precedence:
     ParseParameters(argc, argv);
-
-    // TODO: PDG 5 remove after debug
-    if (GetArg("-calchash", 0) != 0) {
-        CalcHash();
-        printf("Calc done. Exit.\n");
-        return 0;
-    }
 
 // Do not refer to data directory yet, this can be overridden by Intro::pickDataDirectory
 

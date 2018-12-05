@@ -2266,23 +2266,23 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3840000 * COIN;
     } else if (nHeight < 101 && nHeight > 0) {
         nSubsidy = 0;
-    } else if (nHeight < 20000 && nHeight >= 101) {
+    } else if (nHeight <= 20000 && nHeight >= 101) {
         nSubsidy = 1 * COIN; //2 weeks
-    } else if (nHeight < 175000 && nHeight >= 20001) {
+    } else if (nHeight <= 175000 && nHeight >= 20001) {
         nSubsidy = 3.75 * COIN;//4 months
-    } else if (nHeight < 350000 && nHeight >= 175001) {
+    } else if (nHeight <= 350000 && nHeight >= 175001) {
         nSubsidy = 5 * COIN;//8 months
-    } else if (nHeight < 2100000 && nHeight >= 350001) {
+    } else if (nHeight <= 2100000 && nHeight >= 350001) {
         nSubsidy = 25 * COIN;//4 years
-    } else if (nHeight < 4000000 && nHeight >= 2100001) {
+    } else if (nHeight <= 4000000 && nHeight >= 2100001) {
         nSubsidy = 12 * COIN;//8 years
-    } else if (nHeight < 6000000 && nHeight >= 4000001) {
+    } else if (nHeight <= 6000000 && nHeight >= 4000001) {
         nSubsidy = 6 * COIN;//11.5 years
-    } else if (nHeight < 12000000 && nHeight >= 6000001) {
+    } else if (nHeight <= 12000000 && nHeight >= 6000001) {
         nSubsidy = 3 * COIN;//23 years
-    } else if (nHeight < 20000000 && nHeight >= 12000001) {
+    } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight < 30133811 && nHeight >= 20000001) {
+    } else if (nHeight <= 30133811 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 
@@ -2303,11 +2303,6 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue, bool isZPIVStake)
     } else {
         ret = blockValue - (blockValue / 5); // 80% MN
     }
-/*
- *         //When zPDG is staked, masternode only gets 2 PDG
-    ret = 3 * COIN;
-    if (isZPIVStake)
-        ret = 2 * COIN;*/
 
     return ret;
 }
