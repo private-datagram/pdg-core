@@ -192,22 +192,8 @@ struct QueuedBlock {
 };
 map<uint256, pair<NodeId, list<QueuedBlock>::iterator> > mapBlocksInFlight;
 
-struct QueuedFile {
-    NodeId nodeId;
-    uint256 fileTxHash;
-    int64_t nTime;              //! Time of file request in microseconds.
 
-    QueuedFile(): nodeId(-1), fileTxHash(0), nTime(0) {}
-    QueuedFile(const uint256 &fileTxHash, const NodeId nodeId, const int64_t nTime): nodeId(nodeId), fileTxHash(fileTxHash), nTime(nTime) {}
-};
 
-struct FilePending {
-    uint256 fileTxHash;
-    set<NodeId> nodes;          //nodes contains file
-
-    FilePending() : fileTxHash(0), nodes() {}
-    FilePending(const uint256 &fileTxHash, const set<NodeId> &nodes) : fileTxHash(fileTxHash), nodes(nodes) {}
-};
 
 struct FileKnown {
     NodeId node;
@@ -219,31 +205,6 @@ struct FileKnown {
     FileKnown(const NodeId node, const int events) : node(node), events(events) {}
 };
 
-struct FileRequest {
-    NodeId node;
-    int64_t date;
-
-    boost::optional<uint256> fileHash;
-    boost::optional<uint256> fileTxHash;
-
-    //how much this node informed us about this file.
-    int events;
-
-    FileRequest() : node(-1), date(0), events(1) {
-
-
-
-    }
-    FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
-    FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) : node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
-};
-
-map<uint256, FilePending> filesPendingMap;
-CCriticalSection cs_FilesPendingMap;
-
-map<uint256, QueuedFile> filesInFlightMap;
-CCriticalSection cs_FilesInFlightMap;
-
 typedef map<uint256, pair<int64_t,std::vector<FileKnown>>> KnownHasFilesMap;
 KnownHasFilesMap knownHasFilesMap;
 CCriticalSection cs_KnownHasFilesMap;
@@ -251,16 +212,7 @@ CCriticalSection cs_KnownHasFilesMap;
 mruset<uint256> knownFileTxesInDb(KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT);
 CCriticalSection cs_KnownFileTxesInDb;
 
-map<uint256, RequiredFile> requiredFilesMap;
-CCriticalSection cs_RequiredFilesMap;
-
-map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
-CCriticalSection cs_HasFileRequestedNodesMap;
-
 list<pair<uint256, NodeId>> fileRequestsOrder;
-typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
-FileRequestMap fileRequestedNodesMap;
-CCriticalSection cs_FileRequestedNodesMap;
 
 /** Number of blocks in flight with validated headers. */
 int nQueuedValidatedHeaders = 0;
@@ -275,6 +227,22 @@ set<CBlockIndex*> setDirtyBlockIndex;
 /** Dirty block file entries. */
 set<int> setDirtyFileInfo;
 } // anon namespace
+
+map<uint256, FilePending> filesPendingMap;
+CCriticalSection cs_FilesPendingMap;
+
+map<uint256, QueuedFile> filesInFlightMap;
+CCriticalSection cs_FilesInFlightMap;
+
+map<uint256, RequiredFile> requiredFilesMap;
+CCriticalSection cs_RequiredFilesMap;
+
+map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
+CCriticalSection cs_HasFileRequestedNodesMap;
+
+typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
+FileRequestMap fileRequestedNodesMap;
+CCriticalSection cs_FileRequestedNodesMap;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -7989,12 +7957,16 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
     return true;
 }
+FileRequest::FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) :
+    node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
 
 std::string CBlockFileInfo::ToString() const
 {
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)",
                      nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
+
+
 
 std::string CFileRepositoryBlockInfo::ToString() const
 {

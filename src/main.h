@@ -250,6 +250,58 @@ struct RequiredFile {
     bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
+struct FileRequest {
+    NodeId node;
+    int64_t date;
+
+    boost::optional<uint256> fileHash;
+    boost::optional<uint256> fileTxHash;
+
+    //how much this node informed us about this file.
+    int events;
+
+    FileRequest() : node(-1), date(0), events(1) {
+    }
+
+    FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
+    FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash);
+};
+
+struct QueuedFile {
+    NodeId nodeId;
+    uint256 fileTxHash;
+    int64_t nTime;              //! Time of file request in microseconds.
+
+    QueuedFile(): nodeId(-1), fileTxHash(0), nTime(0) {}
+    QueuedFile(const uint256 &fileTxHash, const NodeId nodeId, const int64_t nTime): nodeId(nodeId), fileTxHash(fileTxHash), nTime(nTime) {}
+};
+
+struct FilePending {
+    uint256 fileTxHash;
+    set<NodeId> nodes;          //nodes contains file
+
+    FilePending() : fileTxHash(0), nodes() {}
+    FilePending(const uint256 &fileTxHash, const set<NodeId> &nodes) : fileTxHash(fileTxHash), nodes(nodes) {}
+};
+
+struct FilePending;
+extern map<uint256, FilePending> filesPendingMap;
+extern CCriticalSection cs_FilesPendingMap;
+
+struct QueuedFile;
+extern map<uint256, QueuedFile> filesInFlightMap;
+extern CCriticalSection cs_FilesInFlightMap;
+
+extern map<uint256, RequiredFile> requiredFilesMap;
+extern CCriticalSection cs_RequiredFilesMap;
+
+struct FileRequest;
+extern map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
+extern CCriticalSection cs_HasFileRequestedNodesMap;
+
+typedef map<uint256, map<NodeId, FileRequest>> FileRequestMapType;
+extern FileRequestMapType fileRequestedNodesMap;
+extern CCriticalSection cs_FileRequestedNodesMap;
 
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;

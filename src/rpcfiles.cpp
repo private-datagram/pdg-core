@@ -5,57 +5,45 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
-#include "clientversion.h"
-#include "init.h"
 #include "main.h"
-#include "masternode-sync.h"
-#include "net.h"
-#include "netbase.h"
 #include "rpcserver.h"
-#include "spork.h"
-#include "timedata.h"
-#include "util.h"
-#include "univalue/include/univalue.h"
 
 #include <map>
-
+#include <vector>
 #include <stdint.h>
-
 #include <boost/assign/list_of.hpp>
-
 #include <univalue.h>
 
 using namespace boost;
 using namespace boost::assign;
 using namespace std;
 
-struct FilePending;
-extern map<uint256, FilePending> filesPendingMap;
-extern CCriticalSection cs_FilesPendingMap;
 
-struct QueuedFile;
-extern map<uint256, QueuedFile> filesInFlightMap;
-extern CCriticalSection cs_FilesInFlightMap;
+//struct FilePending;
+//extern map<uint256, FilePending> filesPendingMap;
+//extern CCriticalSection cs_FilesPendingMap;
 
-extern map<uint256, RequiredFile> requiredFilesMap;
-extern CCriticalSection cs_RequiredFilesMap;
+//struct QueuedFile;
+//extern map<uint256, QueuedFile> filesInFlightMap;
+//extern CCriticalSection cs_FilesInFlightMap;
 
-struct FileRequest;
-extern map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
-extern CCriticalSection cs_HasFileRequestedNodesMap;
+//extern map<uint256, RequiredFile> requiredFilesMap;
+//extern CCriticalSection cs_RequiredFilesMap;
 
-typedef map<uint256, map<NodeId, FileRequest>> FileRequestMapType;
-extern FileRequestMapType fileRequestedNodesMap;
-extern CCriticalSection cs_FileRequestedNodesMap;
+//struct FileRequest;
+//extern map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
+//extern CCriticalSection cs_HasFileRequestedNodesMap;
 
+//typedef map<uint256, map<NodeId, FileRequest>> FileRequestMapType;
+//extern FileRequestMapType fileRequestedNodesMap;
+//extern CCriticalSection cs_FileRequestedNodesMap;
 
 void join(const set<int>& v, char c, std::string& s);
 
 /**
  * File sync state info
  **/
-/*
+
 UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -63,7 +51,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
                 "getfilesyncstate\n"
                 "\nReturns an object containing file sync state info.\n"
 
-                "\nResult:\n"
+              /*  "\nResult:\n"
                 "{\n"
                 "  \"version\": xxxxx,           (numeric) the server version\n"
                 "  \"protocolversion\": xxxxx,   (numeric) the protocol version\n"
@@ -96,19 +84,18 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
                 "  \"relayfee\": x.xxxx,         (numeric) minimum relay fee for non-free transactions in pdg/kb\n"
                 "  \"staking status\": true|false,  (boolean) if the wallet is staking or not\n"
                 "  \"errors\": \"...\"           (string) any error messages\n"
-                "}\n"
+                "}\n"*/
 
                 "\nExamples:\n" +
                 HelpExampleCli("getfilesyncstate", "") + HelpExampleRpc("getfilesyncstate", ""));
-*/
+
 /*
 #ifdef ENABLE_WALLET
         LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
 #else
     LOCK(cs_main);
 #endif
- *//*
-
+ */
 
     UniValue obj(UniValue::VOBJ);
 
@@ -131,9 +118,9 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
         UniValue item(UniValue::VOBJ);
 
         item.push_back(Pair("key", fileTxHash.ToString()));
-        item.push_back(Pair("fileTxHash", it->second->fileTxHash.ToString()));
+        item.push_back(Pair("fileTxHash", it->second.fileTxHash.ToString()));
         std::string nodesList;
-        join(it->second->nodes, ',', nodesList);
+        join(it->second.nodes, ',', nodesList);
         item.push_back(Pair("nodes", nodesList));
 
         filePendingList.push_back(item);
@@ -148,9 +135,9 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
         UniValue item(UniValue::VOBJ);
 
         item.push_back(Pair("key", fileTxHash.ToString()));
-        item.push_back(Pair("nodeId", nodeId));
+        item.push_back(Pair("nodeId", it->second.nodeId));
         item.push_back(Pair("fileTxHash", fileTxHash.ToString()));
-        item.push_back(Pair("nTime", nTime));
+        item.push_back(Pair("nTime", it->second.nTime));
 
         fileInFlightList.push_back(item);
     }
@@ -165,17 +152,17 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
         item.push_back(Pair("key", fileTxHash.ToString()));
 
         UniValue fileRequestNodesList(UniValue::VARR);
-        BOOST_FOREACH (const FileRequest& fileRequest, it->second) {
+        BOOST_FOREACH (FileRequest& fileRequest, it->second) {
             fileRequestNodesList.push_back(Pair("node", fileRequest.node));
             fileRequestNodesList.push_back(Pair("date", fileRequest.date));
             fileRequestNodesList.push_back(Pair("events", fileRequest.events));
 
-            if (txin.fileHash.is_initialized()) {
-                fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash));
+            if (fileRequest.fileHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash.get().ToString()));
             }
 
-            if (txin.fileTxHash.is_initialized()) {
-                fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash));
+            if (fileRequest.fileTxHash.is_initialized()) {
+                fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash.get().ToString()));
             }
         }
 
@@ -185,31 +172,33 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     obj.push_back(Pair("hasFileRequestedNodesList", hasFileRequestedNodesList));
 
     //
-    UniValue hasFileRequestedNodesList(UniValue::VARR);
-    for (auto it = FileRequestMapType.begin(); it != FileRequestMapType.end(); it++) {
+    UniValue fileRequestMapList(UniValue::VARR);
+    for (auto it = fileRequestedNodesMap.begin(); it != fileRequestedNodesMap.end(); it++) {
         const uint256 &fileTxHash = it->first;
 
         UniValue item(UniValue::VOBJ);
         item.push_back(Pair("key", fileTxHash.ToString()));
 
-        UniValue fileRequestNodesList(UniValue::VARR);
-        BOOST_FOREACH (const FileRequest& fileRequest, it->second) {
-            fileRequestNodesList.push_back(Pair("node", fileRequest.node));
-            fileRequestNodesList.push_back(Pair("date", fileRequest.date));
-            fileRequestNodesList.push_back(Pair("events", fileRequest.events));
+        UniValue fileRequestNodesMapList(UniValue::VARR);
+        for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+            fileRequestNodesMapList.push_back(Pair("NodeId", it2->first));
+            fileRequestNodesMapList.push_back(Pair("node", it2->second.node));
+            fileRequestNodesMapList.push_back(Pair("date", it2->second.date));
+            fileRequestNodesMapList.push_back(Pair("events", it2->second.events));
 
-            if (txin.fileHash.is_initialized()) {
-                fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash));
+            if (it2->second.fileHash.is_initialized()) {
+                fileRequestNodesMapList.push_back(Pair("fileHash", it2->second.fileHash.get().ToString()));
             }
 
-            if (txin.fileTxHash.is_initialized()) {
-                fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash));
+            if (it2->second.fileTxHash.is_initialized()) {
+                fileRequestNodesMapList.push_back(Pair("fileTxHash", it2->second.fileTxHash.get().ToString()));
             }
         }
 
-        item.push_back(Pair("fileRequestNodesList", fileRequestNodesList));
-        hasFileRequestedNodesList.push_back(item);
+        item.push_back(Pair("fileRequestNodesMapList", fileRequestNodesMapList));
+        fileRequestMapList.push_back(item);
     }
+    obj.push_back(Pair("fileRequestMapList", fileRequestMapList));
 
     // ValueFromAmount()
     return obj;
@@ -228,4 +217,4 @@ void join(const set<int>& v, char c, std::string& s) {
         s.resize(s.length() - 1);
     }
 
-}*/
+}
