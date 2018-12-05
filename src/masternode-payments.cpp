@@ -534,7 +534,7 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
     LOCK(cs_vecPayments);
 
     int nMaxSignatures = 0;
-    int nMasternode_Drift_Count = 0;
+    //int nMasternode_Drift_Count = 0;
 
     std::string strPayeesPossible = "";
 
