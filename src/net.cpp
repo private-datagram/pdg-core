@@ -50,7 +50,7 @@
 #define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
 //
 // Erase expired file at DB every 2 hours (1 hour - 3600s)
-#define ERASE_FILES_INTERVAL 2 * 3600
+#define ERASE_FILES_INTERVAL 7200
 
 #if !defined(HAVE_MSG_NOSIGNAL) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0

@@ -5575,7 +5575,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     //notification about available file
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
-        LogPrintStr("Failed to delete wallet file tx");
+        LogPrint("file", "%s - Failed to delete wallet file tx\n", __func__);
 
     // TODO: PDG 3 remove after debug
     if (!IsFileExist(dbFile.fileHash)) {

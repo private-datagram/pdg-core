@@ -426,7 +426,7 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
         return error("%s failed to read tx", __func__);
 
     int nHeightTest;
-    if (!IsTransactionInChain(txid, nHeightTest)) // TODO: PDG5 check update from pivx
+    if (!IsTransactionInChain(txid, nHeightTest)) // TODO: PDG2 check update from pivx
         return error("%s: mint tx %s is not in chain", __func__, txid.GetHex());
 
     int nHeightMintAdded = mapBlockIndex[hashBlock]->nHeight;
