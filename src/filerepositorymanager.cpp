@@ -443,51 +443,6 @@ boost::filesystem::path CFileRepositoryManager::GetTmpFilePosFilename(const int 
 }
 //end region
 
-//todo: PDG5 remove
-void CFileRepositoryManager::FillTestData() {
-    WRITE_LOCK(cs_RepositoryReadWriteLock);
-    LogPrint("file", "%s - -----------------------\n", __func__);
-    LogPrint("file", "%s - FILES. Fill test data.\n", __func__);
-
-    bool isFiling = true;
-    int nFiles = 0;
-    while (isFiling) {
-            CDBFile dbFile;
-            vector<char> vTestFile;
-            int nChars = rand() % 2000 + 10000;
-            //int nChars = 5000000;
-            char myword[] = { 'H', 'e', 'l', 'l', 'o', '\0', 'd', '2', '@'};
-
-            for (int i = 0; i < nChars; i++) {
-                int charId = rand() %  (sizeof(myword)/sizeof(*myword));
-                vTestFile.emplace_back(myword[charId]);
-            }
-
-            dbFile.vBytes.reserve(vTestFile.size());
-            dbFile.vBytes.assign(vTestFile.begin(), vTestFile.end());
-            dbFile.UpdateFileHash();
-
-            //1.5 minutes
-            //30 days 30 * 24 * 60 * 60 * 1000 * 1000
-            dbFile.fileExpiredDate = GetAdjustedTime() +  rand() % 180 + 60;
-            LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, dbFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
-
-            if (!SaveFileDB(dbFile))
-                LogPrint("%s : Failed to save file to db for fileHash - %s", __func__, dbFile.fileHash.ToString());
-
-            LogPrint("%s :TEST FILE - test file be saved. nFile:%d , byteSize: %d", __func__, nFiles, dbFile.vBytes.size());
-            nFiles++;
-
-            if (nFiles == 420) {
-                break;
-            }
-      }
-
-    LogPrint("file", "%s - -----------------------\n", __func__);
-
-    //fill data
-}
-
 void CFileRepositoryManager::FindAndRecycleExpiredFiles() {
     LogPrint("file", "%s - FILES. Process mark remove files scheduler.\n", __func__);
 
@@ -739,7 +694,6 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
 
         dbFileRepositoryState.AddFile(nRepositoryFileSize);
 
-        //TODO: PDG5.
         srcBlockInfo.SubtractFile(nRepositoryFileSize);
         if (srcBlockInfo.IsBlockFileEmpty() && !handleEmptySrcFile(syncState, srcFilePos)) {
             LogPrint("file", "%s : Failed to handle empty src file. nFile: %d", __func__, srcFilePos.nBlockFileIndex);

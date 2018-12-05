@@ -316,9 +316,6 @@ public:
 
     bool LoadFileDBState();
 
-    //todo: PDG5 remove
-    void FillTestData();
-
     bool LoadManagerState();
 
     bool GetFile(const uint256& fileHash, CDBFile& fileOut);

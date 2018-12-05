@@ -808,7 +808,7 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
 
 //PDG premine freeze deposit.
 bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
-    if (nBlockHeight < 100)
+    if (nBlockHeight < 300)
         return false;
 
     const vector<uint256> &vFreezeTxes = Params().PremineFreezeTxes();
@@ -7398,18 +7398,7 @@ void RemoveHasFileRequestsByHash(const uint256 &hash) {
     hasFileRequestedNodesMap.erase(hash);
 }
 
-//TODO PDG5 return after test
-/*void ProcessMarkRemoveFilesScheduler() {
-    fileRepositoryManager.FindAndRecycleExpiredFiles();
-}*/
-
-static int fillTestDataFlag = 1;
 void ProcessMarkRemoveFilesScheduler() {
-    if (fillTestDataFlag == 0) {
-       fileRepositoryManager.FillTestData();
-    }
-
-    fillTestDataFlag++;
     fileRepositoryManager.FindAndRecycleExpiredFiles();
 }
 
