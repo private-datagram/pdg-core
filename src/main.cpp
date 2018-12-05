@@ -98,7 +98,7 @@ CFileRepositoryManager fileRepositoryManager(REMOVED_FILES_SIZE_SHRINK_PERCENT);
  */
 CFeeRate minRelayTxFee = CFeeRate(10000);
 
-CFileFeeRate minFileFee = CFileFeeRate(100);
+CFileFeeRate minFileFee = CFileFeeRate(50);
 
 CTxMemPool mempool(::minRelayTxFee);
 
@@ -2211,7 +2211,7 @@ int64_t GetBlockValue(int nHeight)
 {
     if (Params().NetworkID() == CBaseChainParams::TESTNET) {
         if (nHeight < 200 && nHeight > 0)
-            return 250000 * COIN;
+            return 500 * COIN;
     }
 
     int64_t nSubsidy = 0;

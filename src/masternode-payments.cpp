@@ -369,7 +369,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         int nCountNeeded;
         vRecv >> nCountNeeded;
 
-        if (Params().NetworkID() == CBaseChainParams::MAIN) { // TODO: PDG5 check on misbehaving
+        if (Params().NetworkID() == CBaseChainParams::MAIN) { // TODO: PDG3 check on misbehaving
             if (pfrom->HasFulfilledRequest("mnget")) {
                 LogPrintf("CMasternodePayments::ProcessMessageMasternodePayments() : mnget - peer already asked me for the list\n");
                 Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);

@@ -5498,7 +5498,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
 
     CAmount receivedAmount = paymentTx.GetCredit(ISMINE_ALL) - paymentTx.GetDebit(ISMINE_ALL);
-    if (receivedAmount < paymentRequest.nPrice) { // TODO: PDG5 check
+    if (receivedAmount < paymentRequest.nPrice) {
         return error("%s : Insufficiently amount received for tx - %s. File price: %d. valueOut: %d. Received: %d", __func__, tx.GetHash().ToString(), paymentRequest.nPrice, tx.GetValueOut(), receivedAmount);
     }
 
