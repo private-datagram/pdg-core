@@ -6102,7 +6102,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (inv.type == MSG_HAS_FILE_REQUEST) {
                 if (!fImporting && !fReindex) {
                     const uint256& fileTxHash = inv.hash;
-                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash.ToString());
+                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s. nodeId: %d\n", __func__, fileTxHash.ToString(), pfrom->id);
 
                     if (knownFileTxesInDb.count(fileTxHash)) {
                         LogPrint("file", "%s - FILES. File known in DB. SendFileAvailable to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
@@ -6150,11 +6150,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             CTransaction tx;
                             uint256 blockHash;
                             // TODO: PDG 2 refactor
-                            if (!GetTransaction(fileTxHash, tx, blockHash, true) && fMasterNode) { // TODO: optimize, make caching
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
-                                vector<FileRequest> vnewFileRequests;
-                                vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                            if (!GetTransaction(fileTxHash, tx, blockHash, true)) { // TODO: optimize, make caching
+                                if (fMasterNode) {
+                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
+                                    vector<FileRequest> vnewFileRequests;
+                                    vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
+                                    hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                }
                             } else
                             if (tx.type != TX_FILE_TRANSFER) {
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
@@ -6169,11 +6171,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                     Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
                                 } else
-                                if (!IsFileExist(tx.vfiles[0].fileHash) && fMasterNode) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to requests map.\n", __func__);
-                                    vector<FileRequest> vnewFileRequests;
-                                    vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                    hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                if (!IsFileExist(tx.vfiles[0].fileHash)) {
+                                    if (fMasterNode) {
+                                        LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to has file requested node map.\n", __func__);
+                                        vector<FileRequest> vnewFileRequests;
+                                        vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
+                                        hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                    }
                                 } else {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File exists, sending response.\n", __func__);
                                     {
@@ -7546,7 +7550,7 @@ void ProcessFileRequests() {
         }
 
         // send
-        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
         pNode->PushMessage("file", fileTxHash, dbFile);
 
 #ifdef ENABLE_WALLET
@@ -7763,7 +7767,7 @@ void ProcessKnownHashes() {
 }
 
 void AddNewFileKnown(const uint256& hash, const NodeId id) {
-    LogPrint("file", "%s - FILES. Add new known file: fileTxHash: %s\n", __func__, hash.ToString());
+    LogPrint("file", "%s - FILES. Add new known has file: fileTxHash: %s\n", __func__, hash.ToString());
     std::vector<FileKnown> vFileKnown;
     vFileKnown.emplace_back(FileKnown(id, 1));
 
