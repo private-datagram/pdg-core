@@ -405,8 +405,7 @@ void TransactionRecord::updateStatus(const CWalletTx& wtx)
     status.cur_num_blocks = chainActive.Height();
     status.cur_num_ix_locks = nCompleteTXLocks;
 
-    LogPrint("freeze", "FREEZE: updateStatus \n");
-    if (!IsFinalTx(wtx, chainActive.Height() + 1) || IsFreezeTx(wtx)) {
+    if (!IsFinalTx(wtx, chainActive.Height() + 1)) {
         if (wtx.nLockTime < LOCKTIME_THRESHOLD) {
             status.status = TransactionStatus::OpenUntilBlock;
             status.open_for = wtx.nLockTime - chainActive.Height();

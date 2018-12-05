@@ -55,6 +55,7 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
     (0, uint256("00000a46d8a2a95c5b7ebbdd1449f87b12822699a73960f1fbd3a10cd47fdf38"));
+    // TODO: PDG5 add checkpoint after coin freeze
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
     1544005400, // * UNIX timestamp of last checkpoint block
@@ -78,6 +79,11 @@ static const Checkpoints::CCheckpointData dataRegtest = {
     1544005402,
     0,
     100};
+
+static const vector<uint256> premineFreezeTxes =
+        boost::assign::list_of
+        (uint256("8aa92fa0b13f808bb7f011a388ec46492d741cfc06d7421e57700fc3b9ca941f"))
+        (uint256("125538dd3ff8eededfc6f0bcc4abd1957bfb44d811054c1931295c50bac09577"));
 
 libzerocoin::ZerocoinParams* CChainParams::Zerocoin_Params(bool useModulusV1) const
 {
@@ -207,6 +213,8 @@ public:
         nZerocoinRequiredStakeDepth = 200; //The required confirmations for a zpdg to be stakable
 
         nBudget_Fee_Confirmations = 6; // Number of confirmations for the finalization fee
+
+        vPremineFreezeTxes = premineFreezeTxes;
     }
 
     const Checkpoints::CCheckpointData& Checkpoints() const
@@ -283,6 +291,8 @@ public:
         nStartMasternodePayments = 1420837558; //Fri, 09 Jan 2015 21:05:58 GMT
         nBudget_Fee_Confirmations = 3; // Number of confirmations for the finalization fee. We have to make this very short
                                        // here because we only have a 8 block finalization window on testnet
+
+        vPremineFreezeTxes.clear();
     }
     const Checkpoints::CCheckpointData& Checkpoints() const
     {

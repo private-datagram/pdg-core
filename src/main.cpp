@@ -2,6 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
+// Copyright (c) 2018 The PDG developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -192,22 +193,8 @@ struct QueuedBlock {
 };
 map<uint256, pair<NodeId, list<QueuedBlock>::iterator> > mapBlocksInFlight;
 
-struct QueuedFile {
-    NodeId nodeId;
-    uint256 fileTxHash;
-    int64_t nTime;              //! Time of file request in microseconds.
 
-    QueuedFile(): nodeId(-1), fileTxHash(0), nTime(0) {}
-    QueuedFile(const uint256 &fileTxHash, const NodeId nodeId, const int64_t nTime): nodeId(nodeId), fileTxHash(fileTxHash), nTime(nTime) {}
-};
 
-struct FilePending {
-    uint256 fileTxHash;
-    set<NodeId> nodes;          //nodes contains file
-
-    FilePending() : fileTxHash(0), nodes() {}
-    FilePending(const uint256 &fileTxHash, const set<NodeId> &nodes) : fileTxHash(fileTxHash), nodes(nodes) {}
-};
 
 struct FileKnown {
     NodeId node;
@@ -219,31 +206,6 @@ struct FileKnown {
     FileKnown(const NodeId node, const int events) : node(node), events(events) {}
 };
 
-struct FileRequest {
-    NodeId node;
-    int64_t date;
-
-    boost::optional<uint256> fileHash;
-    boost::optional<uint256> fileTxHash;
-
-    //how much this node informed us about this file.
-    int events;
-
-    FileRequest() : node(-1), date(0), events(1) {
-
-
-
-    }
-    FileRequest(const NodeId node, const int64_t date) : node(node), date(date), events(1) {}
-    FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) : node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
-};
-
-map<uint256, FilePending> filesPendingMap;
-CCriticalSection cs_FilesPendingMap;
-
-map<uint256, QueuedFile> filesInFlightMap;
-CCriticalSection cs_FilesInFlightMap;
-
 typedef map<uint256, pair<int64_t,std::vector<FileKnown>>> KnownHasFilesMap;
 KnownHasFilesMap knownHasFilesMap;
 CCriticalSection cs_KnownHasFilesMap;
@@ -251,16 +213,7 @@ CCriticalSection cs_KnownHasFilesMap;
 mruset<uint256> knownFileTxesInDb(KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT);
 CCriticalSection cs_KnownFileTxesInDb;
 
-map<uint256, RequiredFile> requiredFilesMap;
-CCriticalSection cs_RequiredFilesMap;
-
-map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
-CCriticalSection cs_HasFileRequestedNodesMap;
-
 list<pair<uint256, NodeId>> fileRequestsOrder;
-typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
-FileRequestMap fileRequestedNodesMap;
-CCriticalSection cs_FileRequestedNodesMap;
 
 /** Number of blocks in flight with validated headers. */
 int nQueuedValidatedHeaders = 0;
@@ -275,6 +228,22 @@ set<CBlockIndex*> setDirtyBlockIndex;
 /** Dirty block file entries. */
 set<int> setDirtyFileInfo;
 } // anon namespace
+
+map<uint256, FilePending> filesPendingMap;
+CCriticalSection cs_FilesPendingMap;
+
+map<uint256, QueuedFile> filesInFlightMap;
+CCriticalSection cs_FilesInFlightMap;
+
+map<uint256, RequiredFile> requiredFilesMap;
+CCriticalSection cs_RequiredFilesMap;
+
+map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
+CCriticalSection cs_HasFileRequestedNodesMap;
+
+typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
+FileRequestMap fileRequestedNodesMap;
+CCriticalSection cs_FileRequestedNodesMap;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -826,34 +795,25 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
         nBlockTime = GetAdjustedTime();
     if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
         return true;
+
+    if (IsFreezeTx(tx, nBlockHeight, nBlockTime))
+        return false;
+
     BOOST_FOREACH (const CTxIn& txin, tx.vin)
-        if (!txin.IsFinal())
-            return false;
+    if (!txin.IsFinal())
+        return false;
+
     return true;
 }
 
-//todo -> move to static in class
-vector<string> teamDistributionTx = {
-        "8aa92fa0b13f808bb7f011a388ec46492d741cfc06d7421e57700fc3b9ca941f",
-        "125538dd3ff8eededfc6f0bcc4abd1957bfb44d811054c1931295c50bac09577",
-};
-
-//PDG team freeze deposit.
+//PDG premine freeze deposit.
 bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
-    if (tx.nLockTime == 0)
-        return false;
-    if (nBlockHeight == 0)
-        nBlockHeight = chainActive.Height();
-    if (nBlockTime == 0)
-        nBlockTime = GetAdjustedTime();
-
-    if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
+    if (nBlockHeight < 100)
         return false;
 
-    if (std::find(teamDistributionTx.begin(), teamDistributionTx.end(), tx.GetHash().ToString()) != teamDistributionTx.end())
-        return true;
+    const vector<uint256> &vFreezeTxes = Params().PremineFreezeTxes();
 
-    return false;
+    return std::find(vFreezeTxes.begin(), vFreezeTxes.end(), tx.GetHash()) != vFreezeTxes.end();
 }
 
 /**
@@ -1676,13 +1636,6 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
         return state.DoS(0,
             error("AcceptToMemoryPool : nonstandard transaction: %s", reason),
             REJECT_NONSTANDARD, reason);
-
-    LogPrint("freeze", "FREEZE:AcceptToMemoryPool \n");
-    if (IsFreezeTx(tx)) {
-        //todo: PDG 5 ddos?
-        LogPrintf("AcceptToMemoryPool: freeze transaction \n");
-        return false;
-    }
 
     // is it already in the memory pool?
     uint256 hash = tx.GetHash();
@@ -6129,7 +6082,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (inv.type == MSG_HAS_FILE_REQUEST) {
                 if (!fImporting && !fReindex) {
                     const uint256& fileTxHash = inv.hash;
-                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s\n", __func__, fileTxHash.ToString());
+                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s. nodeId: %d\n", __func__, fileTxHash.ToString(), pfrom->id);
 
                     if (knownFileTxesInDb.count(fileTxHash)) {
                         LogPrint("file", "%s - FILES. File known in DB. SendFileAvailable to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
@@ -6177,11 +6130,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             CTransaction tx;
                             uint256 blockHash;
                             // TODO: PDG 2 refactor
-                            if (!GetTransaction(fileTxHash, tx, blockHash, true) && fMasterNode) { // TODO: optimize, make caching
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
-                                vector<FileRequest> vnewFileRequests;
-                                vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                            if (!GetTransaction(fileTxHash, tx, blockHash, true)) { // TODO: optimize, make caching
+                                if (fMasterNode) {
+                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
+                                    vector<FileRequest> vnewFileRequests;
+                                    vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
+                                    hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                }
                             } else
                             if (tx.type != TX_FILE_TRANSFER) {
                                 LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
@@ -6196,11 +6151,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
                                     Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
                                 } else
-                                if (!IsFileExist(tx.vfiles[0].fileHash) && fMasterNode) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to requests map.\n", __func__);
-                                    vector<FileRequest> vnewFileRequests;
-                                    vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                    hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                if (!IsFileExist(tx.vfiles[0].fileHash)) {
+                                    if (fMasterNode) {
+                                        LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to has file requested node map.\n", __func__);
+                                        vector<FileRequest> vnewFileRequests;
+                                        vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
+                                        hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
+                                    }
                                 } else {
                                     LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File exists, sending response.\n", __func__);
                                     {
@@ -7573,7 +7530,7 @@ void ProcessFileRequests() {
         }
 
         // send
-        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
         pNode->PushMessage("file", fileTxHash, dbFile);
 
 #ifdef ENABLE_WALLET
@@ -7790,7 +7747,7 @@ void ProcessKnownHashes() {
 }
 
 void AddNewFileKnown(const uint256& hash, const NodeId id) {
-    LogPrint("file", "%s - FILES. Add new known file: fileTxHash: %s\n", __func__, hash.ToString());
+    LogPrint("file", "%s - FILES. Add new known has file: fileTxHash: %s\n", __func__, hash.ToString());
     std::vector<FileKnown> vFileKnown;
     vFileKnown.emplace_back(FileKnown(id, 1));
 
@@ -7984,12 +7941,16 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
     return true;
 }
+FileRequest::FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) :
+    node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
 
 std::string CBlockFileInfo::ToString() const
 {
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)",
                      nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
+
+
 
 std::string CFileRepositoryBlockInfo::ToString() const
 {
