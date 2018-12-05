@@ -70,8 +70,6 @@ public:
     unsigned int nBlocksCount;                 //! number of block files
     unsigned int filesCount;                  //! number of all files in all blocks
 
-    // TODO: PDG 5 rename
-
     uint64_t removeCandidatesTotalSize;       //! number of bytes of all mark remove files in db
     unsigned int removeCandidatesFilesCount;  //! number of mark removed files in db
 
@@ -196,8 +194,8 @@ public:
 
     void SubtractFile(unsigned int nBytesSize)
     {
-        if (nFilesCount == 0 || nBlockSize < nBytesSize) {
-            LogPrint("file", "%s - FILES. FILES. ERROR. Meta data blockfile info not valid:%d, bytes size total: %d, remove bytes:%d\n",
+        if (nFilesCount == 0 || nBytesSize > nBlockSize) {
+            LogPrint("file", "%s - FILES. ERROR. Meta data blockfile info not valid: %d, bytes size total: %d, remove bytes: %d\n",
                      __func__,
                      nFilesCount,
                      nBlockSize,
@@ -205,8 +203,8 @@ public:
             return;
         }
 
-        //TODO: PDG 5 check file.vBytes.size() or something else (bytes header)
-        nBlockSize = nBlockSize - nBytesSize;
+        //TODO: PDG 3 check match with file.vBytes.size() including additional sizes (e.g. bytes header)
+        nBlockSize -= nBytesSize;
         nFilesCount--;
 
         UpdateLastWrite();

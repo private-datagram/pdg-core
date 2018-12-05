@@ -98,7 +98,7 @@ CFileRepositoryManager fileRepositoryManager(REMOVED_FILES_SIZE_SHRINK_PERCENT);
  */
 CFeeRate minRelayTxFee = CFeeRate(10000);
 
-CFileFeeRate minFileFee = CFileFeeRate(100);
+CFileFeeRate minFileFee = CFileFeeRate(50);
 
 CTxMemPool mempool(::minRelayTxFee);
 
@@ -4722,7 +4722,6 @@ void HandleFileTransferTx(CBlock *pblock) {
             //TODO: PDG 3 Optimize
             if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap))
                 LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
-
         }
 
         if (!knownHasFilesMap.count(txHash)) {

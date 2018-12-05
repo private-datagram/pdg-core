@@ -239,7 +239,7 @@ bool CalculateAccumulatorCheckpoint(int nHeight, uint256& nCheckpoint, Accumulat
     //Accumulate all coins over the last ten blocks that havent been accumulated (height - 20 through height - 11)
     int nTotalMintsFound = 0;
 
-    // TODO: PDG5 check twice for zero nHeightCheckpoint
+    // TODO: PDG2 check twice for zero nHeightCheckpoint
     if (nHeightCheckpoint < 20) {
         nCheckpoint = chainActive[nHeight - 1]->nAccumulatorCheckpoint;
         return true;
@@ -426,7 +426,7 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
         return error("%s failed to read tx", __func__);
 
     int nHeightTest;
-    if (!IsTransactionInChain(txid, nHeightTest)) // TODO: PDG5 check
+    if (!IsTransactionInChain(txid, nHeightTest)) // TODO: PDG5 check update from pivx
         return error("%s: mint tx %s is not in chain", __func__, txid.GetHex());
 
     int nHeightMintAdded = mapBlockIndex[hashBlock]->nHeight;

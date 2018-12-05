@@ -469,7 +469,7 @@ void CFileRepositoryManager::FillTestData() {
 
             //1.5 minutes
             //30 days 30 * 24 * 60 * 60 * 1000 * 1000
-            dbFile.fileExpiredDate = GetAdjustedTime() +  rand() % 180 + 60; // TODO: PDG 4 check lifetime and fee before
+            dbFile.fileExpiredDate = GetAdjustedTime() +  rand() % 180 + 60;
             LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, dbFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
 
             if (!SaveFileDB(dbFile))
