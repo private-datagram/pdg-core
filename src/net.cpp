@@ -47,12 +47,12 @@
 #define CHECK_REQUESTING_FILES_INTERVAL 30
 
 // Erase expired file at DB every 1 hour (3600s)
-//TODO: PDG 5 return after check
+//TODO: PDG5 return after check
 #define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3 * 30
 //#define MARK_REMOVE_EXPIRED_FILES_INTERVAL 3600
 //
 // Erase expired file at DB every 2 hours (1 hour - 3600s)
-//TODO: PDG 5 return after check
+//TODO: PDG5 return after check
 #define ERASE_FILES_INTERVAL 6 * 30
 //#define ERASE_FILES_INTERVAL 2 * 3600
 

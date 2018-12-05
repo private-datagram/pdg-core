@@ -125,7 +125,7 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits)
         return error("CheckProofOfWork() : nBits below minimum work");
 
     // Check proof of work matches claimed amount
-    /*if (hash > bnTarget) // TODO: PDG 5 check and revert after POW ends
+    /*if (hash > bnTarget) // TODO: PDG5 check and revert after POW ends
         return error("CheckProofOfWork() : hash doesn't match nBits");*/
 
     return true;

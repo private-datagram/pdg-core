@@ -91,12 +91,12 @@ static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
 
 /** The maximum size for file block of a blk?????.dat file (since 0.8) */
 
-//TODO: PDG 5  return after test
+//TODO: PDG5  return after test
 //static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x10000000; // 256 MiB
 static const unsigned int MAX_FILEBLOCKFILE_SIZE = 0x1000000; // 256 MiB
 /** The pre-allocation chunk size for file block blk?????.dat files (since 0.8) */
 
-//TODO: PDG 5  return after test
+//TODO: PDG5  return after test
 //static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
 static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x200000; // 32 MiB
 

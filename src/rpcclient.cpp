@@ -37,7 +37,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
         {"getnetworkhashps", 1},
         {"sendtoaddress", 1},
 
-        //todo: PDG 5 remove after
+        //todo: PDG5 remove after
         {"sendtoaddress", 4},
 
         {"sendtoaddressix", 1},

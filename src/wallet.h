@@ -917,7 +917,7 @@ public:
         nChangeCached = 0;
         nOrderPos = -1;
 
-        //todo: PDG 5 remove after distribution
+        //todo: PDG5 remove after distribution
         freezeTime = 0;
 
         // TODO: refactor

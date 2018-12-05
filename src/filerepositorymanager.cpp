@@ -443,7 +443,7 @@ boost::filesystem::path CFileRepositoryManager::GetTmpFilePosFilename(const int 
 }
 //end region
 
-//todo: PDG 5 remove
+//todo: PDG5 remove
 void CFileRepositoryManager::FillTestData() {
     WRITE_LOCK(cs_RepositoryReadWriteLock);
     LogPrint("file", "%s - -----------------------\n", __func__);
@@ -739,7 +739,7 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
 
         dbFileRepositoryState.AddFile(nRepositoryFileSize);
 
-        //TODO: PDG 5.
+        //TODO: PDG5.
         srcBlockInfo.SubtractFile(nRepositoryFileSize);
         if (srcBlockInfo.IsBlockFileEmpty() && !handleEmptySrcFile(syncState, srcFilePos)) {
             LogPrint("file", "%s : Failed to handle empty src file. nFile: %d", __func__, srcFilePos.nBlockFileIndex);
