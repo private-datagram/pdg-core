@@ -46,6 +46,8 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
             item.push_back(Pair("key", it->first.ToString()));
             item.push_back(Pair("requestExpirationTime", (uint64_t) it->second.requestExpirationTime));
             item.push_back(Pair("fileExpirationTime", (uint64_t) it->second.fileExpirationTime));
+
+            requiredFilesList.push_back(item);
         }
         obj.push_back(Pair("requiredFilesMap", requiredFilesList));
     }
@@ -102,20 +104,24 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 
             UniValue fileRequestNodesList(UniValue::VARR);
             BOOST_FOREACH (FileRequest &fileRequest, it->second) {
-                fileRequestNodesList.push_back(Pair("node", fileRequest.node));
-                fileRequestNodesList.push_back(Pair("date", fileRequest.date / 1000000));
-                fileRequestNodesList.push_back(Pair("events", fileRequest.events));
+                UniValue frItem(UniValue::VOBJ);
+                frItem.push_back(Pair("nodeId", fileRequest.node));
+                frItem.push_back(Pair("date", fileRequest.date / 1000000));
+                frItem.push_back(Pair("events", fileRequest.events));
 
                 if (fileRequest.fileHash.is_initialized()) {
-                    fileRequestNodesList.push_back(Pair("fileHash", fileRequest.fileHash.get().ToString()));
+                    frItem.push_back(Pair("fileHash", fileRequest.fileHash.get().ToString()));
                 }
 
                 if (fileRequest.fileTxHash.is_initialized()) {
-                    fileRequestNodesList.push_back(Pair("fileTxHash", fileRequest.fileTxHash.get().ToString()));
+                    frItem.push_back(Pair("fileTxHash", fileRequest.fileTxHash.get().ToString()));
                 }
+
+                fileRequestNodesList.push_back(frItem);
             }
 
             item.push_back(Pair("fileRequestNodesList", fileRequestNodesList));
+
             hasFileRequestedNodesList.push_back(item);
         }
         obj.push_back(Pair("hasFileRequestedNodesList", hasFileRequestedNodesList));
@@ -133,21 +139,25 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 
             UniValue fileRequestNodesMapList(UniValue::VARR);
             for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++) {
-                fileRequestNodesMapList.push_back(Pair("nodeId", it2->first));
-                fileRequestNodesMapList.push_back(Pair("node", it2->second.node));
-                fileRequestNodesMapList.push_back(Pair("date", it2->second.date / 1000000));
-                fileRequestNodesMapList.push_back(Pair("events", it2->second.events));
+                UniValue frItem(UniValue::VOBJ);
+                frItem.push_back(Pair("nodeId", it2->first));
+                frItem.push_back(Pair("node", it2->second.node));
+                frItem.push_back(Pair("date", it2->second.date / 1000000));
+                frItem.push_back(Pair("events", it2->second.events));
 
                 if (it2->second.fileHash.is_initialized()) {
-                    fileRequestNodesMapList.push_back(Pair("fileHash", it2->second.fileHash.get().ToString()));
+                    frItem.push_back(Pair("fileHash", it2->second.fileHash.get().ToString()));
                 }
 
                 if (it2->second.fileTxHash.is_initialized()) {
-                    fileRequestNodesMapList.push_back(Pair("fileTxHash", it2->second.fileTxHash.get().ToString()));
+                    frItem.push_back(Pair("fileTxHash", it2->second.fileTxHash.get().ToString()));
                 }
+
+                fileRequestNodesMapList.push_back(frItem);
             }
 
             item.push_back(Pair("fileRequestNodesMapList", fileRequestNodesMapList));
+
             fileRequestMapList.push_back(item);
         }
         obj.push_back(Pair("fileRequestMapList", fileRequestMapList));

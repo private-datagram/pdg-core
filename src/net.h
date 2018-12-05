@@ -74,7 +74,7 @@ typedef int NodeId;
 //file handle
 void SendFileRequest(const uint256 &fileTxHash, CNode *pto);
 void BroadcastFileAvailable(uint256 fileTxHash);
-void BroadcastHasFileRequest(const uint256 &fileTxHash);
+bool BroadcastHasFileRequest(const uint256 &fileTxHash);
 
 int GetAvailableToSendFilesCount();
 bool CanSendToNode(const CNode *peer);

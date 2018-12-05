@@ -136,8 +136,8 @@ static const unsigned int MAX_FILE_SEND_COUNT = 5;
 static const unsigned int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 
-/** Required file expiration date. Timeout in micros. 0.5 hour */
-static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 30U * 60 * 1000 * 1000;
+/** Required file expiration date. Timeout in micros. 20m */
+static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 20U * 60 * 1000 * 1000;
 
 /** Flight file expiration date. Timeout in micros. 20 minutes */
 static const int64_t FLIGHT_FILE_TIMEOUT = 20U * 60 * 1000 * 1000;

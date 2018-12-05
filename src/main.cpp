@@ -2217,9 +2217,9 @@ int64_t GetBlockValue(int nHeight)
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
         nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 101 && nHeight > 0) {
+    } else if (nHeight < 1000 && nHeight > 0) {
         nSubsidy = 0;
-    } else if (nHeight <= 20000 && nHeight >= 101) {
+    } else if (nHeight <= 20000 && nHeight >= 1000) {
         nSubsidy = 1 * COIN; //2 weeks
     } else if (nHeight <= 175000 && nHeight >= 20001) {
         nSubsidy = 3.75 * COIN;//4 months
@@ -2235,7 +2235,7 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3 * COIN;//23 years
     } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30133811 && nHeight >= 20000001) {
+    } else if (nHeight <= 30134811 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 
@@ -4722,11 +4722,14 @@ void HandleFileTransferTx(CBlock *pblock) {
             //TODO: PDG 3 Optimize
             if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap))
                 LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
-
         }
 
         if (!knownHasFilesMap.count(txHash)) {
-            BroadcastHasFileRequest(txHash); // TODO: PDG 2 think about to do it in a new thread?
+            // TODO: PDG 2 think about to do it in a new thread?
+            if (!BroadcastHasFileRequest(txHash)) {
+                LOCK(cs_RequiredFilesMap);
+                requiredFilesMap[txHash].requestExpirationTime = GetTimeMicros();
+            }
         } else {
             LogPrint("file", "%s - FILES. File known. Broadcast not required. txHash: %s\n", __func__, txHash.ToString());
         }
@@ -6017,7 +6020,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             const CInv& inv = vInv[nInv];
 
             boost::this_thread::interruption_point();
-            pfrom->AddInventoryKnown(inv);
+
+            if (!IsMsgFile(inv.type))
+                pfrom->AddInventoryKnown(inv);
 
             bool fAlreadyHave = AlreadyHave(inv);
             LogPrint("net", "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->id);
@@ -6226,7 +6231,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             const uint256 &fileHash = tx.vfiles[0].fileHash;
                             bool hasBlock = (bool) mapBlockIndex.count(blockHash);
                             if (!hasBlock) {
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
+                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
                             }
 
                             if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
@@ -7639,10 +7644,11 @@ void ProcessRequiredFiles() {
     LogPrint("file", "%s - FILES. ProcessRequiredFiles. Files required: %d\n", __func__, requiredFilesMap.size());
     vector<uint256> vRequiredToBroadcast;
 
+    bool requiredFilesChange = false;
+
     {
         LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
 
-        bool requiredFilesChange = false;
         for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); ) {
             if (GetAdjustedTime() > it->second.fileExpirationTime) {
                 LogPrint("file", "%s - FILES. Required file expired. File not required anymore. Deleting from list. txFileHash: %s, expiration date: %d, now: %d\n", __func__, it->first.ToString(), it->second.fileExpirationTime, GetAdjustedTime());
@@ -7686,19 +7692,31 @@ void ProcessRequiredFiles() {
             if (GetTimeMicros() > it->second.requestExpirationTime) {
                 LogPrint("file", "%s - FILES. File request time expired. Broadcasting new request to every node. txFileHash: %s\n", __func__, fileTxHash.ToString());
                 vRequiredToBroadcast.emplace_back(fileTxHash);
-                it->second.requestExpirationTime = CalcRequiredFileRequestExpirationDate();
+
+                if (vRequiredToBroadcast.size() > 5)
+                    break;
             }
 
             it++;
+        }
+    }
+
+    {
+        LOCK(cs_RequiredFilesMap);
+
+        BOOST_FOREACH(const uint256 &fileTxHash, vRequiredToBroadcast) {
+            if (!BroadcastHasFileRequest(fileTxHash))
+                break;
+
+            if (!requiredFilesMap.count(fileTxHash)) continue; // TODO: PDG2 make sure that it will not change and remove
+
+            requiredFilesMap[fileTxHash].requestExpirationTime = CalcRequiredFileRequestExpirationDate();
+            requiredFilesChange = true;
         }
 
         //TODO: PDG 3 Optimize
         if (requiredFilesChange && !pblockfiletree->WriteRequiredFiles(requiredFilesMap))
             LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
-    }
-
-    BOOST_FOREACH(const uint256& fileTxHash, vRequiredToBroadcast) {
-        BroadcastHasFileRequest(fileTxHash);
     }
 }
 

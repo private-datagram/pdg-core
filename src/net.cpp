@@ -1592,8 +1592,10 @@ void BroadcastFileAvailable(uint256 fileTxHash) {
     }
 }
 
-void BroadcastHasFileRequest(const uint256 &fileTxHash) {
+bool BroadcastHasFileRequest(const uint256 &fileTxHash) {
     LogPrint("file", "%s - FILES. Broadcasting has file request. txHash: %s\n", __func__, fileTxHash.ToString());
+
+    int c = 0;
 
     vector<CNode*> vNodesCopy;
     {
@@ -1610,6 +1612,7 @@ void BroadcastHasFileRequest(const uint256 &fileTxHash) {
 
         // Send message
         g_signals.SendHasFileRequest(pnode, fileTxHash);
+        ++c;
     }
 
     {
@@ -1617,6 +1620,10 @@ void BroadcastHasFileRequest(const uint256 &fileTxHash) {
         BOOST_FOREACH (CNode* pnode, vNodesCopy)
             pnode->Release();
     }
+
+    LogPrint("file", "%s - FILES. Broadcasting has file request to %d nodes. txHash: %s\n", __func__, c, fileTxHash.ToString());
+
+    return c > 0;
 }
 
 //endregion
