@@ -461,6 +461,8 @@ void SendFilesDialog::initFileHistory()
     ui->tableFileTransactions->setColumnWidth(FileTransactionTableModel::Date, DATE_COLUMN_WIDTH);
     ui->tableFileTransactions->setColumnWidth(FileTransactionTableModel::Description, DESCRIPTION_COLUMN_WIDTH);
     ui->tableFileTransactions->setColumnWidth(FileTransactionTableModel::ToAddress, ADDRESS_COLUMN_WIDTH);
+    ui->tableFileTransactions->setColumnWidth(FileTransactionTableModel::FileSize, FILE_SIZE_COLUMN_WIDTH);
+    ui->tableFileTransactions->setColumnWidth(FileTransactionTableModel::Price, PRICE_MINIMUM_COLUMN_WIDTH);
 
     fileColumnResizingFixer = new GUIUtil::TableViewLastColumnResizingFixer(ui->tableFileTransactions, PRICE_MINIMUM_COLUMN_WIDTH, MINIMUM_COLUMN_WIDTH);
 
@@ -489,6 +491,7 @@ void SendFilesDialog::initFileHistory()
     ui->tablePaymentRequests->setColumnWidth(PaymentTransactionTableModel::Date, DATE_COLUMN_WIDTH);
     ui->tablePaymentRequests->setColumnWidth(PaymentTransactionTableModel::Description, DESCRIPTION_COLUMN_WIDTH);
     ui->tablePaymentRequests->setColumnWidth(PaymentTransactionTableModel::ToAddress, ADDRESS_COLUMN_WIDTH);
+    ui->tablePaymentRequests->setColumnWidth(PaymentTransactionTableModel::FileSize, FILE_SIZE_COLUMN_WIDTH);
     ui->tablePaymentRequests->setColumnWidth(PaymentTransactionTableModel::Price, PRICE_MINIMUM_COLUMN_WIDTH);
 
     paymentColumnResizingFixer = new GUIUtil::TableViewLastColumnResizingFixer(ui->tablePaymentRequests, PRICE_MINIMUM_COLUMN_WIDTH, MINIMUM_COLUMN_WIDTH);

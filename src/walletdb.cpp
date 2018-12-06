@@ -1623,6 +1623,18 @@ bool CWalletDB::EraseWalletFileTx(const uint256& hashPaymentRequestTx) {
     return Erase(make_pair(string("wftx"), hashPaymentRequestTx));
 }
 
+bool CWalletDB::WriteWalletFileTxSent(const uint256& hashPaymentRequestTx, bool isSent) {
+    return Write(make_pair(string("wftxis"), hashPaymentRequestTx), isSent);
+}
+
+bool CWalletDB::ReadWalletFileTxSent(const uint256& hashPaymentRequestTx, bool& outIsSent) {
+    return Read(make_pair(string("wftxis"), hashPaymentRequestTx), outIsSent);
+}
+
+bool CWalletDB::EraseWalletFileTxSent(const uint256& hashPaymentRequestTx) {
+    return Erase(make_pair(string("wftxis"), hashPaymentRequestTx));
+}
+
 bool CWalletDB::WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx) {
     std::vector<pair<uint256, CPaymentMatureTx>> flatData;
     mapToVectorPair(mapMaturationPaymentConfirmTx, flatData);

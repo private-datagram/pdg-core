@@ -192,6 +192,10 @@ public:
     bool ReadWalletFileTx(const uint256& hashPaymentRequestTx, CWalletFileTx& outWalletFileTx);
     bool EraseWalletFileTx(const uint256& hashPaymentRequestTx);
 
+    bool WriteWalletFileTxSent(const uint256& hashPaymentRequestTx, bool isSent);
+    bool ReadWalletFileTxSent(const uint256& hashPaymentRequestTx, bool& outIsSent);
+    bool EraseWalletFileTxSent(const uint256& hashPaymentRequestTx);
+
     bool WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
     bool ReadMaturationPaymentConfirmTx(map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
 

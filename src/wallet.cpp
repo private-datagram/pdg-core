@@ -5514,11 +5514,22 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     {
         CWalletFileTx walletFileTx;
 
-        if (!walletDB.ReadWalletFileTx(paymentConfirm->requestTxid, walletFileTx))
-            return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+        if (!walletDB.ReadWalletFileTx(paymentConfirm->requestTxid, walletFileTx)) {
+            // TODO: PDG3 check if file already sent and triggered event processed correctly
+            bool isSent = false;
+            if (!walletDB.ReadWalletFileTxSent(paymentConfirm->requestTxid, isSent))
+                LogPrint("%s - Failed to read file sent status\n", __func__);
 
-        if (walletFileTx.vchBytes.size() == 0) {
-            return error("%s : Failed to read file or file is empty", __func__, paymentConfirm->requestTxid.ToString());
+            if (isSent) {
+                LogPrint("%s - File already sent but event triggered\n", __func__);
+                return true;
+            }
+
+            return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+        }
+
+        if (walletFileTx.vchBytes.empty()) {
+            LogPrint("file", "%s : File bytes is empty. It seems like failed to read file", __func__, paymentConfirm->requestTxid.ToString());
         }
 
         inputFile.reserve(10000);
@@ -5576,6 +5587,9 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     //notification about available file
     if (!walletDB.EraseWalletFileTx(paymentConfirm->requestTxid))
         LogPrint("file", "%s - Failed to delete wallet file tx\n", __func__);
+
+    if (!walletDB.WriteWalletFileTxSent(paymentConfirm->requestTxid, true))
+        LogPrint("file", "%s - Failed to write file sent status\n", __func__);
 
     // TODO: PDG 3 remove after debug
     if (!IsFileExist(dbFile.fileHash)) {
