@@ -56,7 +56,6 @@ static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
     (0, uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"))
     (150, uint256("0000002ecc077d943f629feab31479cf4765afcdc52321cbf3b4b546acbe37d5"));
-    // TODO: PDG5 add checkpoint after coin freeze
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
     1544103059, // * UNIX timestamp of last checkpoint block
@@ -171,9 +170,9 @@ public:
         assert(hashGenesisBlock == uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"));
         assert(genesis.hashMerkleRoot == uint256("d23d2f59df533a88071d5306ea19b5d851b73ba54ae59315134406a2ac48e780"));
 
-        //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
-        //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
-        //vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
+        vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
+        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
+        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 30);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 13);
@@ -264,9 +263,9 @@ public:
         hashGenesisBlock = genesis.GetHash();
         assert(hashGenesisBlock == uint256("00000e4e1b6b9238a5c25e36b71ebbde1d434ae6bfd620d6b133d7f4c4de4809"));
 
-        //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
-        //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
-        //vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
+        vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
+        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
+        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 139); // Testnet pdg addresses start with 'x' or 'y'
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 19);  // Testnet pdg script addresses start with '8' or '9'

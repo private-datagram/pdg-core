@@ -1079,10 +1079,6 @@ UniValue sendmany(const UniValue& params, bool fHelp)
     if (params.size() > 3 && !params[3].isNull() && !params[3].get_str().empty())
         wtx.mapValue["comment"] = params[3].get_str();
 
-    //todo: PDG5 remove after distribution
-    if (params.size() > 4 && !params[4].isNull())
-        wtx.freezeTime = params[4].get_int64();
-
     set<CBitcoinAddress> setAddress;
     vector<pair<CScript, CAmount> > vecSend;
 

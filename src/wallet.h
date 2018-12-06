@@ -917,9 +917,6 @@ public:
         nChangeCached = 0;
         nOrderPos = -1;
 
-        //todo: PDG5 remove after distribution
-        freezeTime = 0;
-
         // TODO: refactor
         type = ((CMerkleTx*)this)->type;
         meta = ((CMerkleTx*)this)->meta;

@@ -66,10 +66,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
         {"listsinceblock", 2},
         {"sendmany", 1},
         {"sendmany", 2},
-
-        //TODO: PDG5 remove after
-        {"sendmany", 4},
-
         {"addmultisigaddress", 0},
         {"addmultisigaddress", 1},
         {"createmultisig", 0},
