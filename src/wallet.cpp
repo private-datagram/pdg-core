@@ -4133,7 +4133,7 @@ void CWallet::AutoCombineDust()
             if (!out.fSpendable)
                 continue;
             //no coins should get this far if they dont have proper maturity, this is double checking
-            if (out.tx->IsCoinStake() && out.tx->GetDepthInMainChain() < COINBASE_MATURITY + 1)
+            if (out.tx->IsCoinStake() && out.tx->GetDepthInMainChain() < Params().COINBASE_MATURITY() + 1)
                 continue;
 
             COutPoint outpt(out.tx->GetHash(), out.i);
@@ -5585,10 +5585,8 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     return true;
 }
 
-bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestination& dest, uint256& outFileTxHash) {
-    LogPrint("file", "%s - FILES. Sending file transaction\n", __func__);
-
-    LogPrintStr(std::string("address: ") + CBitcoinAddress(dest).ToString());
+bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, const CTxDestination& dest, uint256& outFileTxHash) {
+    LogPrint("file", "%s - FILES. Sending file transaction to address: %s\n", __func__, CBitcoinAddress(dest).ToString());
 
     // fill transaction
     CMutableTransaction tx;
@@ -5618,7 +5616,7 @@ bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestin
         if (!wallet->CreateTransaction(scriptPubKey, amount, newTx, reservekey, nFeeRequired, strError, NULL, ALL_COINS, useSwiftTX, (CAmount)0)) {
             if (amount + nFeeRequired > pwalletMain->GetBalance())
                 strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
-            LogPrintf("SendMoney() : %s\n", strError);
+            LogPrintf("SendFileTx() : %s\n", strError);
             return error("%s : Failed to CreateTransaction", __func__);
         }
     }
@@ -5628,21 +5626,12 @@ bool CWallet::SendFileTx(const CFile& file, const CFileMeta& fileMeta, CTxDestin
         LOCK2(cs_main, wallet->cs_wallet);
 
         if (!wallet->CommitTransaction(newTx, reservekey, (useSwiftTX) ? "ix" : "tx"))
-            return error("%s : Failed to CommitTransaction", __func__); //TransactionCommitFailed; // TODO: make detailed
+            return error("%s : Failed to CommitTransaction", __func__); //TransactionCommitFailed; // TODO: PDG2 return detailed result
     }
 
     outFileTxHash = newTx.GetHash();
 
     LogPrint("file", "%s - FILES. File transaction sent. Tx hash: %s\n", __func__, outFileTxHash.ToString());
-
-    // accept transaction
-    /**
-    if (sendStatus.status == WalletModel::OK) {
-            acceptTransaction(recipients[0], currentTransaction);
-
-            accept();
-        }
-    */
 
     return true;
 }

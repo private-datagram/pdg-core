@@ -97,8 +97,6 @@ static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
 
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
-/** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
-static const int COINBASE_MATURITY = 100;
 /** File payment confirmations wait to send file */
 static const int FILE_PAYMENT_MATURITY = 3;
 /** File scheduler pending receive file */

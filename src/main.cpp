@@ -806,14 +806,13 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
     return true;
 }
 
-//PDG premine freeze deposit.
+// PDG premine freeze deposit.
 bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
+    // Ignore check before transactions created to avoid ban on first check
     if (nBlockHeight < 300)
         return false;
 
-    const vector<uint256> &vFreezeTxes = Params().PremineFreezeTxes();
-
-    return std::find(vFreezeTxes.begin(), vFreezeTxes.end(), tx.GetHash()) != vFreezeTxes.end();
+    return Params().PremineFreezeTxes().count(tx.GetHash()) > 0;
 }
 
 /**

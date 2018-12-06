@@ -80,10 +80,11 @@ static const Checkpoints::CCheckpointData dataRegtest = {
     0,
     100};
 
-static const vector<uint256> premineFreezeTxes =
+static const set<uint256> premineFreezeTxes =
         boost::assign::list_of
         (uint256("95b1dc93d38d017a68df694852cfe86b32d38beb345a83c5fbb10c6c5e1004b2"))
-        (uint256("28d5e276ec72c0b41eb09faad512b6823fdfcae7023375d2e0802929d72e7858"));
+        (uint256("28d5e276ec72c0b41eb09faad512b6823fdfcae7023375d2e0802929d72e7858"))
+        .convert_to_container<std::set<uint256> >();
 
 libzerocoin::ZerocoinParams* CChainParams::Zerocoin_Params(bool useModulusV1) const
 {
@@ -129,7 +130,7 @@ public:
         nMinerThreads = 0;
         nTargetTimespan = 1 * 60; // PDG: 1 minute
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
-        nMaturity = 5;
+        nMaturity = 100;
         nMasternodeCountDrift = 20;
         nMaxMoneyOut = 128000000 * COIN;
 
