@@ -82,8 +82,9 @@ static const Checkpoints::CCheckpointData dataRegtest = {
 
 static const vector<uint256> premineFreezeTxes =
         boost::assign::list_of
-        (uint256("95b1dc93d38d017a68df694852cfe86b32d38beb345a83c5fbb10c6c5e1004b2"))
-        (uint256("28d5e276ec72c0b41eb09faad512b6823fdfcae7023375d2e0802929d72e7858"));
+        (uint256("3e36a5aca33eeaf10ffe3d013ce7cd7f15dd6b735adcd5de70818dbe3e4ee524"))
+        (uint256("c46c5e845ceaa9cdd511acb0fd8881febd9a22bbc14464e286a0be365dcff2b3"));
+
 
 libzerocoin::ZerocoinParams* CChainParams::Zerocoin_Params(bool useModulusV1) const
 {
