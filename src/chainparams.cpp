@@ -54,29 +54,29 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 // + Contains no strange transactions
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
-    (0, uint256("00000a46d8a2a95c5b7ebbdd1449f87b12822699a73960f1fbd3a10cd47fdf38"));
+    (0, uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"));
     // TODO: PDG5 add checkpoint after coin freeze
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
-    1544005400, // * UNIX timestamp of last checkpoint block
+    1544097000, // * UNIX timestamp of last checkpoint block
     0,    // * total number of transactions between genesis and last checkpoint
                 //   (the tx=... number in the SetBestChain debug.log lines)
     2000        // * estimated number of transactions per day after checkpoint
 };
 
 static Checkpoints::MapCheckpoints mapCheckpointsTestnet =
-    boost::assign::map_list_of(0, uint256("00000de80b4a4d0044e95cbf1b3d55bfc8e0ad5867bc9f8ef6719a9447a30a5a"));
+    boost::assign::map_list_of(0, uint256("00000e4e1b6b9238a5c25e36b71ebbde1d434ae6bfd620d6b133d7f4c4de4809"));
 static const Checkpoints::CCheckpointData dataTestnet = {
     &mapCheckpointsTestnet,
-    1544005401,
+    1544097001,
     0,
     250};
 
 static Checkpoints::MapCheckpoints mapCheckpointsRegtest =
-    boost::assign::map_list_of(0, uint256("0ea7f8a410e2371a271279aa436a14ad1e8d7bf375b7fdf1480db438862d3e4f"));
+    boost::assign::map_list_of(0, uint256("2fee4a09d44f965cc8b71509b34c57e0d23c759006370222d7c14cb343e0aadd"));
 static const Checkpoints::CCheckpointData dataRegtest = {
     &mapCheckpointsRegtest,
-    1544005402,
+    1544097002,
     0,
     100};
 
@@ -162,12 +162,12 @@ public:
         genesis.hashPrevBlock = 0;
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
         genesis.nVersion = 4;
-        genesis.nTime = 1544005400;
+        genesis.nTime = 1544097000;
         genesis.nBits = 0x1e0ffff0;
-        genesis.nNonce = 19141;
+        genesis.nNonce = 258503;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("00000a46d8a2a95c5b7ebbdd1449f87b12822699a73960f1fbd3a10cd47fdf38"));
+        assert(hashGenesisBlock == uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"));
         assert(genesis.hashMerkleRoot == uint256("d23d2f59df533a88071d5306ea19b5d851b73ba54ae59315134406a2ac48e780"));
 
         //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
@@ -257,11 +257,11 @@ public:
         nBlockZerocoinV2 = 101; //!> The block that zerocoin v2 becomes active
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
-        genesis.nTime = 1544005401;
-        genesis.nNonce = 1778996;
+        genesis.nTime = 1544097001;
+        genesis.nNonce = 73606;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("00000de80b4a4d0044e95cbf1b3d55bfc8e0ad5867bc9f8ef6719a9447a30a5a"));
+        assert(hashGenesisBlock == uint256("00000e4e1b6b9238a5c25e36b71ebbde1d434ae6bfd620d6b133d7f4c4de4809"));
 
         //vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
         //vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
@@ -324,13 +324,13 @@ public:
         nTargetTimespan = 24 * 60 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;        // PDG: 1 minutes
         bnProofOfWorkLimit = ~uint256(0) >> 1;
-        genesis.nTime = 1544005402;
+        genesis.nTime = 1544097002;
         genesis.nBits = 0x207fffff;
-        genesis.nNonce = 0;
+        genesis.nNonce = 2;
 
         hashGenesisBlock = genesis.GetHash();
         nDefaultPort = 37716;
-        assert(hashGenesisBlock == uint256("0ea7f8a410e2371a271279aa436a14ad1e8d7bf375b7fdf1480db438862d3e4f"));
+        assert(hashGenesisBlock == uint256("2fee4a09d44f965cc8b71509b34c57e0d23c759006370222d7c14cb343e0aadd"));
 
         vFixedSeeds.clear(); //! RegTest mode doesn't have any fixed seeds.
         vSeeds.clear();      //! RegTest mode doesn't have any DNS seeds.

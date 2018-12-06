@@ -809,7 +809,7 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
 // PDG premine freeze deposit.
 bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
     // Ignore check before transactions created to avoid ban on first check
-    if (nBlockHeight < 300)
+    if (nBlockHeight < 500)
         return false;
 
     return Params().PremineFreezeTxes().count(tx.GetHash()) > 0;
