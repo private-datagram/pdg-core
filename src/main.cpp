@@ -809,7 +809,7 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
 // PDG premine freeze deposit.
 bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
     // Ignore check before transactions created to avoid ban on first check
-    if (nBlockHeight < 500)
+    if (nBlockHeight < 150)
         return false;
 
     return Params().PremineFreezeTxes().count(tx.GetHash()) > 0;
@@ -2216,9 +2216,9 @@ int64_t GetBlockValue(int nHeight)
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
         nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 1000 && nHeight > 0) {
+    } else if (nHeight < 250 && nHeight > 0) {
         nSubsidy = 0;
-    } else if (nHeight <= 20000 && nHeight >= 1000) {
+    } else if (nHeight <= 20000 && nHeight >= 250) {
         nSubsidy = 1 * COIN; //2 weeks
     } else if (nHeight <= 175000 && nHeight >= 20001) {
         nSubsidy = 3.75 * COIN;//4 months
@@ -2234,7 +2234,7 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3 * COIN;//23 years
     } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30134811 && nHeight >= 20000001) {
+    } else if (nHeight <= 30134061 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 

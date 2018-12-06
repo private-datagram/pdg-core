@@ -82,8 +82,8 @@ static const Checkpoints::CCheckpointData dataRegtest = {
 
 static const set<uint256> premineFreezeTxes =
         boost::assign::list_of
-        (uint256("95b1dc93d38d017a68df694852cfe86b32d38beb345a83c5fbb10c6c5e1004b2"))
-        (uint256("28d5e276ec72c0b41eb09faad512b6823fdfcae7023375d2e0802929d72e7858"))
+        (uint256("6202bb7030820535b4ce7fd726e9900c0ccaf016f16eb3b5f8f5dd1a94cd3cd4"))
+        (uint256("a12d69de2ba65fbb8fe478b2f0eb5b0a58eb3821a05fa78dab4238c4d5237050"))
         .convert_to_container<std::set<uint256> >();
 
 libzerocoin::ZerocoinParams* CChainParams::Zerocoin_Params(bool useModulusV1) const
@@ -135,7 +135,7 @@ public:
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 1000;
+        nLastPOWBlock = 250;
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895000; // Before blockchain start
