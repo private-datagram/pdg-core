@@ -9,7 +9,6 @@
 
 #include <string>
 
-#define ENABLE_WALLET_ENCRYPTION
 
 class CScheduler;
 class CWallet;

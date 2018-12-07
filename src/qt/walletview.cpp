@@ -147,6 +147,9 @@ WalletView::WalletView(QWidget* parent) : QStackedWidget(parent),
     // Pass through messages from sendCoinsPage
     connect(sendCoinsPage, SIGNAL(message(QString, QString, unsigned int)), this, SIGNAL(message(QString, QString, unsigned int)));
 
+    // Pass through messages from sendFilesPage
+    connect(sendFilesPage, SIGNAL(message(QString, QString, unsigned int)), this, SIGNAL(message(QString, QString, unsigned int)));
+
     // Pass through messages from transactionView
     connect(transactionView, SIGNAL(message(QString, QString, unsigned int)), this, SIGNAL(message(QString, QString, unsigned int)));
 }
@@ -396,6 +399,15 @@ void WalletView::lockWallet()
 {
     if (!walletModel)
         return;
+
+    // Display message box
+    QMessageBox::StandardButton retval = QMessageBox::question(this, tr("Confirm lock wallet"),
+                                                               tr("Warning! If you are sending file the wallet must be unlocked. Lock anyway?"),
+                                                               QMessageBox::Yes | QMessageBox::Cancel,
+                                                               QMessageBox::Cancel);
+    if (retval != QMessageBox::Yes) {
+        return;
+    }
 
     walletModel->setWalletLocked(true);
 }

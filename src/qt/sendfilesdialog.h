@@ -65,12 +65,11 @@ private:
     TransactionFilterProxy* paymentRequestsFilter;
     GUIUtil::TableViewLastColumnResizingFixer* fileColumnResizingFixer;
     GUIUtil::TableViewLastColumnResizingFixer* paymentColumnResizingFixer;
-    PaymentTransactionTableModel *paymentTransactionTableModel;
     //todo:
     // Process WalletModel::SendCoinsReturn and generate a pair consisting
     // of a message and message flags for use in emit message().
     // Additional parameter msgArg can be used via .arg(msgArg).
-    void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString(), bool fPrepare = false);
+    void processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg = QString());
     bool readFile(const string &filename, vector<char> &vchFile) const;
     long getFileSize(const std::string &filename) const;
     bool saveFileMeta(const SendCoinsRecipient &recipient, WalletModelTransaction &currentTransaction) const;

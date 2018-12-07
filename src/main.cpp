@@ -3304,7 +3304,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
+    // TODO: PDG3 make sure that if file processing fail on resync will be processed
+    if (!fImporting && !fReindex)
+        pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
 
     return true;
 }
