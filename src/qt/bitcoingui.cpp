@@ -20,6 +20,7 @@
 #include "rpcconsole.h"
 #include "utilitydialog.h"
 
+#define ENABLE_WALLET_ENCRYPTION
 #ifdef ENABLE_WALLET
 #include "blockexplorer.h"
 #include "walletframe.h"
