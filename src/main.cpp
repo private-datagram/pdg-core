@@ -2216,7 +2216,7 @@ int64_t GetBlockValue(int nHeight)
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
         nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 250 && nHeight > 0) {
+    } else if (nHeight < 300 && nHeight > 0) {
         nSubsidy = 0;
     } else if (nHeight <= 20000 && nHeight >= 250) {
         nSubsidy = 1 * COIN; //2 weeks
@@ -2234,7 +2234,7 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3 * COIN;//23 years
     } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30134061 && nHeight >= 20000001) {
+    } else if (nHeight <= 30134111 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 
