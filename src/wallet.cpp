@@ -5430,11 +5430,8 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
         // is the payment transaction confirmed
         if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
             // TODO: PDG 3 implement statuses, if state_error don't remove transaction from map
-            if (!OnPaymentConfirmed(it->second.tx)) {
-                if (hasUpdates)
-                    SaveMaturationTransactions();
-                return error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
-            }
+            if (!OnPaymentConfirmed(it->second.tx))
+                LogPrint("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
 
             hasUpdates = true;
             it = mapMaturationPaymentConfirmTransactions.erase(it);
