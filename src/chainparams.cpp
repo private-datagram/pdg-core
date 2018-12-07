@@ -247,14 +247,14 @@ public:
         nMinerThreads = 0;
         nTargetTimespan = 1 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
-        nLastPOWBlock = 1000;
+        nLastPOWBlock = 4000000;
         nMaturity = 15;
         nMasternodeCountDrift = 4;
         nModifierUpdateBlock = 0;
         nMaxMoneyOut = 128000000 * COIN;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895001;
-        nBlockZerocoinV2 = 101; //!> The block that zerocoin v2 becomes active
+        nBlockZerocoinV2 = 100; //!> The block that zerocoin v2 becomes active
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
         genesis.nTime = 1544097001;
