@@ -356,6 +356,10 @@ void WalletView::encryptWallet(bool status)
 {
     if (!walletModel)
         return;
+
+    // TODO: PDG5 check if file transfer
+    if ()
+
     AskPassphraseDialog dlg(status ? AskPassphraseDialog::Mode::Encrypt : AskPassphraseDialog::Mode::Decrypt, this, 
                             walletModel, AskPassphraseDialog::Context::Encrypt);
     dlg.exec();
