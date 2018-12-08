@@ -2030,7 +2030,6 @@ UniValue walletlock(const UniValue& params, bool fHelp)
 
 UniValue encryptwallet(const UniValue& params, bool fHelp)
 {
-#ifdef ENABLE_WALLET_ENCRYPTION
     if (!pwalletMain->IsCrypted() && (fHelp || params.size() != 1))
         throw runtime_error(
             "encryptwallet \"passphrase\"\n"
@@ -2082,9 +2081,6 @@ UniValue encryptwallet(const UniValue& params, bool fHelp)
     // unencrypted private keys. So:
     StartShutdown();
     return "wallet encrypted; pdg server stopping, restart to run with encrypted wallet. The keypool has been flushed, you need to make a new backup.";
-#else
-    throw runtime_error("This function is disabled");
-#endif
 }
 
 UniValue lockunspent(const UniValue& params, bool fHelp)

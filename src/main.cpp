@@ -2216,9 +2216,9 @@ int64_t GetBlockValue(int nHeight)
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
         nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 450 && nHeight > 0) {
+    } else if (nHeight < 160 && nHeight > 0) {
         nSubsidy = 0;
-    } else if (nHeight <= 20000 && nHeight >= 450) {
+    } else if (nHeight <= 20000 && nHeight >= 160) {
         nSubsidy = 1 * COIN; //2 weeks
     } else if (nHeight <= 175000 && nHeight >= 20001) {
         nSubsidy = 3.75 * COIN;//4 months
@@ -2234,7 +2234,7 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3 * COIN;//23 years
     } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30134261 && nHeight >= 20000001) {
+    } else if (nHeight <= 30133971 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 
@@ -3304,7 +3304,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
+    // TODO: PDG3 make sure that if file processing fail on resync will be processed
+    if (!fImporting && !fReindex)
+        pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
 
     return true;
 }
@@ -4158,23 +4160,16 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         return state.DoS(100, error("CheckBlock() : CheckBlockHeader failed"),
             REJECT_INVALID, "bad-header", true);
 
-    if (block.IsProofOfStake()) {
-        LogPrint("debug", "%s: IsProofOfStake yes\n", __func__);
-    }
-
     // Check timestamp
     LogPrint("debug", "%s: block=%s  is proof of stake=%d\n", __func__, block.GetHash().ToString().c_str(), block.IsProofOfStake());
     if (block.GetBlockTime() > GetAdjustedTime() + (block.IsProofOfStake() ? 180 : 7200)) // 3 minute future drift for PoS
         return state.Invalid(error("CheckBlock() : block timestamp too far in the future"),
             REJECT_INVALID, "time-too-new");
 
-    LogPrint("debug", "%s: fCheckMerkleRoot\n", __func__);
     // Check the merkle root.
     if (fCheckMerkleRoot) {
         bool mutated;
-        LogPrint("debug", "%s: BuildMerkleTree\n", __func__);
         uint256 hashMerkleRoot2 = block.BuildMerkleTree(&mutated);
-        LogPrint("debug", "%s: BuildMerkleTree ok\n", __func__);
         if (block.hashMerkleRoot != hashMerkleRoot2)
             return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"),
                 REJECT_INVALID, "bad-txnmrklroot", true);
@@ -4187,21 +4182,15 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
                 REJECT_INVALID, "bad-txns-duplicate", true);
     }
 
-    LogPrint("debug", "%s: fCheckMerkleRoot ok\n", __func__);
-
     // All potential-corruption validation must be done before we do any
     // transaction validation, as otherwise we may mark the header as invalid
     // because we receive the wrong transactions for it.
-
-    LogPrint("debug", "%s: Size limits check\n", __func__);
 
     // Size limits
     unsigned int nMaxBlockSize = MAX_BLOCK_SIZE_CURRENT;
     if (block.vtx.empty() || block.vtx.size() > nMaxBlockSize || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > nMaxBlockSize)
         return state.DoS(100, error("CheckBlock() : size limits failed"),
             REJECT_INVALID, "bad-blk-length");
-
-    LogPrint("debug", "%s: Size limits check ok\n", __func__);
 
     // First transaction must be coinbase, the rest must not be
     if (block.vtx.empty() || !block.vtx[0].IsCoinBase())
@@ -4211,8 +4200,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         if (block.vtx[i].IsCoinBase())
             return state.DoS(100, error("CheckBlock() : more than one coinbase"),
                 REJECT_INVALID, "bad-cb-multiple");
-
-    LogPrint("debug", "%s: Coinbase check ok\n", __func__);
 
     if (block.IsProofOfStake()) {
         // Coinbase output should be empty if proof-of-stake block
@@ -4226,8 +4213,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
             if (block.vtx[i].IsCoinStake())
                 return state.DoS(100, error("CheckBlock() : more than one coinstake"));
     }
-
-    LogPrint("debug", "%s: IsProofOfStake check ok\n", __func__);
 
     // ----------- swiftTX transaction scanning -----------
     if (IsSporkActive(SPORK_3_SWIFTTX_BLOCK_FILTERING)) {
@@ -4249,8 +4234,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     } else {
         LogPrintf("CheckBlock() : skipping transaction locking checks\n");
     }
-
-    LogPrint("debug", "%s: swiftx sporck check ok\n", __func__);
 
     // masternode payments / budgets
     CBlockIndex* pindexPrev = chainActive.Tip();
@@ -4282,8 +4265,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         }
     }
 
-    LogPrint("debug", "%s: masternode payments check ok\n", __func__);
-
     // Check transactions
     bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
     vector<CBigNum> vBlockSerials;
@@ -4305,7 +4286,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         }
     }
 
-    LogPrint("debug", "%s: zerocoinActive check ok\n", __func__);
 
     unsigned int nSigOps = 0;
     BOOST_FOREACH (const CTransaction& tx, block.vtx) {

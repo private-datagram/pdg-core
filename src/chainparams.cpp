@@ -54,8 +54,7 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 // + Contains no strange transactions
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
-    (0, uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"))
-    (150, uint256("0000002ecc077d943f629feab31479cf4765afcdc52321cbf3b4b546acbe37d5"));
+    (0, uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"));
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
     1544103059, // * UNIX timestamp of last checkpoint block
@@ -122,7 +121,7 @@ public:
         pchMessageStart[3] = 0xcc;
         vAlertPubKey = ParseHex("04ccb88facd7336bfbfd0f2cf393d69daa5d1c7fb8e59f2f5d4c1083f1615f09dcc3f37fc8667c19f08381a3e36edac0091c278e1ae61ec1bccafc741bb6f17f54");
         nDefaultPort = 37712;
-        bnProofOfWorkLimit = ~uint256(0) >> 20; // PDG starting difficulty is 1 / 2^12
+        bnProofOfWorkLimit = ~uint256(0) >> 6; // PDG starting difficulty is 1 / 2^12
         nMaxReorganizationDepth = 100;
         nEnforceBlockUpgradeMajority = 750;
         nRejectBlockOutdatedMajority = 950;
@@ -135,7 +134,7 @@ public:
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 540;
+        nLastPOWBlock = 5000;
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895000; // Before blockchain start
@@ -247,14 +246,14 @@ public:
         nMinerThreads = 0;
         nTargetTimespan = 1 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
-        nLastPOWBlock = 1000;
+        nLastPOWBlock = 4000000;
         nMaturity = 15;
         nMasternodeCountDrift = 4;
         nModifierUpdateBlock = 0;
         nMaxMoneyOut = 128000000 * COIN;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895001;
-        nBlockZerocoinV2 = 101; //!> The block that zerocoin v2 becomes active
+        nBlockZerocoinV2 = 100; //!> The block that zerocoin v2 becomes active
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
         genesis.nTime = 1544097001;

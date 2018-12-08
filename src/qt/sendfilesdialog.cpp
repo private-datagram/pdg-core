@@ -199,14 +199,12 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     // will call relock
     WalletModel::EncryptionStatus encStatus = model->getEncryptionStatus();
     if (encStatus == model->Locked || encStatus == model->UnlockedForAnonymizationOnly) {
-        WalletModel::UnlockContext ctx(model->requestUnlock(AskPassphraseDialog::Context::Send_PIV, true));
+        WalletModel::UnlockContext ctx(model->requestUnlock(AskPassphraseDialog::Context::Send_PDG, true));
         if (!ctx.isValid()) {
             // Unlock wallet was cancelled
             fNewRecipientAllowed = true;
             return;
         }
-        send(recipients, ptrMeta, strFee, formatted);
-        return;
     }
 
     // already unlocked or not encrypted at all
@@ -367,10 +365,8 @@ void SendFilesDialog::send(const QList<SendCoinsRecipient> &recipients, const Pt
 
 
 //todo: проверка данных при отправке.
-void SendFilesDialog::processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg, bool fPrepare)
+void SendFilesDialog::processSendFilesReturn(const WalletModel::SendCoinsReturn& sendCoinsReturn, const QString& msgArg)
 {
-    bool fAskForUnlock = false;
-
     QPair<QString, CClientUIInterface::MessageBoxFlags> msgParams;
     // Default to a warning message, override if error message is needed
     msgParams.second = CClientUIInterface::MSG_WARNING;
@@ -404,10 +400,7 @@ void SendFilesDialog::processSendFilesReturn(const WalletModel::SendCoinsReturn&
         break;
     case WalletModel::AnonymizeOnlyUnlocked:
         // Unlock is only need when the coins are send
-        if(!fPrepare)
-            fAskForUnlock = true;
-        else
-            msgParams.first = tr("Error: The wallet was unlocked only to anonymize coins.");
+        msgParams.first = tr("Error: The wallet was unlocked only to anonymize coins.");
         break;
 
     case WalletModel::InsaneFee:
@@ -419,24 +412,12 @@ void SendFilesDialog::processSendFilesReturn(const WalletModel::SendCoinsReturn&
         return;
     }
 
-    // Unlock wallet if it wasn't fully unlocked already
-    if(fAskForUnlock) {
-        model->requestUnlock(AskPassphraseDialog::Context::Unlock_Full, false);
-        if(model->getEncryptionStatus () != WalletModel::Unlocked) {
-            msgParams.first = tr("Error: The wallet was unlocked only to anonymize coins. Unlock canceled.");
-        }
-        else {
-            // Wallet unlocked
-            return;
-        }
-    }
-
     emit message(tr("Send Coins"), msgParams.first, msgParams.second);
 }
 
 void SendFilesDialog::initFileHistory()
 {
-    FileTransactionTableModel *fileTransactionTableModel = new FileTransactionTableModel(pwalletMain, this->model);
+    FileTransactionTableModel *fileTransactionTableModel = this->model->getFileTransactionTableModel();
 
     // Set up files list
     filter = new TransactionFilterProxy();
@@ -468,7 +449,7 @@ void SendFilesDialog::initFileHistory()
 
 
     // Set up invoices table
-    paymentTransactionTableModel = new PaymentTransactionTableModel(pwalletMain, this->model);
+    PaymentTransactionTableModel *paymentTransactionTableModel = this->model->getPaymentTransactionTableModel();
 
     paymentRequestsFilter = new TransactionFilterProxy();
     paymentRequestsFilter->setSourceModel(paymentTransactionTableModel);
@@ -544,6 +525,16 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
         return;
     }
 
+    WalletModel::EncryptionStatus encStatus = model->getEncryptionStatus();
+    if (encStatus == model->Locked || encStatus == model->UnlockedForAnonymizationOnly) {
+        WalletModel::UnlockContext ctx(model->requestUnlock(AskPassphraseDialog::Context::Send_PDG, true));
+        if (!ctx.isValid()) {
+            // Unlock wallet was cancelled
+            fNewRecipientAllowed = true;
+            return;
+        }
+    }
+
     // Amount
     CAmount nAmount = paymentRequest->nPrice;
 
@@ -597,9 +588,8 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
         prepareStatus = model->prepareTransaction(currentTransaction);
 
     if (prepareStatus.status != WalletModel::OK) {
+        processSendFilesReturn(prepareStatus);
         fNewRecipientAllowed = true;
-        QMessageBox::critical(this, tr("Send file payment"), tr("Error to prepare transaction. Status code: %1").arg((int)prepareStatus.status),
-                              QMessageBox::Ok, QMessageBox::Ok);
         return;
     }
 
@@ -667,6 +657,7 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
 
     if (sendStatus.status != WalletModel::OK) {
         wdb.EraseFileEncryptKeys(((CTransaction *) &paymentRequestWtx)->GetHash());
+        processSendFilesReturn(prepareStatus);
     }
 }
 

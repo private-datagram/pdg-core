@@ -27,6 +27,8 @@ class AddressTableModel;
 class OptionsModel;
 class RecentRequestsTableModel;
 class TransactionTableModel;
+class FileTransactionTableModel;
+class PaymentTransactionTableModel;
 class WalletModelTransaction;
 
 class CCoinControl;
@@ -139,6 +141,8 @@ public:
     OptionsModel* getOptionsModel();
     AddressTableModel* getAddressTableModel();
     TransactionTableModel* getTransactionTableModel();
+    FileTransactionTableModel* getFileTransactionTableModel();
+    PaymentTransactionTableModel* getPaymentTransactionTableModel();
     RecentRequestsTableModel* getRecentRequestsTableModel();
 
     CAmount getBalance(const CCoinControl* coinControl = NULL) const;
@@ -239,6 +243,8 @@ private:
 
     AddressTableModel* addressTableModel;
     TransactionTableModel* transactionTableModel;
+    FileTransactionTableModel* fileTransactionTableModel;
+    PaymentTransactionTableModel* paymentTransactionTableModel;
     RecentRequestsTableModel* recentRequestsTableModel;
 
     // Cache some values to be able to detect changes
