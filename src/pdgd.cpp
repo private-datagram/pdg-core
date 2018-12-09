@@ -148,6 +148,9 @@ bool AppInit(int argc, char* argv[])
 #endif
         SoftSetBoolArg("-server", true);
 
+        Params().setLAST_POW_BLOCK(GetArg("-lastpow", 2500));
+        printf("Last pow: %d\n", Params().LAST_POW_BLOCK());
+
         fRet = AppInit2(threadGroup, scheduler);
     } catch (std::exception& e) {
         PrintExceptionContinue(&e, "AppInit()");

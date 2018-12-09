@@ -112,6 +112,7 @@ public:
     /** Height or Time Based Activations **/
     int ModifierUpgradeBlock() const { return nModifierUpdateBlock; }
     int LAST_POW_BLOCK() const { return nLastPOWBlock; }
+    void setLAST_POW_BLOCK(int blockHeight) { nLastPOWBlock = blockHeight; }
     int Zerocoin_StartHeight() const { return nZerocoinStartHeight; }
     int Zerocoin_StartTime() const { return nZerocoinStartTime; }
     int Zerocoin_Block_V2_Start() const { return nBlockZerocoinV2; }
@@ -196,7 +197,7 @@ public:
  * Return the currently selected parameters. This won't change after app startup
  * outside of the unit tests.
  */
-const CChainParams& Params();
+/*const*/ CChainParams& Params();
 
 /** Return parameters for the given network. */
 CChainParams& Params(CBaseChainParams::Network network);

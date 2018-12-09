@@ -121,7 +121,7 @@ public:
         pchMessageStart[3] = 0xcc;
         vAlertPubKey = ParseHex("04ccb88facd7336bfbfd0f2cf393d69daa5d1c7fb8e59f2f5d4c1083f1615f09dcc3f37fc8667c19f08381a3e36edac0091c278e1ae61ec1bccafc741bb6f17f54");
         nDefaultPort = 37712;
-        bnProofOfWorkLimit = ~uint256(0) >> 6; // PDG starting difficulty is 1 / 2^12
+        bnProofOfWorkLimit = ~uint256(0) >> 2; // PDG starting difficulty is 1 / 2^12
         nMaxReorganizationDepth = 100;
         nEnforceBlockUpgradeMajority = 750;
         nRejectBlockOutdatedMajority = 950;
@@ -169,9 +169,9 @@ public:
         assert(hashGenesisBlock == uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"));
         assert(genesis.hashMerkleRoot == uint256("d23d2f59df533a88071d5306ea19b5d851b73ba54ae59315134406a2ac48e780"));
 
-        vSeeds.push_back(CDNSSeedData("pdg-coin.pw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
-        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
+//        vSeeds.push_back(CDNSSeedData("pdg-copw", "seed.pdg-coin.pw"));      // Primary DNS Seeder from PDG
+//        vSeeds.push_back(CDNSSeedData("pdg-coin.xyz", "seed.pdg-coin.xyz"));    // Secondary DNS Seeder from PDG
+//        vSeeds.push_back(CDNSSeedData("3.8.124.132", "3.8.124.132"));           // Single node address
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 30);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 13);
@@ -394,7 +394,7 @@ CModifiableParams* ModifiableParams()
     return (CModifiableParams*)&unitTestParams;
 }
 
-const CChainParams& Params()
+/*const*/ CChainParams& Params()
 {
     assert(pCurrentParams);
     return *pCurrentParams;

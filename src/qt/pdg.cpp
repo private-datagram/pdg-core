@@ -606,6 +606,10 @@ int main(int argc, char* argv[])
         QMessageBox::critical(0, QObject::tr("PDG Core"), QObject::tr("Error: Invalid combination of -regtest and -testnet."));
         return 1;
     }
+
+    Params().setLAST_POW_BLOCK(GetArg("-lastpow", 2500));
+    printf("Last pow: %d\n", Params().LAST_POW_BLOCK());
+
 #ifdef ENABLE_WALLET
     // Parse URIs on command line -- this can affect Params()
     PaymentServer::ipcParseCommandLine(argc, argv);
