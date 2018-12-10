@@ -5474,7 +5474,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     bool isSent;
     if (!walletDB.ReadWalletFileTxSent(paymentConfirm->requestTxid, isSent)) {
         // TODO: PDG3 sync file sent status on blocks resync
-        return error("%s - Failed to read file sent status\n", __func__);
+        LogPrint("%s - Failed to read file sent status\n", __func__);
     }
 
     if (isSent) {

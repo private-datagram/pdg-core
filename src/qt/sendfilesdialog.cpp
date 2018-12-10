@@ -278,8 +278,7 @@ void SendFilesDialog::send(const QList<SendCoinsRecipient> &recipients, const Pt
 
     if (prepareStatus.status != WalletModel::OK) {
         fNewRecipientAllowed = true;
-        QMessageBox::critical(this, tr("Send File"), tr("Error to prepare transaction. Status code: %1").arg((int)prepareStatus.status),
-                              QMessageBox::Ok, QMessageBox::Ok);
+        processSendFilesReturn(prepareStatus);
         return;
     }
 
@@ -658,6 +657,7 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
     if (sendStatus.status != WalletModel::OK) {
         wdb.EraseFileEncryptKeys(((CTransaction *) &paymentRequestWtx)->GetHash());
         processSendFilesReturn(prepareStatus);
+        fNewRecipientAllowed = true;
     }
 }
 
