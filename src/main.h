@@ -98,7 +98,7 @@ static const unsigned int FILEBLOCKFILE_CHUNK_SIZE = 0x2000000; // 32 MiB
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
 /** File payment confirmations wait to send file */
-static const int FILE_PAYMENT_MATURITY = 3;
+static const int FILE_PAYMENT_MATURITY = 5;
 /** File scheduler pending receive file */
 static const int FILE_PENDING_RECEIVE_MATURITY = 20;
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
