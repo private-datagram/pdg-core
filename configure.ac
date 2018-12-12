@@ -3,10 +3,10 @@ AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 1)
 define(_CLIENT_VERSION_MINOR, 0)
 define(_CLIENT_VERSION_REVISION, 3)
-define(_CLIENT_VERSION_BUILD, 68)
+define(_CLIENT_VERSION_BUILD, 70)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2018)
-AC_INIT([Pdg Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[privatedatagram.io],[pdg])
+AC_INIT([PDG Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[privatedatagram.io],[pdg])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADERS([src/config/pdg-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -25,9 +25,9 @@ fi
 
 AC_CANONICAL_HOST
 
-AH_TOP([#ifndef PIV_CONFIG_H])
-AH_TOP([#define PIV_CONFIG_H])
-AH_BOTTOM([#endif //PIV_CONFIG_H])
+AH_TOP([#ifndef PDG_CONFIG_H])
+AH_TOP([#define PDG_CONFIG_H])
+AH_BOTTOM([#endif //PDG_CONFIG_H])
 
 dnl faketime breaks configure and is only needed for make. Disable it here.
 unset FAKETIME

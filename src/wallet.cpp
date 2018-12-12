@@ -5570,9 +5570,11 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, txFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
 
     if (!SaveFileDB(dbFile)) {
+#ifdef ENABLE_WALLET
         if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("Failed to prepare file"), _("File transfer error"), CClientUIInterface::MSG_ERROR);
+            uiInterface.ThreadSafeMessageBox(_("Failed to prepare file"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
         }
+#endif
 
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
     }
@@ -5582,10 +5584,12 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         if (!EraseFileDB(dbFile))
             LogPrintf("Remove file in DB failed\n");
 
+#ifdef ENABLE_WALLET
         if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("Failed to send file"), _("File transfer error"), CClientUIInterface::MSG_ERROR);
+            uiInterface.ThreadSafeMessageBox(_("Failed to send file"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
         }
-        return false;
+#endif
+        return error("%s : Failed to send file tx", __func__);
     }
 
     BroadcastFileAvailable(fileTxHash);

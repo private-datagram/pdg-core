@@ -6607,7 +6607,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
 #ifdef ENABLE_WALLET
                     if (pwalletMain) {
-                        uiInterface.ThreadSafeMessageBox(_("File transfer error"), _("Failed to save received file. Check disk space and see log for details"), CClientUIInterface::MSG_ERROR);
+                        uiInterface.ThreadSafeMessageBox(_("Failed to save received file. Check disk space and see log for details"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
                     }
 #endif
                 } else {
@@ -6636,7 +6636,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
 #ifdef ENABLE_WALLET
                     if (pwalletMain && pwalletMain->IsMine(tx)) {
-                        uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File received"), CClientUIInterface::MSG_INFORMATION);
+                        uiInterface.ThreadSafeMessageBox(_("File received"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
                     }
 #endif
                 }
@@ -7514,8 +7514,7 @@ void ProcessFileRequests() {
 
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File sending started"),
-                                             CClientUIInterface::MSG_INFORMATION);
+            uiInterface.ThreadSafeMessageBox(_("File sending started"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
         }
 #endif
 
