@@ -4103,7 +4103,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Unable to find file in local storage. Please wait while file will synchronize or resync file storage</source>
-        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже</translation>
+        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже или пересинхронизируйте кошелек</translation>
     </message>
     <message>
         <source>File hash doesn't match. File corrupted</source>

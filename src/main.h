@@ -128,8 +128,8 @@ static const unsigned int MAX_FILE_SEND_COUNT = 5;
 static const unsigned int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 
-/** Required file expiration date. Timeout in micros. 20m */
-static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 20U * 60 * 1000 * 1000;
+/** Required file expiration date. Timeout in micros. 10m */
+static const int64_t REQUIRED_FILE_REQUEST_TIMEOUT = 10U * 60 * 1000 * 1000;
 
 /** Flight file expiration date. Timeout in micros. 20 minutes */
 static const int64_t FLIGHT_FILE_TIMEOUT = 20U * 60 * 1000 * 1000;
@@ -148,10 +148,10 @@ static const int HAS_FILE_EVENTS_MAX_COUNT = 50;
 /** Number of hash file requests from a single peer. */
 static const int HAS_FILE_REQUEST_EVENTS_MAX_COUNT = 50;
 
-/** Known file expiration date. Timeout in micros. 5 min */
-static const int64_t HAS_FILE_REQUEST_TIMEOUT = 5U * 60 * 1000 * 1000;
+/** Requested has file timeout. Timeout in micros. 10 min */
+static const int64_t HAS_FILE_REQUEST_TIMEOUT = 10U * 60 * 1000 * 1000;
 
-/** Known file expiration date. Timeout in micros. 10 min */
+/** Requested file timeout. Timeout in micros. 10 min */
 static const int64_t FILE_REQUEST_TIMEOUT = 10U * 60 * 1000 * 1000;
 
 /** Max file requests events with one hash to ban */

@@ -3305,7 +3305,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     }
 
     // TODO: PDG3 make sure that if file processing fail on resync will be processed
-    if (!fImporting && !fReindex)
+    if (!fImporting && !fReindex && pwalletMain)
         pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
 
     return true;
@@ -4387,7 +4387,7 @@ bool IsFileExist(const uint256& fileHash) {
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
     LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
     if (!fMasterNode && !pwalletMain->IsMine(tx)) {
-        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
+        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours, receive don't need. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
         return false;
     }
 
@@ -4692,7 +4692,7 @@ void HandleFileTransferTx(CBlock *pblock) {
 
         const uint256& txHash = tx.GetHash();
 
-        LogPrint("file", "%s - FILES. HandleFileTransferTx. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
+        LogPrint("file", "%s - FILES. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
 
         {
             LOCK(cs_RequiredFilesMap);
@@ -4701,7 +4701,7 @@ void HandleFileTransferTx(CBlock *pblock) {
             if (!IsFileReceiveNeeded(tx, &blockHeader))
                 continue;
 
-            LogPrint("file", "%s - FILES. HandleFileTransferTx. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
+            LogPrint("file", "%s - FILES. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
 
             requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), (uint32_t)blockHeader.GetBlockTime() + tx.vfiles[0].nLifeTime);
 
@@ -6573,9 +6573,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         {
             LOCK(cs_FilesInFlightMap);
             filesInFlightMap.erase(fileTxHash);
+            LogPrint("file", "FILES. File in flight removed from order\n"); // TODO: PDG 2 remove after debug
         }
-
-        LogPrint("file", "FILES. NOT LOCK Received file of tx %s from peer=%d\n", fileTxHash.ToString(), pfrom->id);
 
         if (!requiredFilesMap.count(fileTxHash)) {
             LogPrint("file", "FILES. Received file not required %s\n", fileTxHash.ToString());
@@ -6604,7 +6603,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                 if (!SaveFileDB(file)) {
                     LogPrint("file", "FILES. File save to DB error\n");
-                    // TODO: stop all request for 5 min
+                    // TODO: PDG 3 stop all request for 5 min
 
 #ifdef ENABLE_WALLET
                     if (pwalletMain) {
@@ -6631,7 +6630,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                     // если кто-то ждал файл, шлем ему, что он у нас появился
                     if (fileRequestedNodesMap.count(fileTxHash)) {
-                        LogPrint("file", "FILES. We have %d nodes requested this file\n", fileRequestedNodesMap[fileTxHash].size());
+                        LogPrint("file", "FILES. We have %d nodes requested received file\n", fileRequestedNodesMap[fileTxHash].size());
                         //processFileRequests(); // TODO: PDG 3 optimize, run process file
                     }
 
@@ -7457,16 +7456,15 @@ void ProcessHasFileRequests() {
 void ProcessFileRequests() {
     LogPrint("file", "%s - FILES. ProcessFileRequests. Requests order: %d, map: %d\n", __func__, fileRequestsOrder.size(), fileRequestedNodesMap.size());
 
-    LOCK(cs_FileRequestedNodesMap);
-
     // проверка не привышел ли лимит на одновременную отправку файлов
     int availableToSend = GetAvailableToSendFilesCount();
     LogPrint("file", "%s - FILES. Available to send file. count: %d\n", __func__, availableToSend);
     if (availableToSend == 0)
         return;
 
-    auto it = fileRequestsOrder.begin();
-    while (it != fileRequestsOrder.end()) {
+    LOCK(cs_FileRequestedNodesMap);
+
+    for (auto it = fileRequestsOrder.begin(); it != fileRequestsOrder.end(); ) {
         const pair<uint256, NodeId> &pair = *it;
         map<NodeId, FileRequest> &requestMap = fileRequestedNodesMap[pair.first];
         FileRequest &fileRequest = requestMap[pair.second];
@@ -7497,7 +7495,7 @@ void ProcessFileRequests() {
         CTransaction tx;
         uint256 hashBlock;
         if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
-            LogPrint("file", "%s - FILES. Tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. File tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
             it++;
             continue;
         }
@@ -7510,8 +7508,9 @@ void ProcessFileRequests() {
         }
 
         // send
-        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
+        LogPrint("file", "%s - FILES. Sending file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
         pNode->PushMessage("file", fileTxHash, dbFile);
+        LogPrint("file", "%s - FILES. File sent\n", __func__, fileTxHash.ToString(), pNode->id);
 
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
@@ -7534,22 +7533,22 @@ void ProcessFileRequests() {
 }
 
 void ProcessFilesPendingScheduler() {
-    LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending: %d\n", __func__, filesPendingMap.size());
+    LogPrint("file", "%s - FILES. Process files pending: %d\n", __func__, filesPendingMap.size());
 
     {
         TRY_LOCK(cs_FilesInFlightMap, isInFligthLock);
         if (!isInFligthLock) {
-            LogPrint("file", "%s - FILES. Files In Fligth LOCK %d\n", __func__, filesPendingMap.size());
+            LogPrint("file", "%s - FILES. Files In fligth lock hold failed. Skipping\n", __func__);
             return;
         }
 
         TRY_LOCK(cs_FilesPendingMap, isFilePendingLock);
         if (!isFilePendingLock) {
-            LogPrint("file", "%s - FILES. Files Pending LOCK %d\n", __func__, filesPendingMap.size());
+            LogPrint("file", "%s - FILES. Files pending lock hold failed. Skipping\n", __func__);
             return;
         }
 
-        LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending NOT LOCK: %d\n", __func__, filesPendingMap.size());
+        LogPrint("file", "%s - FILES. Files pending locks held: %d\n", __func__, filesPendingMap.size());
 
         for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
             const uint256 &fileTxHash = it->first;
@@ -7578,7 +7577,7 @@ void ProcessFilesPendingScheduler() {
                         continue;
                     }
 
-                    LogPrint("file", "%s - FILES. Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                    LogPrint("file", "%s - FILES. Sending file request to node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
                     SendFileRequest(fileTxHash, pNode);
                     // update data
                     fileInFlight.nodeId = pNode->id;
@@ -7607,6 +7606,8 @@ void ProcessFilesPendingScheduler() {
 
             it++;
         }
+
+        LogPrint("file", "%s - FILES. Process files pending done\n", __func__);
     }
 
     ProcessRequiredFiles();
@@ -7614,7 +7615,7 @@ void ProcessFilesPendingScheduler() {
 }
 
 void ProcessRequiredFiles() {
-    LogPrint("file", "%s - FILES. ProcessRequiredFiles. Files required: %d\n", __func__, requiredFilesMap.size());
+    LogPrint("file", "%s - FILES. Files required: %d\n", __func__, requiredFilesMap.size());
     vector<uint256> vRequiredToBroadcast;
 
     bool requiredFilesChange = false;
@@ -7799,6 +7800,8 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
 }
 
 bool SaveMaturationTransactions() {
+    AssertLockHeld(cs_MapMaturationPaymentConfirmTransactions); // TODO: PDG 5 check
+
     if (pwalletMain == nullptr)
         return true;
 
@@ -7853,12 +7856,14 @@ CAmount GetFileFee(const CPaymentConfirm &paymentConfirm) {
 }
 
 CNode *FindFreeNode(const set<NodeId> &nodes) {
+    LogPrint("file", "FindFreeNode : searching free node\n");// TODO: PDG 2 remove after debug
+
     // и запрашиваем у нового
     CNode *pNode = nullptr;
     BOOST_FOREACH(const NodeId& nodeId, nodes) {
         // region Check if this node in use
         bool alreadyUse = false;
-        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ) {
+        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ++it) {
             if (nodeId == it->second.nodeId) {
                 alreadyUse = true;
                 break;
@@ -7875,6 +7880,8 @@ CNode *FindFreeNode(const set<NodeId> &nodes) {
         break;
     }
 
+
+    LogPrint("file", "FindFreeNode : free node %s\n", (pNode ? (std::string("found ") + std::to_string(pNode->id)) : "not found"));// TODO: PDG 2 remove after debug
     return pNode;
 }
 

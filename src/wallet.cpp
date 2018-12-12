@@ -5377,7 +5377,7 @@ void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
         return;
 
     if (IsFromMe(tx) || !IsMine(tx)) {
-        return; // ignore transactions that we send
+        return; // ignore transactions that not mine or me sent
     }
 
     // remove already processed transactions
@@ -5450,13 +5450,14 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
     return true;
 }
 
+// TODO: add locks
 bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (tx.type != TX_FILE_PAYMENT_CONFIRM) {
-        LogPrint("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
+        LogPrint("%s : Invalid payment confirmation transaction type: %s", __func__, tx.type);
         return true;
     }
 
-    LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
+    LogPrint("file", "%s : FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
 
     const std::map<uint256, CWalletTx>::iterator paymentTxIterator = mapWallet.find(tx.GetHash());
     if (paymentTxIterator == mapWallet.end()) {
@@ -5470,10 +5471,10 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     CWalletDB walletDB(strWalletFile);
 
-    // TODO: PDG3 check if file already sent and triggered event processed correctly
-    bool isSent;
+    // TODO: PDG 3 check if file already sent and triggered event processed correctly
+    // TODO: PDG 3 sync file sent status on blocks resync
+    bool isSent = false;
     if (!walletDB.ReadWalletFileTxSent(paymentConfirm->requestTxid, isSent)) {
-        // TODO: PDG3 sync file sent status on blocks resync
         LogPrint("%s - Failed to read file sent status\n", __func__);
     }
 
