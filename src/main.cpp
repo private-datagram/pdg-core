@@ -7510,7 +7510,7 @@ void ProcessFileRequests() {
         // send
         LogPrint("file", "%s - FILES. Sending file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
         pNode->PushMessage("file", fileTxHash, dbFile);
-        LogPrint("file", "%s - FILES. File sent\n", __func__, fileTxHash.ToString(), pNode->id);
+        LogPrint("file", "%s - FILES. File sent\n", __func__);
 
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
