@@ -2216,9 +2216,9 @@ int64_t GetBlockValue(int nHeight)
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
         nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 500 && nHeight > 0) {
+    } else if (nHeight < 160 && nHeight > 0) {
         nSubsidy = 0;
-    } else if (nHeight <= 20000 && nHeight >= 500) {
+    } else if (nHeight <= 20000 && nHeight >= 160) {
         nSubsidy = 1 * COIN; //2 weeks
     } else if (nHeight <= 175000 && nHeight >= 20001) {
         nSubsidy = 3.75 * COIN;//4 months
@@ -2234,7 +2234,7 @@ int64_t GetBlockValue(int nHeight)
         nSubsidy = 3 * COIN;//23 years
     } else if (nHeight <= 20000000 && nHeight >= 12000001) {
         nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30134311 && nHeight >= 20000001) {
+    } else if (nHeight <= 30133971 && nHeight >= 20000001) {
         nSubsidy = 1 * COIN;//58 years
     }
 
@@ -3304,7 +3304,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
+    // TODO: PDG3 make sure that if file processing fail on resync will be processed
+    if (!fImporting && !fReindex && pwalletMain)
+        pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
 
     return true;
 }
@@ -4353,15 +4355,14 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
     if (pcheckpoint && nHeight < pcheckpoint->nHeight)
         return state.DoS(0, error("%s : forked chain older than last checkpoint (height %d)", __func__, nHeight));
 
-    // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
-    if (block.nVersion < 2 &&
-        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().RejectBlockOutdatedMajority())) {
+    // Reject block.nVersion=1 blocks
+    if (block.nVersion < 2) {
         return state.Invalid(error("%s : rejected nVersion=1 block", __func__),
             REJECT_OBSOLETE, "bad-version");
     }
 
-    // Reject block.nVersion=2 blocks when 95% (75% on testnet) of the network has upgraded:
-    if (block.nVersion < 3 && CBlockIndex::IsSuperMajority(3, pindexPrev, Params().RejectBlockOutdatedMajority())) {
+    // Reject block.nVersion=2 blocks
+    if (block.nVersion < 3) {
         return state.Invalid(error("%s : rejected nVersion=2 block", __func__),
             REJECT_OBSOLETE, "bad-version");
     }
@@ -4384,9 +4385,14 @@ bool IsFileExist(const uint256& fileHash) {
 }
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
+    if (!fMasterNode && !pwalletMain) {
+        // not masternod and without wallet
+        return true;
+    }
+
     LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
     if (!fMasterNode && !pwalletMain->IsMine(tx)) {
-        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
+        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours, receive don't need. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
         return false;
     }
 
@@ -4448,10 +4454,8 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
             return state.DoS(10, error("%s : contains a non-final transaction", __func__), REJECT_INVALID, "bad-txns-nonfinal");
         }
 
-    // Enforce block.nVersion=2 rule that the coinbase starts with serialized block height
-    // if 750 of the last 1,000 blocks are version 2 or greater (51/100 if testnet):
-    if (block.nVersion >= 2 &&
-        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().EnforceBlockUpgradeMajority())) {
+    // POS epoch
+    if (nHeight > Params().LAST_POW_BLOCK()) {
         CScript expect = CScript() << nHeight;
         if (block.vtx[0].vin[0].scriptSig.size() < expect.size() ||
             !std::equal(expect.begin(), expect.end(), block.vtx[0].vin[0].scriptSig.begin())) {
@@ -4637,18 +4641,6 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
     return true;
 }
 
-bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired)
-{
-    unsigned int nToCheck = Params().ToCheckBlockUpgradeMajority();
-    unsigned int nFound = 0;
-    for (unsigned int i = 0; i < nToCheck && nFound < nRequired && pstart != NULL; i++) {
-        if (pstart->nVersion >= minVersion)
-            ++nFound;
-        pstart = pstart->pprev;
-    }
-    return (nFound >= nRequired);
-}
-
 /** Turn the lowest '1' bit in the binary representation of a number into a '0'. */
 int static inline InvertLowestOne(int n) { return n & (n - 1); }
 
@@ -4698,14 +4690,14 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
-void HandleFileTransferTx(CBlock *pblock) {
+void HandleFileTransferTx(const CBlock *pblock) {
     for (const CTransaction &tx: pblock->vtx) {
         if (tx.type != TX_FILE_TRANSFER)
             continue;
 
         const uint256& txHash = tx.GetHash();
 
-        LogPrint("file", "%s - FILES. HandleFileTransferTx. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
+        LogPrint("file", "%s - FILES. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
 
         {
             LOCK(cs_RequiredFilesMap);
@@ -4714,7 +4706,7 @@ void HandleFileTransferTx(CBlock *pblock) {
             if (!IsFileReceiveNeeded(tx, &blockHeader))
                 continue;
 
-            LogPrint("file", "%s - FILES. HandleFileTransferTx. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
+            LogPrint("file", "%s - FILES. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
 
             requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), (uint32_t)blockHeader.GetBlockTime() + tx.vfiles[0].nLifeTime);
 
@@ -6224,7 +6216,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
                         } else
                         if (tx.type != TX_FILE_TRANSFER) {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", tx.type, __func__);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", __func__, tx.type);
                             Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                         } else {
                             const uint256 &fileHash = tx.vfiles[0].fileHash;
@@ -6586,9 +6578,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         {
             LOCK(cs_FilesInFlightMap);
             filesInFlightMap.erase(fileTxHash);
+            LogPrint("file", "FILES. File in flight removed from order\n"); // TODO: PDG 2 remove after debug
         }
-
-        LogPrint("file", "FILES. NOT LOCK Received file of tx %s from peer=%d\n", fileTxHash.ToString(), pfrom->id);
 
         if (!requiredFilesMap.count(fileTxHash)) {
             LogPrint("file", "FILES. Received file not required %s\n", fileTxHash.ToString());
@@ -6617,11 +6608,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                 if (!SaveFileDB(file)) {
                     LogPrint("file", "FILES. File save to DB error\n");
-                    // TODO: stop all request for 5 min
+                    // TODO: PDG 3 stop all request for 5 min
 
 #ifdef ENABLE_WALLET
                     if (pwalletMain) {
-                        uiInterface.ThreadSafeMessageBox(_("File transfer error"), _("Failed to save received file. Check disk space and see log for details"), CClientUIInterface::MSG_ERROR);
+                        uiInterface.ThreadSafeMessageBox(_("Failed to save received file. Check disk space and see log for details"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
                     }
 #endif
                 } else {
@@ -6644,13 +6635,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                     // если кто-то ждал файл, шлем ему, что он у нас появился
                     if (fileRequestedNodesMap.count(fileTxHash)) {
-                        LogPrint("file", "FILES. We have %d nodes requested this file\n", fileRequestedNodesMap[fileTxHash].size());
+                        LogPrint("file", "FILES. We have %d nodes requested received file\n", fileRequestedNodesMap[fileTxHash].size());
                         //processFileRequests(); // TODO: PDG 3 optimize, run process file
                     }
 
 #ifdef ENABLE_WALLET
                     if (pwalletMain && pwalletMain->IsMine(tx)) {
-                        uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File received"), CClientUIInterface::MSG_INFORMATION);
+                        uiInterface.ThreadSafeMessageBox(_("File received"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
                     }
 #endif
                 }
@@ -7470,16 +7461,15 @@ void ProcessHasFileRequests() {
 void ProcessFileRequests() {
     LogPrint("file", "%s - FILES. ProcessFileRequests. Requests order: %d, map: %d\n", __func__, fileRequestsOrder.size(), fileRequestedNodesMap.size());
 
-    LOCK(cs_FileRequestedNodesMap);
-
     // проверка не привышел ли лимит на одновременную отправку файлов
     int availableToSend = GetAvailableToSendFilesCount();
     LogPrint("file", "%s - FILES. Available to send file. count: %d\n", __func__, availableToSend);
     if (availableToSend == 0)
         return;
 
-    auto it = fileRequestsOrder.begin();
-    while (it != fileRequestsOrder.end()) {
+    LOCK(cs_FileRequestedNodesMap);
+
+    for (auto it = fileRequestsOrder.begin(); it != fileRequestsOrder.end(); ) {
         const pair<uint256, NodeId> &pair = *it;
         map<NodeId, FileRequest> &requestMap = fileRequestedNodesMap[pair.first];
         FileRequest &fileRequest = requestMap[pair.second];
@@ -7510,7 +7500,7 @@ void ProcessFileRequests() {
         CTransaction tx;
         uint256 hashBlock;
         if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
-            LogPrint("file", "%s - FILES. Tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
+            LogPrint("file", "%s - FILES. File tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
             it++;
             continue;
         }
@@ -7523,13 +7513,13 @@ void ProcessFileRequests() {
         }
 
         // send
-        LogPrint("file", "%s - FILES. Send file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
+        LogPrint("file", "%s - FILES. Sending file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
         pNode->PushMessage("file", fileTxHash, dbFile);
+        LogPrint("file", "%s - FILES. File sent\n", __func__);
 
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("File transfer"), _("File sending started"),
-                                             CClientUIInterface::MSG_INFORMATION);
+            uiInterface.ThreadSafeMessageBox(_("File sending started"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
         }
 #endif
 
@@ -7547,22 +7537,22 @@ void ProcessFileRequests() {
 }
 
 void ProcessFilesPendingScheduler() {
-    LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending: %d\n", __func__, filesPendingMap.size());
+    LogPrint("file", "%s - FILES. Process files pending: %d\n", __func__, filesPendingMap.size());
 
     {
         TRY_LOCK(cs_FilesInFlightMap, isInFligthLock);
         if (!isInFligthLock) {
-            LogPrint("file", "%s - FILES. Files In Fligth LOCK %d\n", __func__, filesPendingMap.size());
+            LogPrint("file", "%s - FILES. Files In fligth lock hold failed. Skipping\n", __func__);
             return;
         }
 
         TRY_LOCK(cs_FilesPendingMap, isFilePendingLock);
         if (!isFilePendingLock) {
-            LogPrint("file", "%s - FILES. Files Pending LOCK %d\n", __func__, filesPendingMap.size());
+            LogPrint("file", "%s - FILES. Files pending lock hold failed. Skipping\n", __func__);
             return;
         }
 
-        LogPrint("file", "%s - FILES. ProcessFilesPendingScheduler. Files pending NOT LOCK: %d\n", __func__, filesPendingMap.size());
+        LogPrint("file", "%s - FILES. Files pending locks held: %d\n", __func__, filesPendingMap.size());
 
         for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
             const uint256 &fileTxHash = it->first;
@@ -7591,7 +7581,7 @@ void ProcessFilesPendingScheduler() {
                         continue;
                     }
 
-                    LogPrint("file", "%s - FILES. Send file request at node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
+                    LogPrint("file", "%s - FILES. Sending file request to node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
                     SendFileRequest(fileTxHash, pNode);
                     // update data
                     fileInFlight.nodeId = pNode->id;
@@ -7620,6 +7610,8 @@ void ProcessFilesPendingScheduler() {
 
             it++;
         }
+
+        LogPrint("file", "%s - FILES. Process files pending done\n", __func__);
     }
 
     ProcessRequiredFiles();
@@ -7627,7 +7619,7 @@ void ProcessFilesPendingScheduler() {
 }
 
 void ProcessRequiredFiles() {
-    LogPrint("file", "%s - FILES. ProcessRequiredFiles. Files required: %d\n", __func__, requiredFilesMap.size());
+    LogPrint("file", "%s - FILES. Files required: %d\n", __func__, requiredFilesMap.size());
     vector<uint256> vRequiredToBroadcast;
 
     bool requiredFilesChange = false;
@@ -7812,6 +7804,8 @@ Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
 }
 
 bool SaveMaturationTransactions() {
+    AssertLockHeld(cs_MapMaturationPaymentConfirmTransactions); // TODO: PDG 5 check
+
     if (pwalletMain == nullptr)
         return true;
 
@@ -7866,12 +7860,14 @@ CAmount GetFileFee(const CPaymentConfirm &paymentConfirm) {
 }
 
 CNode *FindFreeNode(const set<NodeId> &nodes) {
+    LogPrint("file", "FindFreeNode : searching free node\n");// TODO: PDG 2 remove after debug
+
     // и запрашиваем у нового
     CNode *pNode = nullptr;
     BOOST_FOREACH(const NodeId& nodeId, nodes) {
         // region Check if this node in use
         bool alreadyUse = false;
-        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ) {
+        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ++it) {
             if (nodeId == it->second.nodeId) {
                 alreadyUse = true;
                 break;
@@ -7888,6 +7884,8 @@ CNode *FindFreeNode(const set<NodeId> &nodes) {
         break;
     }
 
+
+    LogPrint("file", "FindFreeNode : free node %s\n", (pNode ? (std::string("found ") + std::to_string(pNode->id)) : "not found"));// TODO: PDG 2 remove after debug
     return pNode;
 }
 

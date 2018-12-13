@@ -11,6 +11,8 @@
 #include "guiconstants.h"
 #include "recentrequeststablemodel.h"
 #include "transactiontablemodel.h"
+#include "filetransactiontablemodel.h"
+#include "paymenttransactiontablemodel.h"
 
 #include "base58.h"
 #include "db.h"
@@ -47,6 +49,8 @@ WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* p
 
     addressTableModel = new AddressTableModel(wallet, this);
     transactionTableModel = new TransactionTableModel(wallet, this);
+    fileTransactionTableModel = new FileTransactionTableModel(wallet, this);
+    paymentTransactionTableModel = new PaymentTransactionTableModel(wallet, this);
     recentRequestsTableModel = new RecentRequestsTableModel(wallet, this);
 
     // This timer will be fired repeatedly to update the balance
@@ -159,6 +163,8 @@ void WalletModel::pollBalanceChanged()
         checkBalanceChanged();
         if (transactionTableModel) {
             transactionTableModel->updateConfirmations();
+            fileTransactionTableModel->updateConfirmations();
+            paymentTransactionTableModel->updateConfirmations();
         }
     }
 }
@@ -448,6 +454,16 @@ AddressTableModel* WalletModel::getAddressTableModel()
 TransactionTableModel* WalletModel::getTransactionTableModel()
 {
     return transactionTableModel;
+}
+
+FileTransactionTableModel* WalletModel::getFileTransactionTableModel()
+{
+    return fileTransactionTableModel;
+}
+
+PaymentTransactionTableModel* WalletModel::getPaymentTransactionTableModel()
+{
+    return paymentTransactionTableModel;
 }
 
 RecentRequestsTableModel* WalletModel::getRecentRequestsTableModel()

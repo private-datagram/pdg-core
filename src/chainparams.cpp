@@ -55,11 +55,12 @@ static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data
 static Checkpoints::MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
     (0, uint256("00000b66902fa94232df668afd3b3805feef0b345a28db9911554853be459b1b"))
-    (150, uint256("0000002ecc077d943f629feab31479cf4765afcdc52321cbf3b4b546acbe37d5"));
+    (153, uint256("00000074554381756b0a0a3e0b6d234e221dcddec688c52a21eb30730fd3b511"));
+
 static const Checkpoints::CCheckpointData data = {
     &mapCheckpoints,
-    1544103059, // * UNIX timestamp of last checkpoint block
-    156,        // * total number of transactions between genesis and last checkpoint
+    1544450719, // * UNIX timestamp of last checkpoint block
+    159,        // * total number of transactions between genesis and last checkpoint
                 //   (the tx=... number in the SetBestChain debug.log lines)
     2000        // * estimated number of transactions per day after checkpoint
 };
@@ -124,18 +125,13 @@ public:
         nDefaultPort = 37712;
         bnProofOfWorkLimit = ~uint256(0) >> 20; // PDG starting difficulty is 1 / 2^12
         nMaxReorganizationDepth = 100;
-        nEnforceBlockUpgradeMajority = 750;
-        nRejectBlockOutdatedMajority = 950;
-        nToCheckBlockUpgradeMajority = 1000;
         nMinerThreads = 0;
-        nTargetTimespan = 1 * 60; // PDG: 1 minute
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
         nMaturity = 100;
-        nMasternodeCountDrift = 20;
         nMaxMoneyOut = 128000000 * COIN;
 
         /** Height or Time Based Activations **/
-        nLastPOWBlock = 500;
+        nLastPOWBlock = 300;
         nModifierUpdateBlock = 0;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895000; // Before blockchain start
@@ -241,20 +237,15 @@ public:
         pchMessageStart[3] = 0xaf;
         vAlertPubKey = ParseHex("0408d29b95736ebfe8e2db7b26ca76958cc427dff7d0a7fda27d6f2797bbc968b02c9a9fcb87c812975505dfda64462b1b7defa8ab460fc73eb435bddbf492bafc");
         nDefaultPort = 37714;
-        nEnforceBlockUpgradeMajority = 51;
-        nRejectBlockOutdatedMajority = 75;
-        nToCheckBlockUpgradeMajority = 100;
         nMinerThreads = 0;
-        nTargetTimespan = 1 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;  // PDG: 1 minute
-        nLastPOWBlock = 1000;
+        nLastPOWBlock = 4000000;
         nMaturity = 15;
-        nMasternodeCountDrift = 4;
         nModifierUpdateBlock = 0;
         nMaxMoneyOut = 128000000 * COIN;
         nZerocoinStartHeight = 20;
         nZerocoinStartTime = 1542895001;
-        nBlockZerocoinV2 = 101; //!> The block that zerocoin v2 becomes active
+        nBlockZerocoinV2 = 100; //!> The block that zerocoin v2 becomes active
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
         genesis.nTime = 1544097001;
@@ -317,11 +308,7 @@ public:
         pchMessageStart[1] = 0x4a;
         pchMessageStart[2] = 0x75;
         pchMessageStart[3] = 0x0f;
-        nEnforceBlockUpgradeMajority = 750;
-        nRejectBlockOutdatedMajority = 950;
-        nToCheckBlockUpgradeMajority = 1000;
         nMinerThreads = 1;
-        nTargetTimespan = 24 * 60 * 60; // PDG: 1 day
         nTargetSpacing = 1 * 60;        // PDG: 1 minutes
         bnProofOfWorkLimit = ~uint256(0) >> 1;
         genesis.nTime = 1544097002;
@@ -376,9 +363,6 @@ public:
     }
 
     //! Published setters to allow changing values in unit test cases
-    virtual void setEnforceBlockUpgradeMajority(int anEnforceBlockUpgradeMajority) { nEnforceBlockUpgradeMajority = anEnforceBlockUpgradeMajority; }
-    virtual void setRejectBlockOutdatedMajority(int anRejectBlockOutdatedMajority) { nRejectBlockOutdatedMajority = anRejectBlockOutdatedMajority; }
-    virtual void setToCheckBlockUpgradeMajority(int anToCheckBlockUpgradeMajority) { nToCheckBlockUpgradeMajority = anToCheckBlockUpgradeMajority; }
     virtual void setDefaultConsistencyChecks(bool afDefaultConsistencyChecks) { fDefaultConsistencyChecks = afDefaultConsistencyChecks; }
     virtual void setAllowMinDifficultyBlocks(bool afAllowMinDifficultyBlocks) { fAllowMinDifficultyBlocks = afAllowMinDifficultyBlocks; }
     virtual void setSkipProofOfWorkCheck(bool afSkipProofOfWorkCheck) { fSkipProofOfWorkCheck = afSkipProofOfWorkCheck; }

@@ -678,7 +678,8 @@ inline const char* FormatIterator::streamStateFromFormat(std::ostream& out,
     int variablePrecision)
 {
     if (*fmtStart != '%') {
-        TINYFORMAT_ERROR("tinyformat: Not enough conversion specifiers in format string");
+        //TINYFORMAT_ERROR("tinyformat: Not enough conversion specifiers in format string");
+        printf("tinyformat: Not enough conversion specifiers in format string"); // TODO: PDG 5 fix
         return fmtStart;
     }
     // Reset stream state to defaults.

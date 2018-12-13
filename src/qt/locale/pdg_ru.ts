@@ -661,6 +661,10 @@
         <translation>Отправить монеты на PDG адрес</translation>
     </message>
     <message>
+        <source>Send file to a PDG address</source>
+        <translation>Отправить файл на PDG адрес</translation>
+    </message>
+    <message>
         <source>Request payments (generates QR codes and pdg: URIs)</source>
         <translation>Запросить платежи (генерирует QR-код и PDG: URI)</translation>
     </message>
@@ -4099,7 +4103,7 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     </message>
     <message>
         <source>Unable to find file in local storage. Please wait while file will synchronize or resync file storage</source>
-        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже</translation>
+        <translation>Не удалось найти файл в локальном хранилище. Возможно файл еще не синхронизирован. Попробуйте позже или пересинхронизируйте кошелек</translation>
     </message>
     <message>
         <source>File hash doesn't match. File corrupted</source>
@@ -5370,6 +5374,14 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Wallet Data (*.dat)</source>
         <translation>Данные кошелька (* .dat)</translation>
+    </message>
+     <message>
+        <source>Confirm lock wallet</source>
+        <translation>Подтвердите блокировку кошелька</translation>
+    </message>
+    <message>
+        <source>Warning! If you are sending file the wallet must be unlocked. Lock anyway?</source>
+        <translation>Внимание! Если вы передаете файл кошелек должен быть разблокирован. Вы действительно хотите заблокировать?</translation>
     </message>
 </context>
 <context>
@@ -6840,6 +6852,10 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>File transfer error</source>
         <translation>Ошибка передачи файла</translation>
+    </message>
+    <message>
+        <source>You need to unlock wallet to process files</source>
+        <translation>Необходимо разблокировать кошелек для обработки передачи файлов</translation>
     </message>
     <message>
         <source>Failed to send file</source>

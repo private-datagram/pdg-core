@@ -38,7 +38,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     UniValue obj(UniValue::VOBJ);
 
     {
-        LOCK(cs_RequiredFilesMap);
+        //LOCK(cs_RequiredFilesMap);
 
         UniValue requiredFilesList(UniValue::VARR);
         for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
@@ -53,7 +53,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     }
 
     {
-        LOCK(cs_FilesPendingMap);
+        //LOCK(cs_FilesPendingMap);
 
         UniValue filePendingList(UniValue::VARR);
         for (auto it = filesPendingMap.begin(); it != filesPendingMap.end(); it++) {
@@ -74,7 +74,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
 
 
     {
-        LOCK(cs_FilesInFlightMap);
+        //LOCK(cs_FilesInFlightMap);
 
         UniValue fileInFlightList(UniValue::VARR);
         for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); it++) {
@@ -93,7 +93,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     }
 
     {
-        LOCK(cs_HasFileRequestedNodesMap);
+        //LOCK(cs_HasFileRequestedNodesMap);
 
         UniValue hasFileRequestedNodesList(UniValue::VARR);
         for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end(); it++) {
@@ -128,7 +128,7 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     }
 
     {
-        LOCK(cs_FileRequestedNodesMap);
+        //LOCK(cs_FileRequestedNodesMap);
 
         UniValue fileRequestMapList(UniValue::VARR);
         for (auto it = fileRequestedNodesMap.begin(); it != fileRequestedNodesMap.end(); it++) {
@@ -161,6 +161,36 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
             fileRequestMapList.push_back(item);
         }
         obj.push_back(Pair("fileRequestMapList", fileRequestMapList));
+    }
+
+    {
+        UniValue lockList(UniValue::VOBJ);
+
+        bool isHeldRequiredFilesMap;
+        bool isHeldFilesPendingMap;
+        bool isHeldFilesInFlightMap;
+        bool isHeldHasFileRequestedNodesMap;
+        bool isHeldFileRequestedNodesMap;
+        bool isHeldMain;
+        bool isHeldNodes;
+
+        {TRY_LOCK(cs_RequiredFilesMap, isRequiredFilesMap); isHeldRequiredFilesMap = isRequiredFilesMap;}
+        {TRY_LOCK(cs_FilesPendingMap, isFilesPendingMap); isHeldFilesPendingMap = isFilesPendingMap;}
+        {TRY_LOCK(cs_FilesInFlightMap, isFilesInFlightMap); isHeldFilesInFlightMap = isFilesInFlightMap;}
+        {TRY_LOCK(cs_HasFileRequestedNodesMap, isHasFileRequestedNodesMap); isHeldHasFileRequestedNodesMap = isHasFileRequestedNodesMap;}
+        {TRY_LOCK(cs_FileRequestedNodesMap, isFileRequestedNodesMap); isHeldFileRequestedNodesMap = isFileRequestedNodesMap;}
+        {TRY_LOCK(cs_main, isMain); isHeldMain = isMain;}
+        {TRY_LOCK(cs_vNodes, isNodes); isHeldNodes = isNodes;}
+
+        lockList.push_back(Pair("RequiredFilesMap held", isHeldRequiredFilesMap));
+        lockList.push_back(Pair("FilesPendingMap held", isHeldFilesPendingMap));
+        lockList.push_back(Pair("FilesInFlightMap held", isHeldFilesInFlightMap));
+        lockList.push_back(Pair("HasFileRequestedNodesMap held", isHeldHasFileRequestedNodesMap));
+        lockList.push_back(Pair("FileRequestedNodesMap held", isHeldFileRequestedNodesMap));
+        lockList.push_back(Pair("Main held", isHeldMain));
+        lockList.push_back(Pair("vNode held", isHeldNodes));
+
+        obj.push_back(Pair("locks", lockList));
     }
 
     return obj;

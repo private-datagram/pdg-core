@@ -330,7 +330,7 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
 
 
     sendFilesAction = new QAction(QIcon(":/icons/files"), tr("&Files"), this);
-    sendFilesAction->setStatusTip(tr("Send files to a PDG address"));
+    sendFilesAction->setStatusTip(tr("Send file to a PDG address"));
     sendFilesAction->setToolTip(sendFilesAction->statusTip());
     sendFilesAction->setCheckable(true);
 #ifdef Q_OS_MAC
@@ -431,11 +431,9 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     toggleHideAction = new QAction(networkStyle->getAppIcon(), tr("&Show / Hide"), this);
     toggleHideAction->setStatusTip(tr("Show or hide the main Window"));
 
-#ifdef ENABLE_WALLET_ENCRYPTION
     encryptWalletAction = new QAction(QIcon(":/icons/lock_closed"), tr("&Encrypt Wallet..."), this);
     encryptWalletAction->setStatusTip(tr("Encrypt the private keys that belong to your wallet"));
     encryptWalletAction->setCheckable(true);
-#endif
     backupWalletAction = new QAction(QIcon(":/icons/filesave"), tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
     changePassphraseAction = new QAction(QIcon(":/icons/key"), tr("&Change Passphrase..."), this);
@@ -499,9 +497,7 @@ void BitcoinGUI::createActions(const NetworkStyle* networkStyle)
     connect(showHelpMessageAction, SIGNAL(triggered()), this, SLOT(showHelpMessageClicked()));
 #ifdef ENABLE_WALLET
     if (walletFrame) {
-#ifdef ENABLE_WALLET_ENCRYPTION
         connect(encryptWalletAction, SIGNAL(triggered(bool)), walletFrame, SLOT(encryptWallet(bool)));
-#endif
         connect(backupWalletAction, SIGNAL(triggered()), walletFrame, SLOT(backupWallet()));
         connect(changePassphraseAction, SIGNAL(triggered()), walletFrame, SLOT(changePassphrase()));
         connect(unlockWalletAction, SIGNAL(triggered(bool)), walletFrame, SLOT(unlockWallet(bool)));
@@ -550,9 +546,7 @@ void BitcoinGUI::createMenuBar()
 
     QMenu* settings = appMenuBar->addMenu(tr("&Settings"));
     if (walletFrame) {
-#ifdef ENABLE_WALLET_ENCRYPTION
         settings->addAction(encryptWalletAction);
-#endif
         settings->addAction(changePassphraseAction);
         settings->addAction(unlockWalletAction);
         settings->addAction(lockWalletAction);
@@ -707,9 +701,7 @@ void BitcoinGUI::setWalletActionsEnabled(bool enabled)
     if (settings.value("fShowMasternodesTab").toBool()) {
         masternodeAction->setEnabled(enabled);
     }
-#ifdef ENABLE_WALLET_ENCRYPTION
     encryptWalletAction->setEnabled(enabled);
-#endif
     backupWalletAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
     signMessageAction->setEnabled(enabled);
@@ -1254,57 +1246,41 @@ void BitcoinGUI::setEncryptionStatus(int status)
     switch (status) {
     case WalletModel::Unencrypted:
         labelEncryptionIcon->hide();
-#ifdef ENABLE_WALLET_ENCRYPTION
         encryptWalletAction->setChecked(false);
-#endif
         changePassphraseAction->setEnabled(false);
         unlockWalletAction->setVisible(false);
         lockWalletAction->setVisible(false);
-#ifdef ENABLE_WALLET_ENCRYPTION
         encryptWalletAction->setEnabled(true);
-#endif
         break;
     case WalletModel::Unlocked:
         labelEncryptionIcon->show();
         labelEncryptionIcon->setIcon(QIcon(":/icons/lock_open").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
         labelEncryptionIcon->setToolTip(tr("Wallet is <b>encrypted</b> and currently <b>unlocked</b>"));
-#ifdef ENABLE_WALLET_ENCRYPTION
         encryptWalletAction->setChecked(true);
-#endif
         changePassphraseAction->setEnabled(true);
         unlockWalletAction->setVisible(false);
         lockWalletAction->setVisible(true);
-#ifdef ENABLE_WALLET_ENCRYPTION
-        encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
-#endif
+        encryptWalletAction->setEnabled(false);
         break;
     case WalletModel::UnlockedForAnonymizationOnly:
         labelEncryptionIcon->show();
         labelEncryptionIcon->setIcon(QIcon(":/icons/lock_open").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
         labelEncryptionIcon->setToolTip(tr("Wallet is <b>encrypted</b> and currently <b>unlocked</b> for anonymization and staking only"));
-#ifdef ENABLE_WALLET_ENCRYPTION
         encryptWalletAction->setChecked(true);
-#endif
         changePassphraseAction->setEnabled(true);
         unlockWalletAction->setVisible(true);
         lockWalletAction->setVisible(true);
-#ifdef ENABLE_WALLET_ENCRYPTION
-        encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
-#endif
+        encryptWalletAction->setEnabled(false);
         break;
     case WalletModel::Locked:
         labelEncryptionIcon->show();
         labelEncryptionIcon->setIcon(QIcon(":/icons/lock_closed").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
         labelEncryptionIcon->setToolTip(tr("Wallet is <b>encrypted</b> and currently <b>locked</b>"));
-#ifdef ENABLE_WALLET_ENCRYPTION
         encryptWalletAction->setChecked(true);
-#endif
         changePassphraseAction->setEnabled(true);
         unlockWalletAction->setVisible(true);
         lockWalletAction->setVisible(false);
-#ifdef ENABLE_WALLET_ENCRYPTION
-        encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
-#endif
+        encryptWalletAction->setEnabled(false);
         break;
     }
 }
@@ -1367,6 +1343,8 @@ static bool ThreadSafeMessageBox(BitcoinGUI* gui, const std::string& message, co
     // The SECURE flag has no effect in the Qt GUI.
     // bool secure = (style & CClientUIInterface::SECURE);
     style &= ~CClientUIInterface::SECURE;
+    style &= ~CClientUIInterface::GUI_ONLY;
+
     bool ret = false;
     // In case of modal message, use blocking connection to wait for user to click a button
     QMetaObject::invokeMethod(gui, "message",

@@ -5373,11 +5373,13 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
 }
 
 void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
-    if (!pblock)
+    if (!pblock) {
+        LogPrint("%s : Block is null. Tx id: %s", __func__, tx.GetHash().ToString());
         return;
+    }
 
     if (IsFromMe(tx) || !IsMine(tx)) {
-        return; // ignore transactions that we send
+        return; // ignore transactions that not mine or me sent
     }
 
     // remove already processed transactions
@@ -5413,18 +5415,16 @@ void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
 
         return;
     }
-
-    return;
 }
 
 bool CWallet::ProcessFileContract(const CBlock* pblock) {
     if (pblock == nullptr || mapMaturationPaymentConfirmTransactions.empty())
         return false;
 
-    LOCK(cs_MapMaturationPaymentConfirmTransactions);
-
     CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
     int blockHeight = blockIndex->nHeight;
+
+    LOCK(cs_MapMaturationPaymentConfirmTransactions);
 
     bool hasUpdates = false;
 
@@ -5433,13 +5433,13 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
         if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
             // TODO: PDG 3 implement statuses, if state_error don't remove transaction from map
             if (!OnPaymentConfirmed(it->second.tx)) {
-                if (hasUpdates)
-                    SaveMaturationTransactions();
-                return error("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
+                LogPrint("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
+                it++;
+                continue;
             }
 
-            hasUpdates = true;
             it = mapMaturationPaymentConfirmTransactions.erase(it);
+            hasUpdates = true;
             continue;
         }
 
@@ -5452,12 +5452,14 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
     return true;
 }
 
+// TODO: add locks
 bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     if (tx.type != TX_FILE_PAYMENT_CONFIRM) {
-        return error("%s : Invalid payment confirmation transaction type - %s", __func__, tx.type);
+        LogPrint("%s : Invalid payment confirmation transaction type: %s", __func__, tx.type);
+        return true;
     }
 
-    LogPrint("file", "%s - FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
+    LogPrint("file", "%s : FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
 
     const std::map<uint256, CWalletTx>::iterator paymentTxIterator = mapWallet.find(tx.GetHash());
     if (paymentTxIterator == mapWallet.end()) {
@@ -5468,6 +5470,20 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     // prepare data
     const CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
+
+    CWalletDB walletDB(strWalletFile);
+
+    // TODO: PDG 3 check if file already sent and triggered event processed correctly
+    // TODO: PDG 3 sync file sent status on blocks resync
+    bool isSent = false;
+    if (!walletDB.ReadWalletFileTxSent(paymentConfirm->requestTxid, isSent)) {
+        LogPrint("%s - Failed to read file sent status\n", __func__);
+    }
+
+    if (isSent) {
+        LogPrint("%s - File already sent but event triggered\n", __func__);
+        return true;
+    }
 
     CTransaction paymentRequestTx;
 
@@ -5499,8 +5515,6 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     // TODO: PDG4 check LifeTime
 
-    CWalletDB walletDB(strWalletFile);
-
     CDataStream inputFile(SER_NETWORK, PROTOCOL_VERSION);
     std::string filename;
     CTxDestination fileDestination;
@@ -5510,27 +5524,23 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         CWalletFileTx walletFileTx;
 
         if (!walletDB.ReadWalletFileTx(paymentConfirm->requestTxid, walletFileTx)) {
-            // TODO: PDG3 check if file already sent and triggered event processed correctly
-            bool isSent = false;
-            if (!walletDB.ReadWalletFileTxSent(paymentConfirm->requestTxid, isSent))
-                LogPrint("%s - Failed to read file sent status\n", __func__);
-
-            if (isSent) {
-                LogPrint("%s - File already sent but event triggered\n", __func__);
-                return true;
-            }
-
             return error("%s : WalletFileTx not found for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
         }
 
         if (walletFileTx.vchBytes.empty()) {
-            LogPrint("file", "%s : File bytes is empty. It seems like failed to read file", __func__, paymentConfirm->requestTxid.ToString());
+            LogPrint("file", "%s : File bytes is empty. It seems like failed to read file. requestTxid: %s", __func__, paymentConfirm->requestTxid.ToString());
         }
 
         inputFile.reserve(10000);
         inputFile.write(&walletFileTx.vchBytes[0], walletFileTx.vchBytes.size());
         filename = walletFileTx.filename;
         fileDestination = CKeyID(walletFileTx.destinationAddress);
+    }
+
+    if (pwalletMain && (pwalletMain->IsLocked() || pwalletMain->fWalletUnlockAnonymizeOnly)) {
+        LogPrintf("%s : ProcessFileContract unable due wallet is locked");
+        uiInterface.ThreadSafeMessageBox(_("You need to unlock wallet to process files"), _("File transfer error"), CClientUIInterface::MSG_ERROR);
+        return false;
     }
 
     crypto::aes::AESKey key;
@@ -5561,8 +5571,15 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     LogPrint("file", "%s - FILES. Saving file, file hash: %s, calc file hash: %s\n", __func__, txFile.fileHash.ToString(), dbFile.CalcFileHash().ToString());
 
-    if (!SaveFileDB(dbFile))
+    if (!SaveFileDB(dbFile)) {
+#ifdef ENABLE_WALLET
+        if (pwalletMain) {
+            uiInterface.ThreadSafeMessageBox(_("Failed to prepare file"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
+        }
+#endif
+
         return error("%s : Failed to save file to db for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
+    }
 
     uint256 fileTxHash;
     if (!SendFileTx(txFile, fileMeta, fileDestination, fileTxHash)) {
@@ -5571,10 +5588,10 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("File transfer error"), _("Failed to send file"), CClientUIInterface::MSG_ERROR);
+            uiInterface.ThreadSafeMessageBox(_("Failed to send file"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
         }
 #endif
-        return false;
+        return error("%s : Failed to send file tx", __func__);
     }
 
     BroadcastFileAvailable(fileTxHash);

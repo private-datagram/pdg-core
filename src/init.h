@@ -9,6 +9,7 @@
 
 #include <string>
 
+
 class CScheduler;
 class CWallet;
 class CzPIVWallet;
