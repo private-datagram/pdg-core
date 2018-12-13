@@ -360,7 +360,7 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals);
  * @brief HandleFileTransferTx
  * @param pblock
  */
-void HandleFileTransferTx(CBlock* pblock);
+void HandleFileTransferTx(const CBlock* pblock);
 
 /**
  * Process an incoming block. This only returns after the best known valid

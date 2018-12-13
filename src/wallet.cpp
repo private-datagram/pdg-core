@@ -5373,8 +5373,10 @@ bool CWallet::DatabaseMint(CDeterministicMint& dMint)
 }
 
 void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock) {
-    if (!pblock)
+    if (!pblock) {
+        LogPrint("%s : Block is null. Tx id: %s", __func__, tx.GetHash().ToString());
         return;
+    }
 
     if (IsFromMe(tx) || !IsMine(tx)) {
         return; // ignore transactions that not mine or me sent
@@ -5526,7 +5528,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
         }
 
         if (walletFileTx.vchBytes.empty()) {
-            LogPrint("file", "%s : File bytes is empty. It seems like failed to read file", __func__, paymentConfirm->requestTxid.ToString());
+            LogPrint("file", "%s : File bytes is empty. It seems like failed to read file. requestTxid: %s", __func__, paymentConfirm->requestTxid.ToString());
         }
 
         inputFile.reserve(10000);

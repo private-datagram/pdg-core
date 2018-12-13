@@ -4385,6 +4385,11 @@ bool IsFileExist(const uint256& fileHash) {
 }
 
 bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
+    if (!fMasterNode && !pwalletMain) {
+        // not masternod and without wallet
+        return true;
+    }
+
     LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
     if (!fMasterNode && !pwalletMain->IsMine(tx)) {
         LogPrint("file", "%s - FILES. This node is not masternode or tx not ours, receive don't need. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
@@ -4685,7 +4690,7 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
-void HandleFileTransferTx(CBlock *pblock) {
+void HandleFileTransferTx(const CBlock *pblock) {
     for (const CTransaction &tx: pblock->vtx) {
         if (tx.type != TX_FILE_TRANSFER)
             continue;
@@ -6211,7 +6216,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                             Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
                         } else
                         if (tx.type != TX_FILE_TRANSFER) {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", tx.type, __func__);
+                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", __func__, tx.type);
                             Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
                         } else {
                             const uint256 &fileHash = tx.vfiles[0].fileHash;
