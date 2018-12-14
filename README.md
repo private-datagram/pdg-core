@@ -32,13 +32,13 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 <tr><td>Premine</td><td>3,840,000 PDG*</td></tr>
 </table>
 
-*3,840,000 PDG Premine was burned in block (https://explorer.privatedatagram.io/block/000005586960cabdb429887ad720ab9eb40dc792d2b6c6a9472a1ac6c43d5cc7)
+*3,840,000 PDG Premine in block (https://explorer.privatedatagram.io/block/000005586960cabdb429887ad720ab9eb40dc792d2b6c6a9472a1ac6c43d5cc7)
 
 1,280,000 - pre-mine, inital
 
-1,280,000 - pre-mine, freeze #1 till 2019 November (https://explorer.privatedatagram.io/tx/6202bb7030820535b4ce7fd726e9900c0ccaf016f16eb3b5f8f5dd1a94cd3cd4)
+1,280,000 - pre-mine, freeze #1 till 2019 December (https://explorer.privatedatagram.io/tx/6202bb7030820535b4ce7fd726e9900c0ccaf016f16eb3b5f8f5dd1a94cd3cd4)
 
-1,280,000 - pre-mine, freeze #2 till 2020 November (https://explorer.privatedatagram.io/tx/a12d69de2ba65fbb8fe478b2f0eb5b0a58eb3821a05fa78dab4238c4d5237050)
+1,280,000 - pre-mine, freeze #2 till 2020 December (https://explorer.privatedatagram.io/tx/a12d69de2ba65fbb8fe478b2f0eb5b0a58eb3821a05fa78dab4238c4d5237050)
 
 
 ### Reward Distribution
