@@ -196,6 +196,41 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     return obj;
 }
 
+UniValue getfilesrepstate(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+                "getfilesrepstate\n"
+                "\nReturns an object containing file repository sync state info.\n"
+                // TODO: print result struct
+                "\nExamples:\n" +
+                HelpExampleCli("getfilesrepstate", "") + HelpExampleRpc("getfilesrepstate", ""));
+
+
+    UniValue obj(UniValue::VOBJ);
+
+    {
+        //LOCK(cs_RequiredFilesMap);
+
+        FileRepositoryStateAjax repositoryState = getCDBFileRepositoryState();
+
+        UniValue item(UniValue::VOBJ);
+        item.push_back(Pair("nTotalFileStorageSize", repositoryState.nTotalFileStorageSize));
+        item.push_back(Pair("nBlocksCount", (int) repositoryState.nBlocksCount));
+        item.push_back(Pair("filesCount", (int) repositoryState.filesCount));
+        item.push_back(Pair("removeCandidatesTotalSize", repositoryState.removeCandidatesTotalSize));
+        item.push_back(Pair("removeCandidatesFilesCount", (int) repositoryState.removeCandidatesFilesCount));
+        item.push_back(Pair("removedFilesSizeShrinkPercent", repositoryState.removedFilesSizeShrinkPercent));
+
+        UniValue requiredFilesList(UniValue::VARR);
+        requiredFilesList.push_back(item);
+        obj.push_back(Pair("fileRepositoryState", requiredFilesList));
+
+    }
+
+    return obj;
+}
+
 void join(const set<int>& v, char c, std::string& s) {
 
     s.clear();

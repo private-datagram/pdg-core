@@ -242,6 +242,32 @@ struct RequiredFile {
     bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
+struct FileRepositoryStateAjax {
+public:
+    const int removedFilesSizeShrinkPercent;
+
+    uint64_t nTotalFileStorageSize;            //!number of bytes of all files stored
+    unsigned int nBlocksCount;                 //! number of block files
+    unsigned int filesCount;                  //! number of all files in all blocks
+
+    uint64_t removeCandidatesTotalSize;       //! number of bytes of all mark remove files in db
+    unsigned int removeCandidatesFilesCount;  //! number of mark removed files in db
+
+    FileRepositoryStateAjax(int removedFilesSizeShrinkPercent,
+                            uint64_t nTotalFileStorageSize,
+                            unsigned int nBlocksCount,
+                            unsigned int filesCount,
+                            uint64_t removeCandidatesTotalSize,
+                            unsigned int removeCandidatesFilesCount) :
+
+            removedFilesSizeShrinkPercent(removedFilesSizeShrinkPercent),
+            nTotalFileStorageSize(nTotalFileStorageSize),
+            nBlocksCount(nBlocksCount),
+            filesCount(filesCount),
+            removeCandidatesTotalSize(removeCandidatesTotalSize),
+            removeCandidatesFilesCount(removeCandidatesFilesCount) {}
+};
+
 struct FileRequest {
     NodeId node;
     int64_t date;
@@ -498,6 +524,8 @@ void RemoveKnownFileHashesByNode(const NodeId peer);
 
 void RemoveHasFileRequestsByHash(const uint256& hash);
 void RemoveHasFileRequestsByHash(const NodeId peer);
+
+FileRepositoryStateAjax getCDBFileRepositoryState();
 
 int GetInputAge(CTxIn& vin);
 int GetInputAgeIX(uint256 nTXHash, CTxIn& vin);

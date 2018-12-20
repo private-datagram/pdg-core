@@ -7384,6 +7384,10 @@ void RemoveFileRequestsByNode(const NodeId pNode) {
     }
 }
 
+FileRepositoryStateAjax getCDBFileRepositoryState() {
+    return fileRepositoryManager.getDBFileRepositoryState();
+}
+
 void RemoveHasFileRequestsByHash(const uint256 &hash) {
     hasFileRequestedNodesMap.erase(hash);
 }
