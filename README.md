@@ -23,7 +23,7 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 
 ### Coin Specs
 <table>
-<tr><td>Algo</td><td>Quark</td></tr>
+<th>Algo</th><th>Quark</th>
 <tr><td>Block Time</td><td>60 Seconds</td></tr>
 <tr><td>Difficulty Retargeting</td><td>Every Block</td></tr>
 <tr><td>Max Coin Supply (PoW)</td><td>140 PDG</td></tr>
@@ -73,7 +73,7 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 
 ### Ports
 <table>
-<tr><td>Application</td><td>Port</td></tr>
+<th>Application</th><th>Port</th>
 <tr><td>MainNet</td><td>37712</td></tr>
 <tr><td>MainNet RPC</td><td>37713</td></tr>
 <tr><td>TestNet</td><td>37714</td></tr>
