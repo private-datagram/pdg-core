@@ -40,14 +40,6 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 
 1,280,000 - pre-mine, freeze #2 till 2020 December (https://explorer.privatedatagram.io/tx/a12d69de2ba65fbb8fe478b2f0eb5b0a58eb3821a05fa78dab4238c4d5237050)
 
-### Ports
-<table>
-<tr><td>Application</td><td>Port</td></tr>
-<tr><td>MainNet</td><td>37712</td></tr>
-<tr><td>TestNet</td><td>37713</td></tr>
-<tr><td>RPC</td><td>37715</td></tr>
-</table>
-
 ### Reward Distribution
 
 <table>
@@ -78,3 +70,12 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 <tr><td>12000001-20000000</td><td> 1.6 PDG</td><td> 0.4 PDG</td></tr>
 <tr><td>20000001-30133971</td><td> 0.8 PDG</td><td> 0.2 PDG</td></tr>
 </table>
+
+### Ports
+<table>
+<tr><td>Application</td><td>Port</td></tr>
+<tr><td>MainNet</td><td>37712</td></tr>
+<tr><td>TestNet</td><td>37713</td></tr>
+<tr><td>RPC</td><td>37715</td></tr>
+</table>
+
