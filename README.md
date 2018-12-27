@@ -75,7 +75,8 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 <table>
 <tr><td>Application</td><td>Port</td></tr>
 <tr><td>MainNet</td><td>37712</td></tr>
-<tr><td>TestNet</td><td>37713</td></tr>
-<tr><td>RPC</td><td>37715</td></tr>
+<tr><td>MainNet RPC</td><td>37713</td></tr>
+<tr><td>TestNet</td><td>37714</td></tr>
+<tr><td>TestNet RPC</td><td>37715</td></tr>
 </table>
 
