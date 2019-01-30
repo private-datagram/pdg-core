@@ -23,7 +23,7 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 
 ### Coin Specs
 <table>
-<tr><td>Algo</td><td>Quark</td></tr>
+<th>Algo</th><th>Quark</th>
 <tr><td>Block Time</td><td>60 Seconds</td></tr>
 <tr><td>Difficulty Retargeting</td><td>Every Block</td></tr>
 <tr><td>Max Coin Supply (PoW)</td><td>140 PDG</td></tr>
@@ -39,7 +39,6 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 1,280,000 - pre-mine, freeze #1 till 2019 December (https://explorer.privatedatagram.io/tx/6202bb7030820535b4ce7fd726e9900c0ccaf016f16eb3b5f8f5dd1a94cd3cd4)
 
 1,280,000 - pre-mine, freeze #2 till 2020 December (https://explorer.privatedatagram.io/tx/a12d69de2ba65fbb8fe478b2f0eb5b0a58eb3821a05fa78dab4238c4d5237050)
-
 
 ### Reward Distribution
 
@@ -71,3 +70,13 @@ More information at [privatedatagram.io](https://privatedatagram.io) Visit our A
 <tr><td>12000001-20000000</td><td> 1.6 PDG</td><td> 0.4 PDG</td></tr>
 <tr><td>20000001-30133971</td><td> 0.8 PDG</td><td> 0.2 PDG</td></tr>
 </table>
+
+### Ports
+<table>
+<th>Application</th><th>Port</th>
+<tr><td>MainNet</td><td>37712</td></tr>
+<tr><td>MainNet RPC</td><td>37713</td></tr>
+<tr><td>TestNet</td><td>37714</td></tr>
+<tr><td>TestNet RPC</td><td>37715</td></tr>
+</table>
+
