@@ -5127,8 +5127,8 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Всички права запазени (c) 2015-%i PIVX Core разработчици</translation>
     </message>
     <message>
-        <source>Copyright (C) %i The PDG Core Developers</source>
-        <translation>Всички права запазени (c) %i PDG Core разработчици</translation>
+        <source>Copyright (C) 2018-%i The PDG Core Developers</source>
+        <translation>Всички права запазени (c) 2018-%i PDG Core разработчици</translation>
     </message>
     <message>
         <source>Corrupted block database detected</source>

@@ -3796,8 +3796,8 @@ https://www.transifex.com/pdg-project/pdg-project-translations</translation>
         <translation>Todos os direitos reservados (C) 2014-%i aos Desenvolvedores do Dash Core</translation>
     </message>
     <message>
-        <source>Copyright (C) %i The PDG Core Developers</source>
-        <translation>Todos os direitos reservados (C) %i aos Desenvolvedores do PDG Core</translation>
+        <source>Copyright (C) 2018-%i The PDG Core Developers</source>
+        <translation>Todos os direitos reservados (C) 2018-%i aos Desenvolvedores do PDG Core</translation>
     </message>
     <message>
         <source>Corrupted block database detected</source>
