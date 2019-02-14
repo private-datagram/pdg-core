@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
-// Copyright (c) 2018 The PDG developers
+// Copyright (c) 2018-2019 The PDG developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -3294,7 +3294,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (tx.IsCoinBase())
             continue;
         for (const CTxIn in: tx.vin) {
-            LogPrint("mempool", "mapStakeSpent: Insert %s at height %u\n", in.prevout.ToString(), pindex->nHeight);
+            LogPrint("mempool", "%s : mapStakeSpent: Insert %s at height %u\n", __func__, in.prevout.ToString(), pindex->nHeight);
             mapStakeSpent.insert(std::make_pair(in.prevout, pindex->nHeight));
         }
     }
@@ -3302,7 +3302,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     // delete old entries
     for (auto it = mapStakeSpent.begin(); it != mapStakeSpent.end();) {
         if (it->second < pindex->nHeight - Params().MaxReorganizationDepth()) {
-            LogPrint("mempool", "mapStakeSpent: Erase %s at height %u\n", it->first.ToString(), it->second);
+            LogPrint("mempool", "%s : mapStakeSpent: Erase %s at height %u\n", __func__, it->first.ToString(), it->second);
             it = mapStakeSpent.erase(it);
         }
         else {
@@ -4661,10 +4661,10 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
             for (CTxIn in : block.vtx[1].vin) {
                 auto it = mapStakeSpent.find(in.prevout);
                 if (it == mapStakeSpent.end()) {
-                    return false;
+                    return state.DoS(5, error("%s: mapStakeSpent: error: Stake spend not found on block %d prevout %u", __func__, it->second, in.prevout.n));
                 }
                 if (it->second <= pindexPrev->nHeight) {
-                    return false;
+                    return state.DoS(5, error("%s: mapStakeSpent: error: Early stake spend on block %d prevout %u", __func__, it->second, in.prevout.n));
                 }
             }
         }
@@ -4686,7 +4686,7 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
                             // if they spend the same input
                             if (stakeIn.prevout == in.prevout) {
                                 // reject the block
-                                return false;
+                                return state.DoS(5, error("%s: mapStakeSpent: error: Stake spend looks like double spend tx: %s prevout: %u", __func__, t.GetHash().ToString(), in.prevout.n));
                             }
                         }
                     }
