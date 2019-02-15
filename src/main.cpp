@@ -7461,8 +7461,8 @@ void RemoveFileRequestsByNode(const NodeId pNode) {
     }
 }
 
-FileRepositoryStateAjax getCDBFileRepositoryState() {
-    return fileRepositoryManager.getDBFileRepositoryState();
+FileRepositoryStateStats GetFileRepositoryStateStats() {
+    return fileRepositoryManager.GetFileRepositoryStateStats();
 }
 
 void RemoveHasFileRequestsByHash(const uint256 &hash) {

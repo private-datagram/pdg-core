@@ -293,8 +293,8 @@ extern UniValue getchaintips(const UniValue& params, bool fHelp);
 extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
 
-extern UniValue  getfilesyncstate(const UniValue& params, bool fHelp); // rpcfiles.cpp
-extern UniValue  getfilesrepstate(const UniValue& params, bool fHelp);
+extern UniValue getfilesyncstate(const UniValue& params, bool fHelp); // rpcfiles.cpp
+extern UniValue getfilesstatestats(const UniValue& params, bool fHelp);
 
 extern UniValue getpoolinfo(const UniValue& params, bool fHelp); // in rpcmasternode.cpp
 extern UniValue masternode(const UniValue& params, bool fHelp);

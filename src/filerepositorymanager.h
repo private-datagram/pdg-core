@@ -329,7 +329,7 @@ public:
 
     void ShrinkRecycledFiles();
 
-    FileRepositoryStateAjax getDBFileRepositoryState();
+    FileRepositoryStateStats GetFileRepositoryStateStats();
 
 };
 

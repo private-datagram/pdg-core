@@ -182,13 +182,13 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
         {TRY_LOCK(cs_main, isMain); isHeldMain = isMain;}
         {TRY_LOCK(cs_vNodes, isNodes); isHeldNodes = isNodes;}
 
-        lockList.push_back(Pair("RequiredFilesMap held", isHeldRequiredFilesMap));
-        lockList.push_back(Pair("FilesPendingMap held", isHeldFilesPendingMap));
-        lockList.push_back(Pair("FilesInFlightMap held", isHeldFilesInFlightMap));
-        lockList.push_back(Pair("HasFileRequestedNodesMap held", isHeldHasFileRequestedNodesMap));
-        lockList.push_back(Pair("FileRequestedNodesMap held", isHeldFileRequestedNodesMap));
-        lockList.push_back(Pair("Main held", isHeldMain));
-        lockList.push_back(Pair("vNode held", isHeldNodes));
+        lockList.push_back(Pair("RequiredFilesMap", !isHeldRequiredFilesMap));
+        lockList.push_back(Pair("FilesPendingMap", !isHeldFilesPendingMap));
+        lockList.push_back(Pair("FilesInFlightMap", !isHeldFilesInFlightMap));
+        lockList.push_back(Pair("HasFileRequestedNodesMap", !isHeldHasFileRequestedNodesMap));
+        lockList.push_back(Pair("FileRequestedNodesMap", !isHeldFileRequestedNodesMap));
+        lockList.push_back(Pair("Main", !isHeldMain));
+        lockList.push_back(Pair("vNodes", !isHeldNodes));
 
         obj.push_back(Pair("locks", lockList));
     }
@@ -196,27 +196,25 @@ UniValue getfilesyncstate(const UniValue& params, bool fHelp)
     return obj;
 }
 
-UniValue getfilesrepstate(const UniValue& params, bool fHelp)
+UniValue getfilesstatestats(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw runtime_error(
-                "getfilesrepstate\n"
+                "getfilesstatestats\n"
                 "\nReturns an object containing file repository sync state info.\n"
                 // TODO: print result struct
                 "\nExamples:\n" +
-                HelpExampleCli("getfilesrepstate", "") + HelpExampleRpc("getfilesrepstate", ""));
+                HelpExampleCli("getfilesstatestats", "") + HelpExampleRpc("getfilesstatestats", ""));
 
 
     UniValue obj(UniValue::VOBJ);
 
     {
-        //LOCK(cs_RequiredFilesMap);
-
-        FileRepositoryStateAjax repositoryState = getCDBFileRepositoryState();
+        FileRepositoryStateStats repositoryState = GetFileRepositoryStateStats();
 
         UniValue item(UniValue::VOBJ);
-        item.push_back(Pair("nTotalFileStorageSize", repositoryState.nTotalFileStorageSize));
-        item.push_back(Pair("nBlocksCount", (int) repositoryState.nBlocksCount));
+        item.push_back(Pair("totalFileStorageSize", repositoryState.nTotalFileStorageSize));
+        item.push_back(Pair("blocksCount", (int) repositoryState.nBlocksCount));
         item.push_back(Pair("filesCount", (int) repositoryState.filesCount));
         item.push_back(Pair("removeCandidatesTotalSize", repositoryState.removeCandidatesTotalSize));
         item.push_back(Pair("removeCandidatesFilesCount", (int) repositoryState.removeCandidatesFilesCount));
@@ -225,7 +223,6 @@ UniValue getfilesrepstate(const UniValue& params, bool fHelp)
         UniValue requiredFilesList(UniValue::VARR);
         requiredFilesList.push_back(item);
         obj.push_back(Pair("fileRepositoryState", requiredFilesList));
-
     }
 
     return obj;
