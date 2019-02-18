@@ -5167,8 +5167,8 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
         <translation>Copyright (C) 2015-%i The PIVX Core 개발자들</translation>
     </message>
     <message>
-        <source>Copyright (C) %i The PDG Core Developers</source>
-        <translation>Copyright (C) %i The PDG Core 개발자</translation>
+        <source>Copyright (C) 2018-%i The PDG Core Developers</source>
+        <translation>Copyright (C) 2018-%i The PDG Core 개발자</translation>
     </message>
     <message>
         <source>Corrupted block database detected</source>

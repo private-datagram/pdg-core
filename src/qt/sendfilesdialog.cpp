@@ -173,6 +173,7 @@ void SendFilesDialog::on_sendFileToAddressButton_clicked()
     QString strFunds = "";
     QString strFee = "";
     recipients[0].inputType = ALL_COINS;
+    recipients[0].useSwiftTX = ui->checkSwiftTX->isChecked();
 
     // Format confirmation message
     QStringList formatted;
@@ -555,7 +556,7 @@ void SendFilesDialog::on_tablePaymentRequests_doubleClicked(const QModelIndex &i
     SendCoinsRecipient recipient;
     recipient.address = QString::fromStdString(paymentAddress.ToString());
     recipient.amount = nAmount; // TODO: PDG1 ?
-    recipient.useSwiftTX = false;
+    recipient.useSwiftTX = ui->checkSwiftTX->isChecked(); // TODO: PDG3 make optional
     recipient.inputType = ALL_COINS;
     recipients.append(recipient);
     QString strFunds = "";

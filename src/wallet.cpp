@@ -5404,12 +5404,15 @@ void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
 
         LogPrint("%s : FILE_PAYMENT_CONFIRM transaction received. Adding transaction to maturation map. Tx hash: %s", __func__, tx.GetHash().ToString());
 
-        // TODO: check in walletdb before
-        CBlockIndex *blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
+        const CWalletTx* walletTx = GetWalletTx(tx.GetHash());
+        if (!walletTx) {
+            LogPrint("%s : FILE_PAYMENT_CONFIRM. Transaction not found in wallet db: %s", __func__, tx.GetHash().ToString());
+            return;
+        }
 
         {
             LOCK(cs_MapMaturationPaymentConfirmTransactions);
-            mapMaturationPaymentConfirmTransactions[tx.GetHash()] = CPaymentMatureTx(tx, blockIndex->nHeight);
+            mapMaturationPaymentConfirmTransactions[tx.GetHash()] = walletTx;
             SaveMaturationTransactions();
         }
 
@@ -5417,12 +5420,19 @@ void CWallet::ProcessFileTransaction(const CTransaction& tx, const CBlock* pbloc
     }
 }
 
+bool CWallet::IsFilePaymentTxConfirmed(const CBlock* pblock, const CWalletTx* walletTx) {
+    int depth = walletTx->GetDepthInMainChain(true);
+    if (depth >= FILE_PAYMENT_MATURITY) {
+        LogPrint("%s : FilePaymentTx confirmed. Depth: %d", __func__, depth);
+        return true;
+    }
+
+    return false;
+}
+
 bool CWallet::ProcessFileContract(const CBlock* pblock) {
     if (pblock == nullptr || mapMaturationPaymentConfirmTransactions.empty())
         return false;
-
-    CBlockIndex* blockIndex = mapBlockIndex.find(pblock->GetHash())->second;
-    int blockHeight = blockIndex->nHeight;
 
     LOCK(cs_MapMaturationPaymentConfirmTransactions);
 
@@ -5430,10 +5440,10 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
 
     for (auto it = mapMaturationPaymentConfirmTransactions.begin(); it != mapMaturationPaymentConfirmTransactions.end(); ) {
         // is the payment transaction confirmed
-        if (blockHeight >= (it->second.blockHeight + FILE_PAYMENT_MATURITY)) {
+        if (IsFilePaymentTxConfirmed(pblock, it->second)) {
             // TODO: PDG 3 implement statuses, if state_error don't remove transaction from map
-            if (!OnPaymentConfirmed(it->second.tx)) {
-                LogPrint("%s : Failed to process payment confirm for requestTxid - %s", __func__, it->second.tx.GetHash().ToString());
+            if (!OnPaymentConfirmed(it->second)) {
+                LogPrint("%s : Failed to process payment confirm for tx id: %s", __func__, it->second->GetHash().ToString());
                 it++;
                 continue;
             }
@@ -5453,23 +5463,16 @@ bool CWallet::ProcessFileContract(const CBlock* pblock) {
 }
 
 // TODO: add locks
-bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
-    if (tx.type != TX_FILE_PAYMENT_CONFIRM) {
-        LogPrint("%s : Invalid payment confirmation transaction type: %s", __func__, tx.type);
+bool CWallet::OnPaymentConfirmed(const CWalletTx* tx) {
+    if (tx->type != TX_FILE_PAYMENT_CONFIRM) {
+        LogPrint("%s : Invalid payment confirmation transaction type: %s", __func__, tx->type);
         return true;
     }
 
-    LogPrint("file", "%s : FILES. Payment confirm received. Tx hash: %s\n", __func__, tx.GetHash().ToString());
-
-    const std::map<uint256, CWalletTx>::iterator paymentTxIterator = mapWallet.find(tx.GetHash());
-    if (paymentTxIterator == mapWallet.end()) {
-        return error("%s : Failed to find wallet transaction - %s", __func__, tx.GetHash().ToString());
-    }
-
-    const CWalletTx &paymentTx = paymentTxIterator->second;
+    LogPrint("file", "%s : FILES. Payment confirm received. Tx hash: %s\n", __func__, tx->GetHash().ToString());
 
     // prepare data
-    const CPaymentConfirm *paymentConfirm = &tx.meta.get<CPaymentConfirm>();
+    const CPaymentConfirm *paymentConfirm = &tx->meta.get<CPaymentConfirm>();
 
     CWalletDB walletDB(strWalletFile);
 
@@ -5508,9 +5511,9 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
 
     const CPaymentRequest &paymentRequest = paymentRequestTx.meta.get<CPaymentRequest>();
 
-    CAmount receivedAmount = paymentTx.GetCredit(ISMINE_ALL) - paymentTx.GetDebit(ISMINE_ALL);
+    CAmount receivedAmount = tx->GetCredit(ISMINE_ALL) - tx->GetDebit(ISMINE_ALL);
     if (receivedAmount < paymentRequest.nPrice) {
-        return error("%s : Insufficiently amount received for tx - %s. File price: %d. valueOut: %d. Received: %d", __func__, tx.GetHash().ToString(), paymentRequest.nPrice, tx.GetValueOut(), receivedAmount);
+        return error("%s : Insufficiently amount received for tx - %s. File price: %d. valueOut: %d. Received: %d", __func__, tx->GetHash().ToString(), paymentRequest.nPrice, tx->GetValueOut(), receivedAmount);
     }
 
     // TODO: PDG4 check LifeTime
@@ -5547,7 +5550,7 @@ bool CWallet::OnPaymentConfirmed(const CTransaction& tx) {
     crypto::aes::GenerateAESKey(key);
 
     CFileMeta fileMeta;
-    if (!PrepareMeta(inputFile, filename, key, paymentConfirm->vfPublicKey, tx.GetHash(), fileMeta)) {
+    if (!PrepareMeta(inputFile, filename, key, paymentConfirm->vfPublicKey, tx->GetHash(), fileMeta)) {
         return error("%s : Failed to prepare meta for requestTxid - %s", __func__, paymentConfirm->requestTxid.ToString());
     }
 

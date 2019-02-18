@@ -745,6 +745,16 @@ void CFileRepositoryManager::ShrinkRecycledFiles() {
     LogPrint("file", "%s - FILES. Process diskfile erase scheduler finish. FileRepositoryState: %s.\n", __func__, dbFileRepositoryState.ToString());
 }
 
+FileRepositoryStateStats CFileRepositoryManager::GetFileRepositoryStateStats() {
+    return FileRepositoryStateStats(
+            dbFileRepositoryState.removedFilesSizeShrinkPercent,
+            dbFileRepositoryState.nTotalFileStorageSize,
+            dbFileRepositoryState.nBlocksCount,
+            dbFileRepositoryState.filesCount,
+            dbFileRepositoryState.removeCandidatesTotalSize,
+            dbFileRepositoryState.removeCandidatesFilesCount);
+}
+
 uint32_t CFileRepositoryManager::GetRepositoryFileSize(const CDBFile &file) {
     uint32_t dbFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
     return dbFileSize + MESSAGE_START_SIZE + sizeof(unsigned int);

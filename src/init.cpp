@@ -587,7 +587,7 @@ std::string LicenseInfo()
            "\n" +
            FormatParagraph(strprintf(_("Copyright (C) 2015-%i The PIVX Core Developers"), 2018)) + "\n" +
            "\n" +
-           FormatParagraph(strprintf(_("Copyright (C) %i The PDG Core Developers"), COPYRIGHT_YEAR)) + "\n" +
+           FormatParagraph(strprintf(_("Copyright (C) 2018-%i The PDG Core Developers"), COPYRIGHT_YEAR)) + "\n" +
            "\n" +
            FormatParagraph(_("This is experimental software.")) + "\n" +
            "\n" +
@@ -1712,7 +1712,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             // Inititalize file maturation transactions
             LogPrint("file", "%s - FILES. Loading maturation payment confirm transactions from DB.\n", __func__);
             uiInterface.InitMessage(_("Loading files data wallet..."));
-            if (!walletdb.ReadMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
+            if (!walletdb.ReadMaturationPaymentConfirmTx(pwalletMain, mapMaturationPaymentConfirmTransactions)) {
                 strErrors << _("Error loading maturation payment confirm transactions database") << "\n";
                 LogPrint("file", "%s - FILES. Error loading maturation payment confirm transactions database.\n", __func__);
                 return InitError(strErrors.str());

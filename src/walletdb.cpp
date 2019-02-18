@@ -1635,20 +1635,47 @@ bool CWalletDB::EraseWalletFileTxSent(const uint256& hashPaymentRequestTx) {
     return Erase(make_pair(string("wftxis"), hashPaymentRequestTx));
 }
 
-bool CWalletDB::WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx) {
-    std::vector<pair<uint256, CPaymentMatureTx>> flatData;
-    mapToVectorPair(mapMaturationPaymentConfirmTx, flatData);
-    return Write(string("wmpct"), flatData);
-}
-
-bool CWalletDB::ReadMaturationPaymentConfirmTx(map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx) {
-    std::vector<pair<uint256, CPaymentMatureTx>> flatData;
-    if (!Read(string("wmpct"), flatData)) {
-        //create new and return true.
-        return Write(string("wmpct"), flatData);
+bool CWalletDB::WriteMaturationPaymentConfirmTx(const map<uint256, const CWalletTx*> &mapMaturationPaymentConfirmTx) {
+    std::vector<uint256> maturationTxes;
+    for (auto it = mapMaturationPaymentConfirmTx.begin(); it != mapMaturationPaymentConfirmTx.end(); it++) {
+        maturationTxes.emplace_back(it->first);
     }
 
-    vectorPairToMap(flatData, mapMaturationPaymentConfirmTx);
+    return Write(string("wmpct2"), maturationTxes);
+}
+
+bool CWalletDB::ReadMaturationPaymentConfirmTx(const CWallet* pwallet, map<uint256, const CWalletTx*> &mapMaturationPaymentConfirmTx) {
+    std::vector<uint256> flatMaturationTxes;
+
+    // capability with old version data
+    // TODO: remove when everyone update
+    if (!Read(string("wmpct2"), flatMaturationTxes)) {
+        // Try read old data
+        std::vector<pair<uint256, CPaymentMatureTx>> flatOldData;
+        bool hasOldData = Read(string("wmpct"), flatOldData);
+        if (hasOldData) {
+            LogPrintf("%s : Read old data success %d records. Migrating\n", __func__, flatOldData.size());
+
+            for (auto it = flatOldData.begin(); it != flatOldData.end(); it++) {
+                flatMaturationTxes.emplace_back(it->first);
+            }
+
+            Erase(string("wmpct")); // erase old
+        }
+
+        // write new
+        Write(string("wmpct2"), flatMaturationTxes);
+    }
+
+    for (std::vector<uint256>::iterator it = flatMaturationTxes.begin(); it != flatMaturationTxes.end(); it++) {
+        const uint256& txHash = (*it);
+        const CWalletTx* walletTx = pwallet->GetWalletTx(txHash);
+        if (!walletTx) {
+            LogPrintf("%s : Failed to find wallet tx\n", __func__);
+            continue;
+        }
+        mapMaturationPaymentConfirmTx[txHash] = walletTx;
+    }
 
     return true;
 }

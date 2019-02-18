@@ -195,9 +195,10 @@ private:
     void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
 
     void ProcessFileTransaction(const CTransaction& tx, const CBlock* pblock);
-    bool OnPaymentConfirmed(const CTransaction& tx);
+    bool OnPaymentConfirmed(const CWalletTx* tx);
 
     bool SendFileTx(const CFile& file, const CFileMeta& fileMeta, const CTxDestination& dest, uint256& outFileTxHash);
+    bool IsFilePaymentTxConfirmed(const CBlock* pblock, const CWalletTx* walletTx);
 
 public:
     bool MintableCoins();

@@ -126,7 +126,7 @@
          <number>6</number>
         </property>
         <item>
-         <widget class="QFrame" name="frame2">
+         <widget class="QFrame" name="frameFileSend">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -163,22 +163,21 @@
              <layout class="QVBoxLayout" name="verticalLayout_5">
               <item>
                <layout class="QGridLayout" name="gridLayout">
-                <item row="6" column="2">
-                 <widget class="QLineEdit" name="descriptionField">
-                  <property name="placeholderText">
-                   <string>Description message (viewed publicly)</string>
+                <item row="4" column="2">
+                 <widget class="BitcoinAmountField" name="priceField">
+                  <property name="minimumSize">
+                   <size>
+                    <width>80</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>File price</string>
                   </property>
                  </widget>
                 </item>
-                <item row="7" column="0">
-                 <widget class="QLabel" name="label_4">
-                  <property name="text">
-                   <string/>
-                  </property>
-                 </widget>
-                </item>
-                <item row="5" column="0">
-                 <widget class="QLabel" name="label_3">
+                <item row="6" column="0">
+                 <widget class="QLabel" name="descriptionLabel">
                   <property name="font">
                    <font>
                     <weight>75</weight>
@@ -189,10 +188,57 @@
                    <string notr="true">font-weight:bold;</string>
                   </property>
                   <property name="text">
-                   <string>Send To:</string>
+                   <string>Description:</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="2">
+                 <widget class="QValidatedLineEdit" name="addressField">
+                  <property name="toolTip">
+                   <string>The PDG address to send the file to</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="2">
+                 <layout class="QHBoxLayout" name="horizontalLayout_3">
+                  <item>
+                   <widget class="QLineEdit" name="fileNameField">
+                    <property name="placeholderText">
+                     <string>Input file path or use &quot;Select file&quot; button</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="uploadFile">
+                    <property name="text">
+                     <string>Select file</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLabel" name="label_2">
+                  <property name="font">
+                   <font>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">font-weight:bold;</string>
+                  </property>
+                  <property name="text">
+                   <string>Upload file:</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                  <property name="buddy">
+                   <cstring>fileNameField</cstring>
                   </property>
                  </widget>
                 </item>
@@ -218,16 +264,29 @@
                   </property>
                  </widget>
                 </item>
-                <item row="4" column="2">
-                 <widget class="BitcoinAmountField" name="priceField">
-                  <property name="minimumSize">
-                   <size>
-                    <width>80</width>
-                    <height>0</height>
-                   </size>
+                <item row="5" column="0">
+                 <widget class="QLabel" name="label_3">
+                  <property name="font">
+                   <font>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
                   </property>
-                  <property name="toolTip">
-                   <string>File price</string>
+                  <property name="styleSheet">
+                   <string notr="true">font-weight:bold;</string>
+                  </property>
+                  <property name="text">
+                   <string>Send To:</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="2">
+                 <widget class="QLineEdit" name="descriptionField">
+                  <property name="placeholderText">
+                   <string>Description message (viewed publicly)</string>
                   </property>
                  </widget>
                 </item>
@@ -274,6 +333,9 @@
                    </widget>
                   </item>
                   <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_2"/>
+                  </item>
+                  <item>
                    <spacer name="horizontalSpacer">
                     <property name="orientation">
                      <enum>Qt::Horizontal</enum>
@@ -286,71 +348,25 @@
                     </property>
                    </spacer>
                   </item>
-                 </layout>
-                </item>
-                <item row="3" column="0">
-                 <widget class="QLabel" name="label_2">
-                  <property name="font">
-                   <font>
-                    <weight>75</weight>
-                    <bold>true</bold>
-                   </font>
-                  </property>
-                  <property name="styleSheet">
-                   <string notr="true">font-weight:bold;</string>
-                  </property>
-                  <property name="text">
-                   <string>Upload file:</string>
-                  </property>
-                  <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                  </property>
-                  <property name="buddy">
-                   <cstring>fileNameField</cstring>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="2">
-                 <layout class="QHBoxLayout" name="horizontalLayout_3">
                   <item>
-                   <widget class="QLineEdit" name="fileNameField">
-                    <property name="placeholderText">
-                     <string>Input file path or use &quot;Select file&quot; button</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="uploadFile">
+                   <widget class="QCheckBox" name="checkSwiftTX">
                     <property name="text">
-                     <string>Select file</string>
+                     <string>Use SwiftX (fast confirmations, extra fee)</string>
+                    </property>
+                    <property name="checked">
+                     <bool>true</bool>
+                    </property>
+                    <property name="autoExclusive">
+                     <bool>false</bool>
                     </property>
                    </widget>
                   </item>
                  </layout>
                 </item>
-                <item row="5" column="2">
-                 <widget class="QValidatedLineEdit" name="addressField">
-                  <property name="toolTip">
-                   <string>The PDG address to send the file to</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="6" column="0">
-                 <widget class="QLabel" name="descriptionLabel">
-                  <property name="font">
-                   <font>
-                    <weight>75</weight>
-                    <bold>true</bold>
-                   </font>
-                  </property>
-                  <property name="styleSheet">
-                   <string notr="true">font-weight:bold;</string>
-                  </property>
+                <item row="7" column="0">
+                 <widget class="QLabel" name="label_4">
                   <property name="text">
-                   <string>Description:</string>
-                  </property>
-                  <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   <string/>
                   </property>
                  </widget>
                 </item>
@@ -363,7 +379,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QFrame" name="frame">
+         <widget class="QFrame" name="frameFileTabs">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -545,15 +561,15 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>QValidatedLineEdit</class>
+   <extends>QLineEdit</extends>
+   <header>qvalidatedlineedit.h</header>
+  </customwidget>
+  <customwidget>
    <class>BitcoinAmountField</class>
    <extends>QLineEdit</extends>
    <header>bitcoinamountfield.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>QValidatedLineEdit</class>
-   <extends>QLineEdit</extends>
-   <header>qvalidatedlineedit.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>

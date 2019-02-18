@@ -60,6 +60,7 @@ class CInv;
 class CScriptCheck;
 class CValidationInterface;
 class CValidationState;
+class CWalletTx;
 
 struct CBlockTemplate;
 struct CNodeStateStats;
@@ -242,6 +243,31 @@ struct RequiredFile {
     bool IsNull() const { return (fileExpirationTime == 0); }
 };
 
+struct FileRepositoryStateStats {
+public:
+    const int removedFilesSizeShrinkPercent;
+
+    uint64_t nTotalFileStorageSize;           //! number of bytes of all files stored
+    unsigned int nBlocksCount;                //! number of block files
+    unsigned int filesCount;                  //! number of all files in all blocks
+
+    uint64_t removeCandidatesTotalSize;       //! number of bytes of all mark remove files in db
+    unsigned int removeCandidatesFilesCount;  //! number of mark removed files in db
+
+    FileRepositoryStateStats(int removedFilesSizeShrinkPercent,
+                            uint64_t nTotalFileStorageSize,
+                            unsigned int nBlocksCount,
+                            unsigned int filesCount,
+                            uint64_t removeCandidatesTotalSize,
+                            unsigned int removeCandidatesFilesCount) :
+            removedFilesSizeShrinkPercent(removedFilesSizeShrinkPercent),
+            nTotalFileStorageSize(nTotalFileStorageSize),
+            nBlocksCount(nBlocksCount),
+            filesCount(filesCount),
+            removeCandidatesTotalSize(removeCandidatesTotalSize),
+            removeCandidatesFilesCount(removeCandidatesFilesCount) {}
+};
+
 struct FileRequest {
     NodeId node;
     int64_t date;
@@ -333,7 +359,7 @@ extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
+extern std::map<uint256, const CWalletTx*> mapMaturationPaymentConfirmTransactions;
 extern CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
@@ -498,6 +524,8 @@ void RemoveKnownFileHashesByNode(const NodeId peer);
 
 void RemoveHasFileRequestsByHash(const uint256& hash);
 void RemoveHasFileRequestsByHash(const NodeId peer);
+
+FileRepositoryStateStats GetFileRepositoryStateStats();
 
 int GetInputAge(CTxIn& vin);
 int GetInputAgeIX(uint256 nTXHash, CTxIn& vin);

@@ -14,6 +14,7 @@
 #include "tinyformat.h"
 #include "uint256.h"
 #include "validationstate.h"
+#include "main.h"
 
 #include <algorithm>
 #include <exception>
@@ -327,6 +328,8 @@ public:
     void FindAndRecycleExpiredFiles();
 
     void ShrinkRecycledFiles();
+
+    FileRepositoryStateStats GetFileRepositoryStateStats();
 
 };
 
