@@ -2,7 +2,6 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
-// Copyright (c) 2018 The PDG developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -29,7 +28,6 @@
 #include "sporkdb.h"
 #include "swifttx.h"
 #include "txdb.h"
-#include "db.h"
 #include "txmempool.h"
 #include "ui_interface.h"
 #include "util.h"
@@ -39,7 +37,6 @@
 #include "primitives/zerocoin.h"
 #include "libzerocoin/Denominations.h"
 #include "invalid.h"
-#include "filerepositorymanager.h"
 
 #include <sstream>
 
@@ -54,7 +51,7 @@ using namespace std;
 using namespace libzerocoin;
 
 #if defined(NDEBUG)
-#error "PDG cannot be compiled without assertions."
+#error "PIVX cannot be compiled without assertions."
 #endif
 
 // 6 comes from OPCODE (1) + vch.size() (1) + BIGNUM size (4)
@@ -89,16 +86,11 @@ bool fAlerts = DEFAULT_ALERTS;
 unsigned int nStakeMinAge = 60 * 60;
 int64_t nReserveBalance = 0;
 
-CFileRepositoryManager fileRepositoryManager(REMOVED_FILES_SIZE_SHRINK_PERCENT);
-
-
 /** Fees smaller than this (in upiv) are considered zero fee (for relaying and mining)
  * We are ~100 times smaller then bitcoin now (2015-06-23), set minRelayTxFee only 10 times higher
  * so it's still 10 times lower comparing to bitcoin.
  */
 CFeeRate minRelayTxFee = CFeeRate(10000);
-
-CFileFeeRate minFileFee = CFileFeeRate(50);
 
 CTxMemPool mempool(::minRelayTxFee);
 
@@ -110,18 +102,15 @@ map<uint256, COrphanTx> mapOrphanTransactions;
 map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
+map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions; // TODO: PDG make beautiful
 
-map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
-CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
+//std::vector<FilePending> vPendingReceiveFile;
 
-template <typename Item> Item* FindByNodeIn(const vector<Item> &items, const NodeId nodeId);
+
 
 void EraseOrphansFor(NodeId peer);
 
 static void CheckBlockIndex();
-CNode *FindFreeNode(const set<NodeId> &nodes);
-void RemoveHasFileRequestsByNode(const NodeId pNode);
-void RemoveFileRequestsByNode(const NodeId pNode);
 
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
@@ -168,6 +157,10 @@ CCriticalSection cs_LastBlockFile;
 std::vector<CBlockFileInfo> vinfoBlockFile;
 int nLastBlockFile = 0;
 
+// FileBlock meta
+CCriticalSection cs_LastFileBlockFile;
+std::vector<CFileBlockFileInfo> vinfoFileBlockFile;
+int nLastFileDiskFile = 0;
 
 /**
      * Every received block is assigned a unique and increasing identifier, so we
@@ -183,6 +176,8 @@ uint32_t nBlockSequenceId = 1;
      */
 map<uint256, NodeId> mapBlockSource;
 
+CCriticalSection cs_PendingReceiveFile;
+
 /** Blocks that are in flight, and that are in the queue to be downloaded. Protected by cs_main. */
 struct QueuedBlock {
     uint256 hash;
@@ -193,8 +188,27 @@ struct QueuedBlock {
 };
 map<uint256, pair<NodeId, list<QueuedBlock>::iterator> > mapBlocksInFlight;
 
+struct QueuedFile {
+    NodeId nodeId;
+    uint256 fileHash;
+    int64_t nTime;              //! Time of "getdata" request in microseconds.
 
+    QueuedFile(const uint256 &fileHash, const NodeId nodeId, const int64_t nTime) : fileHash(fileHash), nodeId(nodeId), nTime(nTime) {}
+};
 
+struct FilePending {
+    uint256 fileTxHash;
+
+    //nodes contains file
+    set<NodeId> nodes;
+
+    //! Since when we're put file to map (in microseconds)
+//    int64_t nPendingSince;
+    int64_t timeout;
+
+    FilePending() : fileTxHash(0), nodes(), timeout(0) {}
+    FilePending(const uint256 &fileTxHash, const set<NodeId> &nodes, const int64_t timeout) : fileTxHash(fileTxHash), nodes(nodes), timeout(timeout) {}
+};
 
 struct FileKnown {
     NodeId node;
@@ -206,14 +220,15 @@ struct FileKnown {
     FileKnown(const NodeId node, const int events) : node(node), events(events) {}
 };
 
-typedef map<uint256, pair<int64_t,std::vector<FileKnown>>> KnownHasFilesMap;
-KnownHasFilesMap knownHasFilesMap;
-CCriticalSection cs_KnownHasFilesMap;
+map<uint256, FilePending> filesPendingMap;
+map<uint256, QueuedFile> filesInFlightMap;
+map<uint256, pair<int64_t, vector<FileKnown>>> knownHasFilesMap;
+map<uint256, int64_t> requiredFilesMap;
+map<uint256,vector<NodeId>> hasFileRequestedNodesMap;
+mruset<uint256> knownFilesInDb(KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT);
 
-mruset<uint256> knownFileTxesInDb(KNOWN_FILES_IN_LOCAL_BASE_CASH_COUNT);
-CCriticalSection cs_KnownFileTxesInDb;
-
-list<pair<uint256, NodeId>> fileRequestsOrder;
+map<uint256, pair<NodeId, vector<QueuedFile>>> mapReceiveFilesInFlight;
+//map<uint256, pair<NodeId, vector<QueuedFile>>> mapSendFilesInFlight;
 
 /** Number of blocks in flight with validated headers. */
 int nQueuedValidatedHeaders = 0;
@@ -228,22 +243,6 @@ set<CBlockIndex*> setDirtyBlockIndex;
 /** Dirty block file entries. */
 set<int> setDirtyFileInfo;
 } // anon namespace
-
-map<uint256, FilePending> filesPendingMap;
-CCriticalSection cs_FilesPendingMap;
-
-map<uint256, QueuedFile> filesInFlightMap;
-CCriticalSection cs_FilesInFlightMap;
-
-map<uint256, RequiredFile> requiredFilesMap;
-CCriticalSection cs_RequiredFilesMap;
-
-map<uint256, std::vector<FileRequest>> hasFileRequestedNodesMap;
-CCriticalSection cs_HasFileRequestedNodesMap;
-
-typedef map<uint256, map<NodeId, FileRequest>> FileRequestMap;
-FileRequestMap fileRequestedNodesMap;
-CCriticalSection cs_FileRequestedNodesMap;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -542,6 +541,182 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<CBl
     }
 }
 
+
+//FilePending* GetFileReceivePending(const uint256& fileTxHash) {
+//    // TODO: optimize search
+//    for(std::vector<FilePending>::iterator it = vPendingReceiveFile.begin(); it != vPendingReceiveFile.end(); ++it) {
+//        if (it->fileHash == hash) {
+//            return &(*it);
+//        }
+//    }
+
+//    return nullptr;
+//}
+
+//bool IsFileReceivePending(const uint256& fileTxHash) {
+//    // TODO: lock needed?
+//    return GetFileReceivePending(fileTxHash) != nullptr;
+//}
+
+//void AddFileReceivePending(const uint256& fileTxhash, NodeId fromPeer) {
+//    LOCK(cs_PendingReceiveFile);
+
+//    FilePending *filePending = GetFileReceivePending(fileTxhash);
+
+//    // insert new
+//    if (filePending == nullptr) {
+//        //todo: сделать статус загрузки файла.
+//        vPendingReceiveFile.emplace_back(FilePending(fileTxhash, fromPeer, GetTimeMicros()));
+//        return;
+//    }
+
+//    // update data.
+//    if (filePending->nodeId == -1 && fromPeer != -1)
+//        filePending->nodeId = fromPeer;
+//}
+
+    void RemoveKnownFileHashesByNode(NodeId peer) {
+        vector <uint256> foundHashes;
+
+        //TODOL продолжить здесь.переделать FileKnown на vector<FileKnown>
+        //
+        for (std::map<uint256, pair<int64_t, vector < FileKnown>>>::const_iterator it = knownHasFilesMap.begin();
+                it != knownHasFilesMap.end(); it++) {
+            if (it->second.node != peer)
+                continue;
+
+            foundHashes.emplace_back(it->first);
+        }
+
+        for (std::vector<uint256>::const_iterator it = foundHashes.begin(); it != foundHashes.end(); it++) {
+            RemoveKnownFileHashesByHash(*it);
+        }
+    }
+
+void RemoveKnownFileHashesByHash(uint256& hash) {
+    knownHasFilesMap.erase(hash);
+}
+
+//void RemoveFileReceivePending(const FilePending& filePending) {
+//    vPendingReceiveFile.erase(std::remove(std::begin(vPendingReceiveFile), std::end(vPendingReceiveFile), filePending), std::end(vPendingReceiveFile));
+//}
+
+void RemoveFileReceivePendingByHash(uint256& hash) {
+    LOCK(cs_PendingReceiveFile);
+
+    FilePending filePending;
+    if (GetFileReceivePending(filePending, hash))
+        RemoveFileReceivePending(filePending);
+}
+
+void ProcessFileReceivePending() {
+//    map<uint256, FilePending> filesPendingMap;
+
+    for (std::map<uint256, FilePending>::const_iterator filePending = filesPendingMap.begin(); filePending != filesPendingMap.end(); filePending++) {
+        uint256 &fileHash = filePending->first;
+
+        if (filesInFlightMap.count(fileHash)) {
+            QueuedFile fileInFlight = filesInFlightMap[fileHash];
+            if (fileInFlight.nTime + FILE_STALLING_TIMEOUT > GetTimeMicros()) {
+                // resend file, change node id
+                filePending->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
+
+                // TODO: если больше нодов нет?
+
+                // и запрашиваем у нового
+                const NodeId newNode = filePending->second.nodes[0];
+                CNode* pNode = FindNode(newNode);
+                vector<NodeId> vnodesFileInFlight;
+                FileRequest(fileHash, vnodesFileInFlight, pNode);
+                QueuedFile queuedFile(fileHash, pNode->id, GetTimeMicros());
+                filesInFlightMap[fileHash] =  queuedFile// переписываем существующий объект
+            }
+            continue;
+        }
+
+        if (filesInFlightMap.size() > MAX_FILES_IN_TRANSIT_PER_PEER)
+            continue;
+
+        const NodeId newNode = filePending->second.nodes[0];
+        vector<NodeId> vnodesFileInFlight;
+        CNode* node = node = FindNode(newNode);
+        vector<NodeId> vnodesFileInFlight;
+        FileRequest(fileHash, vnodesFileInFlight, node);
+        QueuedFile queuedFile(fileHash, node->id, GetTimeMicros());
+        filesInFlightMap.insert(std::make_pair(fileHash, CNodeState()), queuedFile);
+    }
+
+    processRequiredFiles();
+    processKnownHashes();
+}
+
+void processRequiredFiles() {
+    for (std::map<uint256, int64_t>::const_iterator requiredFile = requiredFilesMap.begin(); requiredFile != requiredFilesMap.end(); requiredFile++) {
+        uint256 &fileHash = requiredFile->first;
+
+        if (filesPendingMap.count(fileHash )) continue;
+
+        if (knownHasFilesMap.count(fileHash)) {
+            vector<FileKnown> fileKnown = knownHasFilesMap[fileHash].second;
+
+            FilePending filePending;
+
+            //todo: fileKnown iter?
+            filePending.nodes.insert(fileKnown[0].node);
+            filePending.fileTxHash = fileHash;
+            filePending.timeout = GetTimeMicros();// calcFileTimeout
+            filesPendingMap.insert(std::make_pair(fileHash, filePending));
+            continue;
+        }
+
+        // если не получили ответ за заданное время,
+        // бродкастим сообщение всем еще раз, обновляем таймаут
+        if (requiredFile->second > GetTimeMicros()) {
+            broadcastHasFileRequest(fileHash);
+            requiredFile->second = GetTimeMicros(); // calcRequiredFileExpirationDate();
+        }
+    }
+}
+
+void processKnownHashes() {
+    for (std::map<uint256, pair<int64_t, vector<FileKnown>>>::const_iterator knownHasFile = knownHasFilesMap.begin();
+         knownHasFile != knownHasFilesMap.end(); knownHasFile++) {
+        BOOST_FOREACH (const vector<FileKnown> fileKnown, knownHasFile->second) {
+                        if (CountNotRequiredHashesByNode(knownHasFile->first, fileKnown.node) >
+                            TOTAL_HASHES_PER_NODE_THRESHOLD) {
+//                    fileKnown.node
+                            node.Misbehaving();
+                            RemoveKnownHashesByNode(node);
+                            return;
+                        }
+                    }
+
+        uint256 &fileHash = knownHasFile->first;
+        if (knownHasFile->second.second > GetTimeMicros()) {
+            RemoveKnownFileHashesByHash(fileHash);
+            //TODO: под вопросом, может проверить есть ли транзакция, если нет то node.Misbehaving()
+            continue;
+        }
+
+        // TODO: под вопросом, может быть дешевле не делать проверку, по таймауту отвалится
+        if (IsFileExist(fileHash))
+            RemoveKnownFileHashesByHash(fileHash);
+
+    }
+}
+
+int CountNotRequiredHashesByNode(uint256& hash, NodeId id) {
+    if (!knownHasFilesMap.count(hash)) return 0;
+
+    vector<FileKnown> *vFileKnown = knownHasFilesMap[hash].second;
+    BOOST_FOREACH (const vector<FileKnown> fileKnown, vFileKnown) {
+        if (fileKnown.node == id)
+            return fileKnown.events;
+    }
+
+    return 0;
+}
+
 } // anon namespace
 
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats& stats)
@@ -565,14 +740,9 @@ void RegisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.connect(&GetHeight);
     nodeSignals.ProcessMessages.connect(&ProcessMessages);
     nodeSignals.SendMessages.connect(&SendMessages);
-
-    nodeSignals.ProcessFilesPendingScheduler.connect(&ProcessFilesPendingScheduler);
-    nodeSignals.ProcessFilesRequestsScheduler.connect(&ProcessFilesRequestsScheduler);
-    nodeSignals.ProcessMarkRemoveFilesScheduler.connect(&ProcessMarkRemoveFilesScheduler);
-    nodeSignals.ProcessFilesEraseScheduler.connect(&ProcessFilesEraseScheduler);
-
+    nodeSignals.SendFileMessages.connect(&SendFileMessages);
+    nodeSignals.ProcessFileReceivePending.connect(&ProcessFileReceivePending);
     nodeSignals.SendFileAvailable.connect(&SendFileAvailable);
-    nodeSignals.SendHasFileRequest.connect(&SendHasFileRequest);
     nodeSignals.InitializeNode.connect(&InitializeNode);
     nodeSignals.FinalizeNode.connect(&FinalizeNode);
 }
@@ -582,14 +752,9 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
     nodeSignals.GetHeight.disconnect(&GetHeight);
     nodeSignals.ProcessMessages.disconnect(&ProcessMessages);
     nodeSignals.SendMessages.disconnect(&SendMessages);
-
-    nodeSignals.ProcessFilesPendingScheduler.disconnect(&ProcessFilesPendingScheduler);
-    nodeSignals.ProcessFilesRequestsScheduler.disconnect(&ProcessFilesRequestsScheduler);
-    nodeSignals.ProcessMarkRemoveFilesScheduler.disconnect(&ProcessMarkRemoveFilesScheduler);
-    nodeSignals.ProcessFilesEraseScheduler.disconnect(&ProcessFilesEraseScheduler);
-
+    nodeSignals.SendFileMessages.disconnect(&SendFileMessages);
+    nodeSignals.ProcessFileReceivePending.disconnect(&ProcessFileReceivePending);
     nodeSignals.SendFileAvailable.disconnect(&SendFileAvailable);
-    nodeSignals.SendHasFileRequest.disconnect(&SendHasFileRequest);
     nodeSignals.InitializeNode.disconnect(&InitializeNode);
     nodeSignals.FinalizeNode.disconnect(&FinalizeNode);
 }
@@ -768,7 +933,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER && tx.type != TX_FILE_PAYMENT_REQUEST && tx.type != TX_FILE_PAYMENT_CONFIRM) { // TODO: make safe
+        } else if (txout.IsDust(::minRelayTxFee) && tx.type != TX_FILE_TRANSFER) { // TODO: make safe
             reason = "dust";
             return false;
         }
@@ -795,24 +960,10 @@ bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
         nBlockTime = GetAdjustedTime();
     if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
         return true;
-
-    if (IsFreezeTx(tx, nBlockHeight, nBlockTime))
-        return false;
-
     BOOST_FOREACH (const CTxIn& txin, tx.vin)
-    if (!txin.IsFinal())
-        return false;
-
+        if (!txin.IsFinal())
+            return false;
     return true;
-}
-
-// PDG premine freeze deposit.
-bool IsFreezeTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime) {
-    // Ignore check before transactions created to avoid ban on first check
-    if (nBlockHeight < 150)
-        return false;
-
-    return Params().PremineFreezeTxes().count(tx.GetHash()) > 0;
 }
 
 /**
@@ -1335,8 +1486,7 @@ bool ContextualCheckZerocoinMint(const CTransaction& tx, const PublicCoin& coin,
     if (pindex->nHeight >= Params().Zerocoin_Block_V2_Start() && Params().NetworkID() != CBaseChainParams::TESTNET) {
         //See if this coin has already been added to the blockchain
         uint256 txid;
-        int nHeight;
-        if (zerocoinDB->ReadCoinMint(coin.getValue(), txid) && IsTransactionInChain(txid, nHeight))
+        if(zerocoinDB->ReadCoinMint(coin.getValue(), txid))
             return error("%s: pubcoin %s was already accumulated in tx %s", __func__,
                          coin.getValue().GetHex().substr(0, 10),
                          txid.GetHex());
@@ -1347,16 +1497,16 @@ bool ContextualCheckZerocoinMint(const CTransaction& tx, const PublicCoin& coin,
 
 bool ContextualCheckZerocoinSpend(const CTransaction& tx, const CoinSpend& spend, CBlockIndex* pindex, const uint256& hashBlock)
 {
-    //Check to see if the zPDG is properly signed
+    //Check to see if the zPIV is properly signed
     if (pindex->nHeight >= Params().Zerocoin_Block_V2_Start()) {
         if (!spend.HasValidSignature())
-            return error("%s: V2 zPDG spend does not have a valid signature", __func__);
+            return error("%s: V2 zPIV spend does not have a valid signature", __func__);
 
         libzerocoin::SpendType expectedType = libzerocoin::SpendType::SPEND;
         if (tx.IsCoinStake())
             expectedType = libzerocoin::SpendType::STAKE;
         if (spend.getSpendType() != expectedType) {
-            return error("%s: trying to spend zPDG without the correct spend type. txid=%s", __func__,
+            return error("%s: trying to spend zPIV without the correct spend type. txid=%s", __func__,
                          tx.GetHash().GetHex());
         }
     }
@@ -1364,13 +1514,14 @@ bool ContextualCheckZerocoinSpend(const CTransaction& tx, const CoinSpend& spend
     //Reject serial's that are already in the blockchain
     int nHeightTx = 0;
     if (IsSerialInBlockchain(spend.getCoinSerialNumber(), nHeightTx))
-        return error("%s : zPDG spend with serial %s is already in block %d\n", __func__,
+        return error("%s : zPIV spend with serial %s is already in block %d\n", __func__,
                      spend.getCoinSerialNumber().GetHex(), nHeightTx);
 
     //Reject serial's that are not in the acceptable value range
     bool fUseV1Params = spend.getVersion() < libzerocoin::PrivateCoin::PUBKEY_VERSION;
-    if (!spend.HasValidSerial(Params().Zerocoin_Params(fUseV1Params)))
-        return error("%s : zPDG spend with serial %s from tx %s is not in valid range\n", __func__,
+    if (pindex->nHeight > Params().Zerocoin_Block_EnforceSerialRange() &&
+        !spend.HasValidSerial(Params().Zerocoin_Params(fUseV1Params)))
+        return error("%s : zPIV spend with serial %s from tx %s is not in valid range\n", __func__,
                      spend.getCoinSerialNumber().GetHex(), tx.GetHash().GetHex());
 
     return true;
@@ -1381,7 +1532,7 @@ bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidati
     //max needed non-mint outputs should be 2 - one for redemption address and a possible 2nd for change
     if (tx.vout.size() > 2) {
         int outs = 0;
-        for (const CTxOut& out : tx.vout) {
+        for (const CTxOut out : tx.vout) {
             if (out.IsZerocoinMint())
                 continue;
             outs++;
@@ -1392,7 +1543,7 @@ bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidati
 
     //compute the txout hash that is used for the zerocoinspend signatures
     CMutableTransaction txTemp;
-    for (const CTxOut& out : tx.vout) {
+    for (const CTxOut out : tx.vout) {
         txTemp.vout.push_back(out);
     }
     uint256 hashTxOut = txTemp.GetHash();
@@ -1456,7 +1607,7 @@ bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidati
     return fValidated;
 }
 
-bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, CValidationState& state)
+bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fRejectBadUTXO, CValidationState& state)
 {
     // Basic checks that don't depend on any context
     if (tx.vin.empty())
@@ -1504,7 +1655,7 @@ bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, CValidationS
 
         if (tx.IsZerocoinSpend()) {
             //require that a zerocoinspend only has inputs that are zerocoins
-            for (const CTxIn& in : tx.vin) {
+            for (const CTxIn in : tx.vin) {
                 if (!in.scriptSig.IsZerocoinSpend())
                     return state.DoS(100,
                                      error("CheckTransaction() : zerocoinspend contains inputs that are not zerocoins"));
@@ -1616,7 +1767,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
     if (GetAdjustedTime() > GetSporkValue(SPORK_16_ZEROCOIN_MAINTENANCE_MODE) && tx.ContainsZerocoins())
         return state.DoS(10, error("AcceptToMemoryPool : Zerocoin transactions are temporarily disabled for maintenance"), REJECT_INVALID, "bad-tx");
 
-    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), state))
+    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), true, state))
         return state.DoS(100, error("AcceptToMemoryPool: : CheckTransaction failed"), REJECT_INVALID, "bad-tx");
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -1635,7 +1786,6 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
         return state.DoS(0,
             error("AcceptToMemoryPool : nonstandard transaction: %s", reason),
             REJECT_NONSTANDARD, reason);
-
     // is it already in the memory pool?
     uint256 hash = tx.GetHash();
     if (pool.exists(hash)) {
@@ -1679,7 +1829,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             //Check that txid is not already in the chain
             int nHeightTx = 0;
             if (IsTransactionInChain(tx.GetHash(), nHeightTx))
-                return state.Invalid(error("AcceptToMemoryPool : zPDG spend tx %s already in block %d",
+                return state.Invalid(error("AcceptToMemoryPool : zPIV spend tx %s already in block %d",
                                            tx.GetHash().GetHex(), nHeightTx), REJECT_DUPLICATE, "bad-txns-inputs-spent");
 
             //Check for double spending of serial #'s
@@ -1689,7 +1839,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
                 CoinSpend spend = TxInToZerocoinSpend(txIn);
                 if (!ContextualCheckZerocoinSpend(tx, spend, chainActive.Tip(), 0))
                     return state.Invalid(error("%s: ContextualCheckZerocoinSpend failed for tx %s", __func__,
-                                               tx.GetHash().GetHex()), REJECT_INVALID, "bad-txns-invalid-zpdg");
+                                               tx.GetHash().GetHex()), REJECT_INVALID, "bad-txns-invalid-zpiv");
             }
         } else {
             LOCK(pool.cs);
@@ -1703,7 +1853,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             // do all inputs exist?
             // Note that this does not check for the presence of actual outputs (see the next check for that),
             // only helps filling in pfMissingInputs (to determine missing vs spent).
-            for (const CTxIn& txin : tx.vin) {
+            for (const CTxIn txin : tx.vin) {
                 if (!view.HaveCoins(txin.prevout.hash)) {
                     if (pfMissingInputs)
                         *pfMissingInputs = true;
@@ -1717,7 +1867,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
                 }
             }
 
-            // Check that zPDG mints are not already known
+            // Check that zPIV mints are not already known
             if (tx.IsZerocoinMint()) {
                 for (auto& out : tx.vout) {
                     if (!out.IsZerocoinMint())
@@ -1781,7 +1931,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             mempool.PrioritiseTransaction(hash, hash.ToString(), 1000, 0.1 * COIN);
         } else if (!ignoreFees) {
             CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
-            if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend()) // TODO: FEE CHECK
+            if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend())
                 return state.DoS(0, error("AcceptToMemoryPool : not enough fees %s, %d < %d",
                                         hash.ToString(), nFees, txMinFee),
                     REJECT_INSUFFICIENTFEE, "insufficient fee");
@@ -1818,7 +1968,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
             }
         }
 
-        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000) // TODO: FEE CHECK
+        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
             return error("AcceptToMemoryPool: : insane fees %s, %d > %d",
                 hash.ToString(),
                 nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
@@ -1862,7 +2012,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         *pfMissingInputs = false;
 
 
-    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), state))
+    if (!CheckTransaction(tx, chainActive.Height() >= Params().Zerocoin_StartHeight(), true, state))
         return error("AcceptableInputs: : CheckTransaction failed");
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -1925,7 +2075,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
             // do all inputs exist?
             // Note that this does not check for the presence of actual outputs (see the next check for that),
             // only helps filling in pfMissingInputs (to determine missing vs spent).
-            for (const CTxIn& txin : tx.vin) {
+            for (const CTxIn txin : tx.vin) {
                 if (!view.HaveCoins(txin.prevout.hash)) {
                     if (pfMissingInputs)
                         *pfMissingInputs = true;
@@ -1984,7 +2134,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         if (isDSTX) {
             mempool.PrioritiseTransaction(hash, hash.ToString(), 1000, 0.1 * COIN);
         } else { // same as !ignoreFees for AcceptToMemoryPool
-            CAmount txMinFee = GetMinRelayFee(tx, nSize, true); // TODO: CHECK FEE
+            CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
             if (fLimitFree && nFees < txMinFee && !tx.IsZerocoinSpend())
                 return state.DoS(0, error("AcceptableInputs : not enough fees %s, %d < %d",
                                         hash.ToString(), nFees, txMinFee),
@@ -2019,7 +2169,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
             }
         }
 
-        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)  // TODO: CHECK FEE
+        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
             return error("AcceptableInputs: : insane fees %s, %d > %d",
                 hash.ToString(),
                 nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
@@ -2121,7 +2271,73 @@ bool GetTransaction(const uint256& hash, CTransaction& txOut, uint256& hashBlock
 
 // TODO: figure out with locks
 bool GetFile(const uint256& fileHash, CDBFile& fileOut) {
-    return fileRepositoryManager.GetFile(fileHash, fileOut);
+    CDiskFileBlockPos posFile;
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile))
+        return error("%s : File not found in DB. fileHash %s", __func__, fileHash.ToString());
+
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(fileOut, posFile))
+        return error("%s : File not found on disk. fileHash %s", __func__, fileHash.ToString());
+
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// File region
+//
+// TODO: figure out with locks
+bool WriteFileBlockToDisk(CDBFile& file, CDiskFileBlockPos& pos)
+{
+    // Open history file to append
+    CAutoFile fileout(OpenFileBlockFile(pos), SER_DISK, CLIENT_VERSION);
+    if (fileout.IsNull())
+        return error("WriteFileBlockToDisk : OpenFileBlockFile failed");
+
+    // Write index header
+    unsigned int nSize = fileout.GetSerializeSize(file);
+    fileout << FLATDATA(Params().MessageStart()) << nSize;
+
+    // Write block
+    long fileOutPos = ftell(fileout.Get());
+    if (fileOutPos < 0)
+        return error("WriteFileBlockToDisk : ftell failed");
+    pos.numberPosition = (unsigned int) fileOutPos;
+    fileout << file;
+
+    return true;
+}
+
+bool RemoveFileBlockFromDisk(const CDiskFileBlockPos& pos)
+{
+    CDiskFileBlockPos newPos = pos;
+    CDBFile file;
+    if (!ReadFileBlockFromDisk(file, newPos))
+        return error("RemoveFileBlockFromDisk : read file block failed");
+
+    file.removed = true;
+    if (!WriteFileBlockToDisk(file, newPos))
+        return error("RemoveFileBlockFromDisk : write updated(removed) file failed");
+
+    return true;
+}
+
+// TODO: figure out with locks
+bool ReadFileBlockFromDisk(CDBFile& file, const CDiskFileBlockPos& pos)
+{
+    // Open history file to read
+    CAutoFile filein(OpenFileBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    if (filein.IsNull())
+        return error("ReadFileBlockFromDisk : OpenFileBlockFile failed");
+
+    // Read file
+    try {
+        filein >> file;
+    } catch (std::exception& e) {
+        return error("%s : Deserialize or I/O error - %s", __func__, e.what());
+    }
+
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2210,41 +2426,280 @@ int64_t GetBlockValue(int nHeight)
 {
     if (Params().NetworkID() == CBaseChainParams::TESTNET) {
         if (nHeight < 200 && nHeight > 0)
-            return 500 * COIN;
-
-        if (nHeight > 40000)
-            return 0;
+            return 250000 * COIN;
     }
 
     int64_t nSubsidy = 0;
     if (nHeight == 0) {
-        nSubsidy = 3840000 * COIN;
-    } else if (nHeight < 160 && nHeight > 0) {
-        nSubsidy = 0;
-    } else if (nHeight <= 20000 && nHeight >= 160) {
-        nSubsidy = 1 * COIN; //2 weeks
-    } else if (nHeight <= 175000 && nHeight >= 20001) {
-        nSubsidy = 3.75 * COIN;//4 months
-    } else if (nHeight <= 350000 && nHeight >= 175001) {
-        nSubsidy = 5 * COIN;//8 months
-    } else if (nHeight <= 2100000 && nHeight >= 350001) {
-        nSubsidy = 25 * COIN;//4 years
-    } else if (nHeight <= 4000000 && nHeight >= 2100001) {
-        nSubsidy = 12 * COIN;//8 years
-    } else if (nHeight <= 6000000 && nHeight >= 4000001) {
-        nSubsidy = 6 * COIN;//11.5 years
-    } else if (nHeight <= 12000000 && nHeight >= 6000001) {
-        nSubsidy = 3 * COIN;//23 years
-    } else if (nHeight <= 20000000 && nHeight >= 12000001) {
-        nSubsidy = 2 * COIN;//38.5 years
-    } else if (nHeight <= 30133971 && nHeight >= 20000001) {
-        nSubsidy = 1 * COIN;//58 years
+        nSubsidy = 60001 * COIN;
+    } else if (nHeight < 86400 && nHeight > 0) {
+        nSubsidy = 250 * COIN;
+    } else if (nHeight < (Params().NetworkID() == CBaseChainParams::TESTNET ? 145000 : 151200) && nHeight >= 86400) {
+        nSubsidy = 225 * COIN;
+    } else if (nHeight <= Params().LAST_POW_BLOCK() && nHeight >= 151200) {
+        nSubsidy = 45 * COIN;
+    } else if (nHeight <= 302399 && nHeight > Params().LAST_POW_BLOCK()) {
+        nSubsidy = 45 * COIN;
+    } else if (nHeight <= 345599 && nHeight >= 302400) {
+        nSubsidy = 40.5 * COIN;
+    } else if (nHeight <= 388799 && nHeight >= 345600) {
+        nSubsidy = 36 * COIN;
+    } else if (nHeight <= 431999 && nHeight >= 388800) {
+        nSubsidy = 31.5 * COIN;
+    } else if (nHeight <= 475199 && nHeight >= 432000) {
+        nSubsidy = 27 * COIN;
+    } else if (nHeight <= 518399 && nHeight >= 475200) {
+        nSubsidy = 22.5 * COIN;
+    } else if (nHeight <= 561599 && nHeight >= 518400) {
+        nSubsidy = 18 * COIN;
+    } else if (nHeight <= 604799 && nHeight >= 561600) {
+        nSubsidy = 13.5 * COIN;
+    } else if (nHeight <= 647999 && nHeight >= 604800) {
+        nSubsidy = 9 * COIN;
+    } else if (nHeight < Params().Zerocoin_Block_V2_Start()) {
+        nSubsidy = 4.5 * COIN;
+    } else {
+        nSubsidy = 5 * COIN;
     }
-
     return nSubsidy;
 }
 
-int64_t GetMasternodePayment(int nHeight, int64_t blockValue, bool isZPIVStake)
+CAmount GetSeeSaw(const CAmount& blockValue, int nMasternodeCount, int nHeight)
+{
+    //if a mn count is inserted into the function we are looking for a specific result for a masternode count
+    if (nMasternodeCount < 1){
+        if (IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT))
+            nMasternodeCount = mnodeman.stable_size();
+        else
+            nMasternodeCount = mnodeman.size();
+    }
+
+    int64_t nMoneySupply = chainActive.Tip()->nMoneySupply;
+    int64_t mNodeCoins = nMasternodeCount * 10000 * COIN;
+
+    // Use this log to compare the masternode count for different clients
+    //LogPrintf("Adjusting seesaw at height %d with %d masternodes (without drift: %d) at %ld\n", nHeight, nMasternodeCount, nMasternodeCount - Params().MasternodeCountDrift(), GetTime());
+
+    if (fDebug)
+        LogPrintf("GetMasternodePayment(): moneysupply=%s, nodecoins=%s \n", FormatMoney(nMoneySupply).c_str(),
+                  FormatMoney(mNodeCoins).c_str());
+
+    CAmount ret = 0;
+    if (mNodeCoins == 0) {
+        ret = 0;
+    } else if (nHeight < 325000) {
+        if (mNodeCoins <= (nMoneySupply * .05) && mNodeCoins > 0) {
+            ret = blockValue * .85;
+        } else if (mNodeCoins <= (nMoneySupply * .1) && mNodeCoins > (nMoneySupply * .05)) {
+            ret = blockValue * .8;
+        } else if (mNodeCoins <= (nMoneySupply * .15) && mNodeCoins > (nMoneySupply * .1)) {
+            ret = blockValue * .75;
+        } else if (mNodeCoins <= (nMoneySupply * .2) && mNodeCoins > (nMoneySupply * .15)) {
+            ret = blockValue * .7;
+        } else if (mNodeCoins <= (nMoneySupply * .25) && mNodeCoins > (nMoneySupply * .2)) {
+            ret = blockValue * .65;
+        } else if (mNodeCoins <= (nMoneySupply * .3) && mNodeCoins > (nMoneySupply * .25)) {
+            ret = blockValue * .6;
+        } else if (mNodeCoins <= (nMoneySupply * .35) && mNodeCoins > (nMoneySupply * .3)) {
+            ret = blockValue * .55;
+        } else if (mNodeCoins <= (nMoneySupply * .4) && mNodeCoins > (nMoneySupply * .35)) {
+            ret = blockValue * .5;
+        } else if (mNodeCoins <= (nMoneySupply * .45) && mNodeCoins > (nMoneySupply * .4)) {
+            ret = blockValue * .45;
+        } else if (mNodeCoins <= (nMoneySupply * .5) && mNodeCoins > (nMoneySupply * .45)) {
+            ret = blockValue * .4;
+        } else if (mNodeCoins <= (nMoneySupply * .55) && mNodeCoins > (nMoneySupply * .5)) {
+            ret = blockValue * .35;
+        } else if (mNodeCoins <= (nMoneySupply * .6) && mNodeCoins > (nMoneySupply * .55)) {
+            ret = blockValue * .3;
+        } else if (mNodeCoins <= (nMoneySupply * .65) && mNodeCoins > (nMoneySupply * .6)) {
+            ret = blockValue * .25;
+        } else if (mNodeCoins <= (nMoneySupply * .7) && mNodeCoins > (nMoneySupply * .65)) {
+            ret = blockValue * .2;
+        } else if (mNodeCoins <= (nMoneySupply * .75) && mNodeCoins > (nMoneySupply * .7)) {
+            ret = blockValue * .15;
+        } else {
+            ret = blockValue * .1;
+        }
+    } else if (nHeight > 325000) {
+        if (mNodeCoins <= (nMoneySupply * .01) && mNodeCoins > 0) {
+            ret = blockValue * .90;
+        } else if (mNodeCoins <= (nMoneySupply * .02) && mNodeCoins > (nMoneySupply * .01)) {
+            ret = blockValue * .88;
+        } else if (mNodeCoins <= (nMoneySupply * .03) && mNodeCoins > (nMoneySupply * .02)) {
+            ret = blockValue * .87;
+        } else if (mNodeCoins <= (nMoneySupply * .04) && mNodeCoins > (nMoneySupply * .03)) {
+            ret = blockValue * .86;
+        } else if (mNodeCoins <= (nMoneySupply * .05) && mNodeCoins > (nMoneySupply * .04)) {
+            ret = blockValue * .85;
+        } else if (mNodeCoins <= (nMoneySupply * .06) && mNodeCoins > (nMoneySupply * .05)) {
+            ret = blockValue * .84;
+        } else if (mNodeCoins <= (nMoneySupply * .07) && mNodeCoins > (nMoneySupply * .06)) {
+            ret = blockValue * .83;
+        } else if (mNodeCoins <= (nMoneySupply * .08) && mNodeCoins > (nMoneySupply * .07)) {
+            ret = blockValue * .82;
+        } else if (mNodeCoins <= (nMoneySupply * .09) && mNodeCoins > (nMoneySupply * .08)) {
+            ret = blockValue * .81;
+        } else if (mNodeCoins <= (nMoneySupply * .10) && mNodeCoins > (nMoneySupply * .09)) {
+            ret = blockValue * .80;
+        } else if (mNodeCoins <= (nMoneySupply * .11) && mNodeCoins > (nMoneySupply * .10)) {
+            ret = blockValue * .79;
+        } else if (mNodeCoins <= (nMoneySupply * .12) && mNodeCoins > (nMoneySupply * .11)) {
+            ret = blockValue * .78;
+        } else if (mNodeCoins <= (nMoneySupply * .13) && mNodeCoins > (nMoneySupply * .12)) {
+            ret = blockValue * .77;
+        } else if (mNodeCoins <= (nMoneySupply * .14) && mNodeCoins > (nMoneySupply * .13)) {
+            ret = blockValue * .76;
+        } else if (mNodeCoins <= (nMoneySupply * .15) && mNodeCoins > (nMoneySupply * .14)) {
+            ret = blockValue * .75;
+        } else if (mNodeCoins <= (nMoneySupply * .16) && mNodeCoins > (nMoneySupply * .15)) {
+            ret = blockValue * .74;
+        } else if (mNodeCoins <= (nMoneySupply * .17) && mNodeCoins > (nMoneySupply * .16)) {
+            ret = blockValue * .73;
+        } else if (mNodeCoins <= (nMoneySupply * .18) && mNodeCoins > (nMoneySupply * .17)) {
+            ret = blockValue * .72;
+        } else if (mNodeCoins <= (nMoneySupply * .19) && mNodeCoins > (nMoneySupply * .18)) {
+            ret = blockValue * .71;
+        } else if (mNodeCoins <= (nMoneySupply * .20) && mNodeCoins > (nMoneySupply * .19)) {
+            ret = blockValue * .70;
+        } else if (mNodeCoins <= (nMoneySupply * .21) && mNodeCoins > (nMoneySupply * .20)) {
+            ret = blockValue * .69;
+        } else if (mNodeCoins <= (nMoneySupply * .22) && mNodeCoins > (nMoneySupply * .21)) {
+            ret = blockValue * .68;
+        } else if (mNodeCoins <= (nMoneySupply * .23) && mNodeCoins > (nMoneySupply * .22)) {
+            ret = blockValue * .67;
+        } else if (mNodeCoins <= (nMoneySupply * .24) && mNodeCoins > (nMoneySupply * .23)) {
+            ret = blockValue * .66;
+        } else if (mNodeCoins <= (nMoneySupply * .25) && mNodeCoins > (nMoneySupply * .24)) {
+            ret = blockValue * .65;
+        } else if (mNodeCoins <= (nMoneySupply * .26) && mNodeCoins > (nMoneySupply * .25)) {
+            ret = blockValue * .64;
+        } else if (mNodeCoins <= (nMoneySupply * .27) && mNodeCoins > (nMoneySupply * .26)) {
+            ret = blockValue * .63;
+        } else if (mNodeCoins <= (nMoneySupply * .28) && mNodeCoins > (nMoneySupply * .27)) {
+            ret = blockValue * .62;
+        } else if (mNodeCoins <= (nMoneySupply * .29) && mNodeCoins > (nMoneySupply * .28)) {
+            ret = blockValue * .61;
+        } else if (mNodeCoins <= (nMoneySupply * .30) && mNodeCoins > (nMoneySupply * .29)) {
+            ret = blockValue * .60;
+        } else if (mNodeCoins <= (nMoneySupply * .31) && mNodeCoins > (nMoneySupply * .30)) {
+            ret = blockValue * .59;
+        } else if (mNodeCoins <= (nMoneySupply * .32) && mNodeCoins > (nMoneySupply * .31)) {
+            ret = blockValue * .58;
+        } else if (mNodeCoins <= (nMoneySupply * .33) && mNodeCoins > (nMoneySupply * .32)) {
+            ret = blockValue * .57;
+        } else if (mNodeCoins <= (nMoneySupply * .34) && mNodeCoins > (nMoneySupply * .33)) {
+            ret = blockValue * .56;
+        } else if (mNodeCoins <= (nMoneySupply * .35) && mNodeCoins > (nMoneySupply * .34)) {
+            ret = blockValue * .55;
+        } else if (mNodeCoins <= (nMoneySupply * .363) && mNodeCoins > (nMoneySupply * .35)) {
+            ret = blockValue * .54;
+        } else if (mNodeCoins <= (nMoneySupply * .376) && mNodeCoins > (nMoneySupply * .363)) {
+            ret = blockValue * .53;
+        } else if (mNodeCoins <= (nMoneySupply * .389) && mNodeCoins > (nMoneySupply * .376)) {
+            ret = blockValue * .52;
+        } else if (mNodeCoins <= (nMoneySupply * .402) && mNodeCoins > (nMoneySupply * .389)) {
+            ret = blockValue * .51;
+        } else if (mNodeCoins <= (nMoneySupply * .415) && mNodeCoins > (nMoneySupply * .402)) {
+            ret = blockValue * .50;
+        } else if (mNodeCoins <= (nMoneySupply * .428) && mNodeCoins > (nMoneySupply * .415)) {
+            ret = blockValue * .49;
+        } else if (mNodeCoins <= (nMoneySupply * .441) && mNodeCoins > (nMoneySupply * .428)) {
+            ret = blockValue * .48;
+        } else if (mNodeCoins <= (nMoneySupply * .454) && mNodeCoins > (nMoneySupply * .441)) {
+            ret = blockValue * .47;
+        } else if (mNodeCoins <= (nMoneySupply * .467) && mNodeCoins > (nMoneySupply * .454)) {
+            ret = blockValue * .46;
+        } else if (mNodeCoins <= (nMoneySupply * .48) && mNodeCoins > (nMoneySupply * .467)) {
+            ret = blockValue * .45;
+        } else if (mNodeCoins <= (nMoneySupply * .493) && mNodeCoins > (nMoneySupply * .48)) {
+            ret = blockValue * .44;
+        } else if (mNodeCoins <= (nMoneySupply * .506) && mNodeCoins > (nMoneySupply * .493)) {
+            ret = blockValue * .43;
+        } else if (mNodeCoins <= (nMoneySupply * .519) && mNodeCoins > (nMoneySupply * .506)) {
+            ret = blockValue * .42;
+        } else if (mNodeCoins <= (nMoneySupply * .532) && mNodeCoins > (nMoneySupply * .519)) {
+            ret = blockValue * .41;
+        } else if (mNodeCoins <= (nMoneySupply * .545) && mNodeCoins > (nMoneySupply * .532)) {
+            ret = blockValue * .40;
+        } else if (mNodeCoins <= (nMoneySupply * .558) && mNodeCoins > (nMoneySupply * .545)) {
+            ret = blockValue * .39;
+        } else if (mNodeCoins <= (nMoneySupply * .571) && mNodeCoins > (nMoneySupply * .558)) {
+            ret = blockValue * .38;
+        } else if (mNodeCoins <= (nMoneySupply * .584) && mNodeCoins > (nMoneySupply * .571)) {
+            ret = blockValue * .37;
+        } else if (mNodeCoins <= (nMoneySupply * .597) && mNodeCoins > (nMoneySupply * .584)) {
+            ret = blockValue * .36;
+        } else if (mNodeCoins <= (nMoneySupply * .61) && mNodeCoins > (nMoneySupply * .597)) {
+            ret = blockValue * .35;
+        } else if (mNodeCoins <= (nMoneySupply * .623) && mNodeCoins > (nMoneySupply * .61)) {
+            ret = blockValue * .34;
+        } else if (mNodeCoins <= (nMoneySupply * .636) && mNodeCoins > (nMoneySupply * .623)) {
+            ret = blockValue * .33;
+        } else if (mNodeCoins <= (nMoneySupply * .649) && mNodeCoins > (nMoneySupply * .636)) {
+            ret = blockValue * .32;
+        } else if (mNodeCoins <= (nMoneySupply * .662) && mNodeCoins > (nMoneySupply * .649)) {
+            ret = blockValue * .31;
+        } else if (mNodeCoins <= (nMoneySupply * .675) && mNodeCoins > (nMoneySupply * .662)) {
+            ret = blockValue * .30;
+        } else if (mNodeCoins <= (nMoneySupply * .688) && mNodeCoins > (nMoneySupply * .675)) {
+            ret = blockValue * .29;
+        } else if (mNodeCoins <= (nMoneySupply * .701) && mNodeCoins > (nMoneySupply * .688)) {
+            ret = blockValue * .28;
+        } else if (mNodeCoins <= (nMoneySupply * .714) && mNodeCoins > (nMoneySupply * .701)) {
+            ret = blockValue * .27;
+        } else if (mNodeCoins <= (nMoneySupply * .727) && mNodeCoins > (nMoneySupply * .714)) {
+            ret = blockValue * .26;
+        } else if (mNodeCoins <= (nMoneySupply * .74) && mNodeCoins > (nMoneySupply * .727)) {
+            ret = blockValue * .25;
+        } else if (mNodeCoins <= (nMoneySupply * .753) && mNodeCoins > (nMoneySupply * .74)) {
+            ret = blockValue * .24;
+        } else if (mNodeCoins <= (nMoneySupply * .766) && mNodeCoins > (nMoneySupply * .753)) {
+            ret = blockValue * .23;
+        } else if (mNodeCoins <= (nMoneySupply * .779) && mNodeCoins > (nMoneySupply * .766)) {
+            ret = blockValue * .22;
+        } else if (mNodeCoins <= (nMoneySupply * .792) && mNodeCoins > (nMoneySupply * .779)) {
+            ret = blockValue * .21;
+        } else if (mNodeCoins <= (nMoneySupply * .805) && mNodeCoins > (nMoneySupply * .792)) {
+            ret = blockValue * .20;
+        } else if (mNodeCoins <= (nMoneySupply * .818) && mNodeCoins > (nMoneySupply * .805)) {
+            ret = blockValue * .19;
+        } else if (mNodeCoins <= (nMoneySupply * .831) && mNodeCoins > (nMoneySupply * .818)) {
+            ret = blockValue * .18;
+        } else if (mNodeCoins <= (nMoneySupply * .844) && mNodeCoins > (nMoneySupply * .831)) {
+            ret = blockValue * .17;
+        } else if (mNodeCoins <= (nMoneySupply * .857) && mNodeCoins > (nMoneySupply * .844)) {
+            ret = blockValue * .16;
+        } else if (mNodeCoins <= (nMoneySupply * .87) && mNodeCoins > (nMoneySupply * .857)) {
+            ret = blockValue * .15;
+        } else if (mNodeCoins <= (nMoneySupply * .883) && mNodeCoins > (nMoneySupply * .87)) {
+            ret = blockValue * .14;
+        } else if (mNodeCoins <= (nMoneySupply * .896) && mNodeCoins > (nMoneySupply * .883)) {
+            ret = blockValue * .13;
+        } else if (mNodeCoins <= (nMoneySupply * .909) && mNodeCoins > (nMoneySupply * .896)) {
+            ret = blockValue * .12;
+        } else if (mNodeCoins <= (nMoneySupply * .922) && mNodeCoins > (nMoneySupply * .909)) {
+            ret = blockValue * .11;
+        } else if (mNodeCoins <= (nMoneySupply * .935) && mNodeCoins > (nMoneySupply * .922)) {
+            ret = blockValue * .10;
+        } else if (mNodeCoins <= (nMoneySupply * .945) && mNodeCoins > (nMoneySupply * .935)) {
+            ret = blockValue * .09;
+        } else if (mNodeCoins <= (nMoneySupply * .961) && mNodeCoins > (nMoneySupply * .945)) {
+            ret = blockValue * .08;
+        } else if (mNodeCoins <= (nMoneySupply * .974) && mNodeCoins > (nMoneySupply * .961)) {
+            ret = blockValue * .07;
+        } else if (mNodeCoins <= (nMoneySupply * .987) && mNodeCoins > (nMoneySupply * .974)) {
+            ret = blockValue * .06;
+        } else if (mNodeCoins <= (nMoneySupply * .99) && mNodeCoins > (nMoneySupply * .987)) {
+            ret = blockValue * .05;
+        } else {
+            ret = blockValue * .01;
+        }
+    }
+    return ret;
+}
+
+int64_t GetMasternodePayment(int nHeight, int64_t blockValue, int nMasternodeCount, bool isZPIVStake)
 {
     int64_t ret = 0;
 
@@ -2253,10 +2708,21 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue, bool isZPIVStake)
             return 0;
     }
 
-    if (nHeight == 0) {
-        ret = 0;
+    if (nHeight <= 43200) {
+        ret = blockValue / 5;
+    } else if (nHeight < 86400 && nHeight > 43200) {
+        ret = blockValue / (100 / 30);
+    } else if (nHeight < (Params().NetworkID() == CBaseChainParams::TESTNET ? 145000 : 151200) && nHeight >= 86400) {
+        ret = 50 * COIN;
+    } else if (nHeight <= Params().LAST_POW_BLOCK() && nHeight >= 151200) {
+        ret = blockValue / 2;
+    } else if (nHeight < Params().Zerocoin_Block_V2_Start()) {
+        return GetSeeSaw(blockValue, nMasternodeCount, nHeight);
     } else {
-        ret = blockValue - (blockValue / 5); // 80% MN
+        //When zPIV is staked, masternode only gets 2 PIV
+        ret = 3 * COIN;
+        if (isZPIVStake)
+            ret = 2 * COIN;
     }
 
     return ret;
@@ -2351,7 +2817,7 @@ void CheckForkWarningConditionsOnNewFork(CBlockIndex* pindexNewForkTip)
 }
 
 // Requires cs_main.
-void Misbehaving(NodeId pnode, int howmuch, std::string file, int line)
+void Misbehaving(NodeId pnode, int howmuch)
 {
     if (howmuch == 0)
         return;
@@ -2363,10 +2829,10 @@ void Misbehaving(NodeId pnode, int howmuch, std::string file, int line)
     state->nMisbehavior += howmuch;
     int banscore = GetArg("-banscore", 100);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore) {
-        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED. %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file, line);
+        LogPrintf("Misbehaving: %s (%d -> %d) BAN THRESHOLD EXCEEDED\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior);
         state->fShouldBan = true;
     } else
-        LogPrintf("Misbehaving: %s (%d -> %d). %s:%d\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior, file, line);
+        LogPrintf("Misbehaving: %s (%d -> %d)\n", state->name, state->nMisbehavior - howmuch, state->nMisbehavior);
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
@@ -2393,7 +2859,7 @@ void static InvalidBlockFound(CBlockIndex* pindex, const CValidationState& state
             CBlockReject reject = {state.GetRejectCode(), state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), pindex->GetBlockHash()};
             State(it->second)->rejects.push_back(reject);
             if (nDoS > 0)
-                Misbehaving(it->second, nDoS, __FILE__, __LINE__);
+                Misbehaving(it->second, nDoS);
         }
     }
     if (!state.CorruptionPossible()) {
@@ -2436,12 +2902,12 @@ map<COutPoint, COutPoint> mapInvalidOutPoints;
 map<CBigNum, CAmount> mapInvalidSerials;
 void AddInvalidSpendsToMap(const CBlock& block)
 {
-    for (const CTransaction& tx : block.vtx) {
+    for (const CTransaction tx : block.vtx) {
         if (!tx.ContainsZerocoins())
             continue;
 
         //Check all zerocoinspends for bad serials
-        for (const CTxIn& in : tx.vin) {
+        for (const CTxIn in : tx.vin) {
             if (in.scriptSig.IsZerocoinSpend()) {
                 CoinSpend spend = TxInToZerocoinSpend(in);
 
@@ -2481,8 +2947,8 @@ void AddInvalidSpendsToMap(const CBlock& block)
 
 bool ValidOutPoint(const COutPoint out, int nHeight)
 {
-    // if you need to check invalid outpoints from list use: invalid_out::ContainsOutPoint(out)
-    return true;
+    bool isInvalid = nHeight >= Params().Block_Enforce_Invalid() && invalid_out::ContainsOutPoint(out);
+    return !isInvalid;
 }
 
 CAmount GetInvalidUTXOValue()
@@ -2628,13 +3094,13 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         const CTransaction& tx = block.vtx[i];
 
         /** UNDO ZEROCOIN DATABASING
-         * note we only undo zerocoin databasing in the following statement, value to and from PDG
+         * note we only undo zerocoin databasing in the following statement, value to and from PIVX
          * addresses should still be handled by the typical bitcoin based undo code
          * */
         if (tx.ContainsZerocoins()) {
             if (tx.IsZerocoinSpend()) {
                 //erase all zerocoinspends in this transaction
-                for (const CTxIn& txin : tx.vin) {
+                for (const CTxIn txin : tx.vin) {
                     if (txin.scriptSig.IsZerocoinSpend()) {
                         CoinSpend spend = TxInToZerocoinSpend(txin);
                         if (!zerocoinDB->EraseCoinSpend(spend.getCoinSerialNumber()))
@@ -2654,7 +3120,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
             if (tx.IsZerocoinMint()) {
                 //erase all zerocoinmints in this transaction
-                for (const CTxOut& txout : tx.vout) {
+                for (const CTxOut txout : tx.vout) {
                     if (txout.scriptPubKey.empty() || !txout.scriptPubKey.IsZerocoinMint())
                         continue;
 
@@ -2742,6 +3208,20 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     }
 }
 
+void static FlushFileBlockFile(bool fFinalize = false) {
+    LOCK(cs_LastFileBlockFile);
+
+    CDiskBlockPos posOld(nLastFileDiskFile, 0);
+
+    FILE* fileOld = OpenBlockFile(posOld);
+    if (fileOld) {
+        if (fFinalize)
+            TruncateFile(fileOld, vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize);
+        FileCommit(fileOld);
+        fclose(fileOld);
+    }
+}
+
 void static FlushBlockFile(bool fFinalize = false)
 {
     LOCK(cs_LastBlockFile);
@@ -2771,7 +3251,7 @@ static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck()
 {
-    RenameThread("pdg-scriptch");
+    RenameThread("pivx-scriptch");
     scriptcheckqueue.Thread();
 }
 
@@ -2809,7 +3289,7 @@ void RecalculateZPIVSpent()
         if (pindex->nHeight % 1000 == 0)
             LogPrintf("%s : block %d...\n", __func__, pindex->nHeight);
 
-        //Rewrite zPDG supply
+        //Rewrite zPIV supply
         CBlock block;
         assert(ReadBlockFromDisk(block, pindex));
 
@@ -2818,13 +3298,13 @@ void RecalculateZPIVSpent()
         //Reset the supply to previous block
         pindex->mapZerocoinSupply = pindex->pprev->mapZerocoinSupply;
 
-        //Add mints to zPDG supply
+        //Add mints to zPIV supply
         for (auto denom : libzerocoin::zerocoinDenomList) {
             long nDenomAdded = count(pindex->vMintDenominationsInBlock.begin(), pindex->vMintDenominationsInBlock.end(), denom);
             pindex->mapZerocoinSupply.at(denom) += nDenomAdded;
         }
 
-        //Remove spends from zPDG supply
+        //Remove spends from zPIV supply
         for (auto denom : listDenomsSpent)
             pindex->mapZerocoinSupply.at(denom)--;
 
@@ -2857,7 +3337,7 @@ bool RecalculatePIVSupply(int nHeightStart)
 
         CAmount nValueIn = 0;
         CAmount nValueOut = 0;
-        for (const CTransaction& tx : block.vtx) {
+        for (const CTransaction tx : block.vtx) {
             for (unsigned int i = 0; i < tx.vin.size(); i++) {
                 if (tx.IsCoinBase())
                     break;
@@ -2886,6 +3366,18 @@ bool RecalculatePIVSupply(int nHeightStart)
         pindex->nMoneySupply = nSupplyPrev + nValueOut - nValueIn;
         nSupplyPrev = pindex->nMoneySupply;
 
+        // Add fraudulent funds to the supply and remove any recovered funds.
+        if (pindex->nHeight == Params().Zerocoin_Block_RecalculateAccumulators()) {
+            LogPrintf("%s : Original money supply=%s\n", __func__, FormatMoney(pindex->nMoneySupply));
+
+            pindex->nMoneySupply += Params().InvalidAmountFiltered();
+            LogPrintf("%s : Adding filtered funds to supply + %s : supply=%s\n", __func__, FormatMoney(Params().InvalidAmountFiltered()), FormatMoney(pindex->nMoneySupply));
+
+            CAmount nLocked = GetInvalidUTXOValue();
+            pindex->nMoneySupply -= nLocked;
+            LogPrintf("%s : Removing locked from supply - %s : supply=%s\n", __func__, FormatMoney(nLocked), FormatMoney(pindex->nMoneySupply));
+        }
+
         assert(pblocktree->WriteBlockIndex(CDiskBlockIndex(pindex)));
 
         if (pindex->nHeight < chainActive.Height())
@@ -2898,9 +3390,8 @@ bool RecalculatePIVSupply(int nHeightStart)
 
 bool ReindexAccumulators(list<uint256>& listMissingCheckpoints, string& strError)
 {
-    // PDG: recalculate Accumulator Checkpoints that failed to database properly
+    // PIVX: recalculate Accumulator Checkpoints that failed to database properly
     if (!listMissingCheckpoints.empty() && chainActive.Height() >= Params().Zerocoin_StartHeight()) {
-        uiInterface.ShowProgress(_("Calculating missing accumulators..."), 0);
         LogPrintf("%s : finding missing checkpoints\n", __func__);
 
         //search the chain to see when zerocoin started
@@ -2909,8 +3400,6 @@ bool ReindexAccumulators(list<uint256>& listMissingCheckpoints, string& strError
         // find each checkpoint that is missing
         CBlockIndex* pindex = chainActive[nZerocoinStart];
         while (pindex) {
-            uiInterface.ShowProgress(_("Calculating missing accumulators..."), std::max(1, std::min(99, (int)((double)(pindex->nHeight - nZerocoinStart) / (double)(chainActive.Height() - nZerocoinStart) * 100))));
-
             if (ShutdownRequested())
                 return false;
 
@@ -2941,7 +3430,6 @@ bool ReindexAccumulators(list<uint256>& listMissingCheckpoints, string& strError
             }
             pindex = chainActive.Next(pindex);
         }
-        uiInterface.ShowProgress("", 100);
     }
     return true;
 }
@@ -2949,7 +3437,7 @@ bool ReindexAccumulators(list<uint256>& listMissingCheckpoints, string& strError
 bool UpdateZPIVSupply(const CBlock& block, CBlockIndex* pindex)
 {
     std::list<CZerocoinMint> listMints;
-    bool fFilterInvalid = true; // PIVX checkpoint cleanup
+    bool fFilterInvalid = pindex->nHeight >= Params().Zerocoin_Block_RecalculateAccumulators();
     BlockToZerocoinMintList(block, listMints, fFilterInvalid);
     std::list<libzerocoin::CoinDenomination> listSpends = ZerocoinSpendListFromBlock(block, fFilterInvalid);
 
@@ -3044,6 +3532,30 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     bool fScriptChecks = pindex->nHeight >= Checkpoints::GetTotalBlocksEstimate();
 
+    // Do not allow blocks that contain transactions which 'overwrite' older transactions,
+    // unless those are already completely spent.
+    // If such overwrites are allowed, coinbases and transactions depending upon those
+    // can be duplicated to remove the ability to spend the first instance -- even after
+    // being sent to another address.
+    // See BIP30 and http://r6.ca/blog/20120206T005236Z.html for more information.
+    // This logic is not necessary for memory pool transactions, as AcceptToMemoryPool
+    // already refuses previously-known transaction ids entirely.
+    // This rule was originally applied all blocks whose timestamp was after March 15, 2012, 0:00 UTC.
+    // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
+    // two in the chain that violate it. This prevents exploiting the issue against nodes in their
+    // initial block download.
+    bool fEnforceBIP30 = (!pindex->phashBlock) || // Enforce on CreateNewBlock invocations which don't have a hash.
+                         !((pindex->nHeight == 91842 && pindex->GetBlockHash() == uint256("0x00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec")) ||
+                             (pindex->nHeight == 91880 && pindex->GetBlockHash() == uint256("0x00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721")));
+    if (fEnforceBIP30) {
+        BOOST_FOREACH (const CTransaction& tx, block.vtx) {
+            const CCoins* coins = view.AccessCoins(tx.GetHash());
+            if (coins && !coins->IsPruned())
+                return state.DoS(100, error("ConnectBlock() : tried to overwrite transaction"),
+                    REJECT_INVALID, "bad-txns-BIP30");
+        }
+    }
+
     CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : NULL);
 
     int64_t nTimeStart = GetTimeMicros();
@@ -3101,7 +3613,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     return state.DoS(100, error("%s: failed to add block %s with invalid zerocoinspend", __func__, tx.GetHash().GetHex()), REJECT_INVALID);
             }
 
-            // Check that zPDG mints are not already known
+            // Check that zPIV mints are not already known
             if (tx.IsZerocoinMint()) {
                 for (auto& out : tx.vout) {
                     if (!out.IsZerocoinMint())
@@ -3130,7 +3642,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 }
             }
 
-            // Check that zPDG mints are not already known
+            // Check that zPIV mints are not already known
             if (tx.IsZerocoinMint()) {
                 for (auto& out : tx.vout) {
                     if (!out.IsZerocoinMint())
@@ -3176,9 +3688,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    //Track zPDG money supply in the block index
+    //A one-time event where money supply counts were off and recalculated on a certain block.
+    if (pindex->nHeight == Params().Zerocoin_Block_RecalculateAccumulators() + 1) {
+        RecalculateZPIVMinted();
+        RecalculateZPIVSpent();
+        RecalculatePIVSupply(Params().Zerocoin_StartHeight());
+    }
+
+    //Track zPIV money supply in the block index
     if (!UpdateZPIVSupply(block, pindex))
-        return state.DoS(100, error("%s: Failed to calculate new zPDG supply for block=%s height=%d", __func__,
+        return state.DoS(100, error("%s: Failed to calculate new zPIV supply for block=%s height=%d", __func__,
                                     block.GetHash().GetHex(), pindex->nHeight), REJECT_INVALID);
 
     // track money supply and mint amount info
@@ -3195,7 +3714,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs - 1), nTimeConnect * 0.000001);
 
     //PoW phase redistributed fees to miner. PoS stage destroys fees.
-    CAmount nExpectedMint = GetBlockValue(pindex->nHeight);
+    CAmount nExpectedMint = GetBlockValue(pindex->pprev->nHeight);
     if (block.IsProofOfWork())
         nExpectedMint += nFees;
 
@@ -3240,7 +3759,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         setDirtyBlockIndex.insert(pindex);
     }
 
-    //Record zPDG serials
+    //Record zPIV serials
     set<uint256> setAddedTx;
     for (pair<CoinSpend, uint256> pSpend : vSpends) {
         //record spend to database
@@ -3300,6 +3819,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     nTimeCallbacks += nTime4 - nTime3;
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
+    //Continue tracking possible movement of fraudulent funds until they are completely frozen
+    if (pindex->nHeight >= Params().Zerocoin_Block_FirstFraudulent() && pindex->nHeight <= Params().Zerocoin_Block_RecalculateAccumulators() + 1)
+        AddInvalidSpendsToMap(block);
+
     //Remove zerocoinspends from the pending map
     for (const uint256& txid : vSpendsInBlock) {
         auto it = mapZerocoinspends.find(txid);
@@ -3307,9 +3830,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             mapZerocoinspends.erase(it);
     }
 
-    // TODO: PDG3 make sure that if file processing fail on resync will be processed
-    if (!fImporting && !fReindex && pwalletMain)
-        pwalletMain->ProcessFileContract(&block); // TODO: PDG2 find better place
+    pwalletMain->ProcessFileContract(&block);
 
     return true;
 }
@@ -3342,8 +3863,7 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
                 return state.Error("out of disk space");
             // First make sure all block and undo data is flushed to disk.
             FlushBlockFile();
-
-            fileRepositoryManager.FlushBlockFiles();
+            FlushFileBlockFile();
 
             // Then update all block file information (which may refer to block and undo files).
 
@@ -3370,17 +3890,19 @@ bool static FlushStateToDisk(CValidationState& state, FlushStateMode mode)
             pblocktree->Sync();
 
             //file block
-            if (!SaveFileRepositoryState()) {
-                return state.Abort("Failed to save fileblock file state");
+            bool fileBlockFileChanged = false;
+            for (std::vector<CFileBlockFileInfo>::const_iterator it = vinfoFileBlockFile.begin(); it != vinfoFileBlockFile.end();) {
+                unsigned long nFile = it - vinfoFileBlockFile.begin();
+                if (!pblockfiletree->WriteFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
+                    return state.Abort("Failed to write to fileBlock index");
+                }
+                fileBlockFileChanged = true;
+                ++it;
             }
 
-            //write required files
-            LogPrint("file", "%s - FILES. Write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
-            if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap)) {
-                LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d\n", __func__, requiredFilesMap.size());
-                return state.Abort("Failed to write required files in db. ");
+            if (fileBlockFileChanged && !pblockfiletree->WriteLastFileBlockFile(nLastFileDiskFile)) {
+                return state.Abort("Failed to write to file block index");
             }
-
             pblockfiletree->Sync();
 
             // Finally flush the chainstate (which may refer to block index entries).
@@ -3409,7 +3931,7 @@ void static UpdateTip(CBlockIndex* pindexNew)
 {
     chainActive.SetTip(pindexNew);
 
-    // If turned on AutoZeromint will automatically convert PDG to zPDG
+    // If turned on AutoZeromint will automatically convert PIV to zPIV
     if (pwalletMain->isZeromintEnabled ())
         pwalletMain->AutoZeromint ();
 
@@ -4055,7 +4577,65 @@ bool ReceivedBlockTransactions(const CBlock& block, CValidationState& state, CBl
     return true;
 }
 
-bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, int64_t nTime, bool fKnown = false)
+bool FindFileBlockPos(CValidationState& state, CDiskFileBlockPos& pos,  unsigned int nAddSize, uint64_t nTime)
+{
+    LOCK(cs_LastFileBlockFile);
+
+    pos.numberDiskFile = nLastFileDiskFile;
+
+    if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
+        vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
+    }
+
+    //Flush file after filled
+    // TODO: aseert addSize < MAX_FILEBLOCKFILE_SIZE
+    while (vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize + nAddSize >= MAX_FILEBLOCKFILE_SIZE) {
+        // LogPrintf("Leaving block file %i: %s\n", nFile, vinfoFileBlockFile[nFile].ToString());
+        FlushFileBlockFile(true);
+        ++pos.numberDiskFile;
+        if (vinfoFileBlockFile.size() <= (unsigned int) pos.numberDiskFile) {
+            vinfoFileBlockFile.resize(pos.numberDiskFile + 1);
+        }
+    }
+
+    //update meta data
+    nLastFileDiskFile = pos.numberDiskFile;
+
+    pos.numberPosition = vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize;
+    pos.fileSize = nAddSize;
+
+    vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize += nAddSize;
+    vinfoFileBlockFile[nLastFileDiskFile].AddBlock(nTime);
+
+    unsigned int nOldChunks = (pos.numberPosition + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+    unsigned int nNewChunks = (vinfoFileBlockFile[nLastFileDiskFile].numberBytesSize + FILEBLOCKFILE_CHUNK_SIZE - 1) / FILEBLOCKFILE_CHUNK_SIZE;
+
+    if (nNewChunks > nOldChunks) {
+        if (CheckDiskSpace(nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition)) {
+            FILE* file = OpenFileBlockFile(pos);
+            if (file) {
+                LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * FILEBLOCKFILE_CHUNK_SIZE, pos.numberPosition);
+                AllocateFileRange(file, pos.numberPosition, nNewChunks * FILEBLOCKFILE_CHUNK_SIZE - pos.numberPosition);
+                fclose(file);
+            }
+        } else
+            return state.Error("out of disk space");
+    }
+
+    return true;
+}
+
+void UpdateFileBlockPosData(CDiskFileBlockPos& pos) {
+    unsigned int diskFileBytesSize = vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize;
+    unsigned int endFilePosition = pos.numberPosition + pos.fileSize;
+
+    unsigned int maxValue = std::max(endFilePosition, diskFileBytesSize); // TODO: figure out
+
+    vinfoFileBlockFile[pos.numberDiskFile].numberBytesSize = maxValue;
+    nLastFileDiskFile = pos.numberDiskFile;
+}
+
+bool FindBlockPos(CValidationState& state, CDiskBlockPos& pos, unsigned int nAddSize, unsigned int nHeight, uint64_t nTime, bool fKnown = false)
 {
     LOCK(cs_LastBlockFile);
 
@@ -4250,7 +4830,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
                 nHeight = (*mi).second->nHeight + 1;
         }
 
-        // PDG
+        // PIVX
         // It is entierly possible that we don't have enough data and this could fail
         // (i.e. the block could indeed be valid). Store the block for later consideration
         // but issue an initial reject message.
@@ -4272,16 +4852,16 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
     vector<CBigNum> vBlockSerials;
     for (const CTransaction& tx : block.vtx) {
-        if (!CheckTransaction(tx, fZerocoinActive, state))
+        if (!CheckTransaction(tx, fZerocoinActive, chainActive.Height() + 1 >= Params().Zerocoin_Block_EnforceSerialRange(), state))
             return error("CheckBlock() : CheckTransaction failed");
 
-        // double check that there are no double spent zPDG spends in this block
+        // double check that there are no double spent zPIV spends in this block
         if (tx.IsZerocoinSpend()) {
-            for (const CTxIn& txIn : tx.vin) {
+            for (const CTxIn txIn : tx.vin) {
                 if (txIn.scriptSig.IsZerocoinSpend()) {
                     libzerocoin::CoinSpend spend = TxInToZerocoinSpend(txIn);
                     if (count(vBlockSerials.begin(), vBlockSerials.end(), spend.getCoinSerialNumber()))
-                        return state.DoS(100, error("%s : Double spending of zPDG serial %s in block\n Block: %s",
+                        return state.DoS(100, error("%s : Double spending of zPIV serial %s in block\n Block: %s",
                                                     __func__, spend.getCoinSerialNumber().GetHex(), block.ToString()));
                     vBlockSerials.emplace_back(spend.getCoinSerialNumber());
                 }
@@ -4358,14 +4938,15 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
     if (pcheckpoint && nHeight < pcheckpoint->nHeight)
         return state.DoS(0, error("%s : forked chain older than last checkpoint (height %d)", __func__, nHeight));
 
-    // Reject block.nVersion=1 blocks
-    if (block.nVersion < 2) {
+    // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
+    if (block.nVersion < 2 &&
+        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().RejectBlockOutdatedMajority())) {
         return state.Invalid(error("%s : rejected nVersion=1 block", __func__),
             REJECT_OBSOLETE, "bad-version");
     }
 
-    // Reject block.nVersion=2 blocks
-    if (block.nVersion < 3) {
+    // Reject block.nVersion=2 blocks when 95% (75% on testnet) of the network has upgraded:
+    if (block.nVersion < 3 && CBlockIndex::IsSuperMajority(3, pindexPrev, Params().RejectBlockOutdatedMajority())) {
         return state.Invalid(error("%s : rejected nVersion=2 block", __func__),
             REJECT_OBSOLETE, "bad-version");
     }
@@ -4382,43 +4963,33 @@ bool IsBlockHashInChain(const uint256& hashBlock)
 }
 
 bool IsFileExist(const uint256& fileHash) {
-    // TODO: PDG 4 Lock DB?
-    CFileRepositoryBlockDiskPos postx;
-    return pblockfiletree->ReadFileIndex(fileHash, postx);
-}
-
-bool IsFileReceiveNeeded(const CTransaction &tx, const CBlockHeader* blockHeader) {
-    if (!fMasterNode && !pwalletMain) {
-        // not masternod and without wallet
+    CDiskFileBlockPos postx;
+    if (pblockfiletree->ReadFileIndex(fileHash, postx)) {
         return true;
     }
 
-    LogPrint("file", "%s - FILES. File receive needed check. txHash: %s\n", __func__, tx.GetHash().ToString());
-    if (!fMasterNode && !pwalletMain->IsMine(tx)) {
-        LogPrint("file", "%s - FILES. This node is not masternode or tx not ours, receive don't need. nodeType: %s, txHash: %s\n", __func__, (fMasterNode ? "MASTERNODE" : "NODE"), tx.GetHash().ToString());
+    return false;
+}
+
+bool IsFileReceiveNeeded(const CTransaction &tx) {
+    // TODO: check if my file or masternode
+
+    if (tx.expirationDate > GetTimeMicros()) {
+        LogPrintf("File save date expired. txHash: %s", tx.GetHash());
         return false;
     }
 
-    if (IsFileTransactionExpired(tx, blockHeader->GetBlockTime())) {
-        LogPrint("file", "%s - FILES. File transaction expired, receive don't need. txHash: %s\n", __func__, tx.GetHash().ToString());
+    //todo: txHash or fileHash?
+    if (requiredFilesMap.count(tx.GetHash()))
         return false;
-    }
 
-    if (requiredFilesMap.count(tx.GetHash())) {
-        LogPrint("file", "%s - FILES. File already in required map. txHash: %s\n", __func__, tx.GetHash().ToString());
+    if (IsFileExistByTx(tx.vfiles[0].fileHash))
         return false;
-    }
-
-    if (IsFileExist(tx.vfiles[0].fileHash)) {
-        LogPrint("file", "%s - FILES. File already exists. txHash: %s\n", __func__, tx.GetHash().ToString());
-        return false;
-    }
 
     return true;
 }
 
 bool IsFileExistByTx(const uint256& fileTxHash) {
-    // TODO: PDG 2 Optimize
     CTransaction tx;
     uint256 hashBlock;
     if (GetTransaction(fileTxHash, tx, hashBlock, true)) {
@@ -4457,8 +5028,10 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
             return state.DoS(10, error("%s : contains a non-final transaction", __func__), REJECT_INVALID, "bad-txns-nonfinal");
         }
 
-    // POS epoch
-    if (nHeight > Params().LAST_POW_BLOCK()) {
+    // Enforce block.nVersion=2 rule that the coinbase starts with serialized block height
+    // if 750 of the last 1,000 blocks are version 2 or greater (51/100 if testnet):
+    if (block.nVersion >= 2 &&
+        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().EnforceBlockUpgradeMajority())) {
         CScript expect = CScript() << nHeight;
         if (block.vtx[0].vin[0].scriptSig.size() < expect.size() ||
             !std::equal(expect.begin(), expect.end(), block.vtx[0].vin[0].scriptSig.begin())) {
@@ -4533,21 +5106,21 @@ bool AcceptBlockHeader(const CBlock& block, CValidationState& state, CBlockIndex
 bool ContextualCheckZerocoinStake(int nHeight, CStakeInput* stake)
 {
     if (nHeight < Params().Zerocoin_Block_V2_Start())
-        return error("%s: zPDG stake block is less than allowed start height", __func__);
+        return error("%s: zPIV stake block is less than allowed start height", __func__);
 
-    if (CZPivStake* zPDG = dynamic_cast<CZPivStake*>(stake)) {
-        CBlockIndex* pindexFrom = zPDG->GetIndexFrom();
+    if (CZPivStake* zPIV = dynamic_cast<CZPivStake*>(stake)) {
+        CBlockIndex* pindexFrom = zPIV->GetIndexFrom();
         if (!pindexFrom)
-            return error("%s: failed to get index associated with zPDG stake checksum", __func__);
+            return error("%s: failed to get index associated with zPIV stake checksum", __func__);
 
         if (chainActive.Height() - pindexFrom->nHeight < Params().Zerocoin_RequiredStakeDepth())
-            return error("%s: zPDG stake does not have required confirmation depth", __func__);
+            return error("%s: zPIV stake does not have required confirmation depth", __func__);
 
         //The checksum needs to be the exact checksum from 200 blocks ago
         uint256 nCheckpoint200 = chainActive[nHeight - Params().Zerocoin_RequiredStakeDepth()]->nAccumulatorCheckpoint;
-        uint32_t nChecksum200 = ParseChecksum(nCheckpoint200, libzerocoin::AmountToZerocoinDenomination(zPDG->GetValue()));
-        if (nChecksum200 != zPDG->GetChecksum())
-            return error("%s: accumulator checksum is different than the block 200 blocks previous. stake=%d block200=%d", __func__, zPDG->GetChecksum(), nChecksum200);
+        uint32_t nChecksum200 = ParseChecksum(nCheckpoint200, libzerocoin::AmountToZerocoinDenomination(zPIV->GetValue()));
+        if (nChecksum200 != zPIV->GetChecksum())
+            return error("%s: accumulator checksum is different than the block 200 blocks previous. stake=%d block200=%d", __func__, zPIV->GetChecksum(), nChecksum200);
     } else {
         return error("%s: dynamic_cast of stake ptr failed", __func__);
     }
@@ -4598,7 +5171,7 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
             return error("%s: null stake ptr", __func__);
 
         if (stake->IsZPIV() && !ContextualCheckZerocoinStake(pindexPrev->nHeight, stake.get()))
-            return state.DoS(100, error("%s: staked zPDG fails context checks", __func__));
+            return state.DoS(100, error("%s: staked zPIV fails context checks", __func__));
 
         uint256 hash = block.GetHash();
         if(!mapProofOfStake.count(hash)) // add to mapProofOfStake
@@ -4642,6 +5215,18 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
     }
 
     return true;
+}
+
+bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired)
+{
+    unsigned int nToCheck = Params().ToCheckBlockUpgradeMajority();
+    unsigned int nFound = 0;
+    for (unsigned int i = 0; i < nToCheck && nFound < nRequired && pstart != NULL; i++) {
+        if (pstart->nVersion >= minVersion)
+            ++nFound;
+        pstart = pstart->pprev;
+    }
+    return (nFound >= nRequired);
 }
 
 /** Turn the lowest '1' bit in the binary representation of a number into a '0'. */
@@ -4693,40 +5278,21 @@ void CBlockIndex::BuildSkip()
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
 }
 
-void HandleFileTransferTx(const CBlock *pblock) {
+void HandleFileTransferTx(CBlock *pblock) {
     for (const CTransaction &tx: pblock->vtx) {
-        if (tx.type != TX_FILE_TRANSFER)
-            continue;
+        if (tx.type != TX_FILE_TRANSFER) continue;
+
+        if (!IsFileReceiveNeeded(tx)) continue;
 
         const uint256& txHash = tx.GetHash();
 
-        LogPrint("file", "%s - FILES. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
+        //todo: txHash or fileHash?
+        requiredFilesMap.insert(std::make_pair(txHash, GetTimeMillis() + REQUIRED_FILE_EXPIRATION_TIMEOUT));
+        // TODO: PDG 5 send all HAS_FILE_REQUEST
+        BroadcastHasFileRequest(txHash);
 
-        {
-            LOCK(cs_RequiredFilesMap);
-
-            const CBlockHeader &blockHeader = pblock->GetBlockHeader();
-            if (!IsFileReceiveNeeded(tx, &blockHeader))
-                continue;
-
-            LogPrint("file", "%s - FILES. File required, adding to map. txHash: %s\n", __func__, txHash.ToString());
-
-            requiredFilesMap[txHash] = RequiredFile(CalcRequiredFileRequestExpirationDate(), (uint32_t)blockHeader.GetBlockTime() + tx.vfiles[0].nLifeTime);
-
-            //TODO: PDG 3 Optimize
-            if (!pblockfiletree->WriteRequiredFiles(requiredFilesMap))
-                LogPrint("file", "%s - FILES. Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
-        }
-
-        if (!knownHasFilesMap.count(txHash)) {
-            // TODO: PDG 2 think about to do it in a new thread?
-            if (!BroadcastHasFileRequest(txHash)) {
-                LOCK(cs_RequiredFilesMap);
-                requiredFilesMap[txHash].requestExpirationTime = GetTimeMicros();
-            }
-        } else {
-            LogPrint("file", "%s - FILES. File known. Broadcast not required. txHash: %s\n", __func__, txHash.ToString());
-        }
+        // TODO: PDG 3 Try send now
+        //FileRequest(fileHash);
     }
 }
 
@@ -4738,14 +5304,15 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
 
     int nMints = 0;
     int nSpends = 0;
-    for (const CTransaction& tx : pblock->vtx) {
+    for (const CTransaction tx : pblock->vtx) {
+
         //process zerocoin
         if (tx.ContainsZerocoins()) {
-            for (const CTxIn& in : tx.vin) {
+            for (const CTxIn in : tx.vin) {
                 if (in.scriptSig.IsZerocoinSpend())
                     nSpends++;
             }
-            for (const CTxOut& out : tx.vout) {
+            for (const CTxOut out : tx.vout) {
                 if (out.IsZerocoinMint())
                     nMints++;
             }
@@ -4753,7 +5320,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
     }
 
     if (nMints || nSpends)
-        LogPrintf("%s : block contains %d zPDG mints and %d zPDG spends\n", __func__, nMints, nSpends);
+        LogPrintf("%s : block contains %d zPIV mints and %d zPIV spends\n", __func__, nMints, nSpends);
 
     if (!CheckBlockSignature(*pblock))
         return error("ProcessNewBlock() : bad proof-of-stake block signature");
@@ -4862,6 +5429,26 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
+FILE* OpenDiskFile(unsigned int nPos, boost::filesystem::path& path, bool fReadOnly)
+{
+    boost::filesystem::create_directories(path.parent_path());
+    FILE* file = fopen(path.string().c_str(), "rb+");
+    if (!file && !fReadOnly)
+        file = fopen(path.string().c_str(), "wb+");
+    if (!file) {
+        LogPrintf("Unable to open file %s\n", path.string());
+        return NULL;
+    }
+    if (nPos) {
+        if (fseek(file, nPos, SEEK_SET)) {
+            LogPrintf("Unable to seek to position %u of %s\n", nPos, path.string());
+            fclose(file);
+            return NULL;
+        }
+    }
+    return file;
+}
+
 FILE* OpenBlockFile(const CDiskBlockPos& pos, bool fReadOnly)
 {
     boost::filesystem::path path = GetBlockPosFilename(pos, "blk");
@@ -4886,6 +5473,23 @@ boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos& pos, const char
 {
     return GetDataDir() / "blocks" / strprintf("%s%05u.dat", prefix, pos.nFile);
 }
+
+//file region
+FILE* OpenFileBlockFile(const CDiskFileBlockPos& pos, bool fReadOnly)
+{
+    boost::filesystem::path path = GetFilePosFilename(pos, "blk");
+
+    if (pos.IsNull())
+        return NULL;
+
+    return OpenDiskFile(pos.numberPosition, path, fReadOnly);
+}
+
+boost::filesystem::path GetFilePosFilename(const CDiskFileBlockPos& pos, const char* prefix)
+{
+    return GetDataDir() / "files" / strprintf("%s%05u.dat", prefix, pos.numberDiskFile);
+}
+//end region
 
 CBlockIndex* InsertBlockIndex(uint256 hash)
 {
@@ -4964,6 +5568,26 @@ bool static LoadBlockIndexDB(string& strError)
         CBlockFileInfo info;
         if (pblocktree->ReadBlockFileInfo(nFile, info)) {
             vinfoBlockFile.push_back(info);
+        } else {
+            break;
+        }
+    }
+
+    //Load fileBlock file info
+    pblockfiletree->ReadLastFileBlockFile(nLastFileDiskFile);
+    vinfoFileBlockFile.resize(nLastFileDiskFile + 1);
+    LogPrintf("%s: last fileBlock file = %i\n", __func__, nLastFileDiskFile);
+    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
+        if (!pblockfiletree->ReadFileBlockFileInfo(nFile, vinfoFileBlockFile[nFile])) {
+            LogPrintf("%s: Filed to load file info from db: %d\n", __func__, nFile);
+        }
+    }
+    LogPrintf("%s: last fileBlock file info: %s\n", __func__, vinfoFileBlockFile[nLastBlockFile].ToString());
+    // Load all saved files to db if nLastBlockFile saved invalid
+    for (int nFile = nLastFileDiskFile + 1; true; nFile++) {
+        CFileBlockFileInfo info;
+        if (pblockfiletree->ReadFileBlockFileInfo(nFile, info)) {
+            vinfoFileBlockFile.push_back(info);
         } else {
             break;
         }
@@ -5113,30 +5737,21 @@ void UnloadBlockIndex()
     pindexBestInvalid = NULL;
 }
 
-bool LoadFileSyncData()
+
+/*
+ bool LoadFileIndex(string& strError)
 {
-    if (fReindex)
-        return true;
+    //todo: продолжить..
 
-    if (!pblockfiletree->ReadRequiredFiles(requiredFilesMap))
-        return false;
-
-    LogPrint("file", "%s - FILES. %d loaded required files.\n", __func__, requiredFilesMap.size()); // TODO: PDG 2 remove after debug
-    // clear request expiration time to request at once on scheduler start
-    for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); it++) {
-        it->second.requestExpirationTime = GetTimeMicros();
-    }
-
-    return true;
 }
+ */
 
 bool LoadBlockIndex(string& strError)
 {
-    if (fReindex)
-        return true;
-
     // Load block index from databases
-    return LoadBlockIndexDB(strError);
+    if (!fReindex && !LoadBlockIndexDB(strError))
+        return false;
+    return true;
 }
 
 
@@ -5178,6 +5793,53 @@ bool InitBlockIndex()
 
     return true;
 }
+
+// TODO: remove
+/*bool LoadExternalFileBlockFile(FILE* fileIn, CDiskFileBlockPos* dbp)
+{
+    CBufferedFile blkdat(fileIn, 2 * MAX_BLOCK_SIZE_CURRENT, MAX_BLOCK_SIZE_CURRENT + 8, SER_DISK, CLIENT_VERSION);
+    uint64_t nRewind = blkdat.GetPos();
+    while (!blkdat.eof()) {
+        boost::this_thread::interruption_point();
+
+        blkdat.SetPos(nRewind);
+        nRewind++;         // start one byte further next time, in case of failure
+        blkdat.SetLimit(); // remove former limit
+        unsigned int nSize = 0;
+        try {
+            // locate a header
+            unsigned char buf[MESSAGE_START_SIZE];
+            blkdat.FindByte(Params().MessageStart()[0]);
+            nRewind = blkdat.GetPos() + 1;
+            blkdat >> FLATDATA(buf);
+            if (memcmp(buf, Params().MessageStart(), MESSAGE_START_SIZE))
+                continue;
+            // read size
+            blkdat >> nSize;
+            if (nSize < 80 || nSize > MAX_BLOCK_SIZE_CURRENT)
+                continue;
+        } catch (const std::exception&) {
+            // no valid fileBlock header found; don't complain
+            break;
+        }
+
+        // read block
+        uint64_t nBlockPos = blkdat.GetPos();
+        if (dbp)
+            dbp->numberPosition = nBlockPos;
+        blkdat.SetLimit(nBlockPos + nSize);
+        blkdat.SetPos(nBlockPos);
+        CFile file;
+        blkdat >> file;
+        nRewind = blkdat.GetPos();
+
+        if (file.fileHash == file.CalcFileHash()) {
+
+        }
+    }
+
+    return true;
+}*/
 
 bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos* dbp)
 {
@@ -5494,14 +6156,12 @@ bool static AlreadyHave(const CInv& inv)
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_HAS_FILE_REQUEST:
-        return false;
+
     case MSG_HAS_FILE:
-        {
-            LOCK(cs_KnownHasFilesMap);
-            return knownHasFilesMap.count(inv.hash);
-        }
-    case MSG_FILE_REQUEST:
-        return false;
+        return knownHasFilesMap.count(inv.hash);
+
+        case MSG_FILE_REQUEST:
+        return false; // TODO: PDG implement
     case MSG_TXLOCK_REQUEST:
         return mapTxLockReq.count(inv.hash) ||
                mapTxLockReqRejected.count(inv.hash);
@@ -5650,6 +6310,37 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
+
+                // This message should come only after MSG_HAS_FILE or somebody upload file
+                if (!pushed && inv.type == MSG_FILE_REQUEST) {
+                    const uint256 hash = inv.hash;
+
+                    if (mapSendFilesInFlight.size() < MAX_FILES_IN_TRANSIT_PER_PEER) {
+                        vector<QueuedFile> vQueuedFiles;
+
+                        QueuedFile queuedFile(hash, GetTimeMicros());
+                        vQueuedFiles.emplace_back(queuedFile);
+
+                        mapSendFilesInFlight[hash] = std::make_pair(pfrom->id, vQueuedFiles);
+
+                        CDBFile file;
+                        CDiskFileBlockPos postx;
+                        if (pblockfiletree->ReadFileIndex(hash, postx)) {
+                            if (ReadFileBlockFromDisk(file, postx)) {
+                                //push file
+                                pfrom->PushMessage("file", file);
+
+                                //todo: if false, "inv" be added to vNotFound
+                                pushed = true;
+                            } else {
+                                LogPrintf("File not found at DiskSpace. fileHash %s\n", hash);
+                            }
+                        } else {
+                            LogPrintf("File not found in DB. fileHash %s\n", hash);
+                        }
+                    }
+                }
+
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -5800,11 +6491,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (pfrom->nVersion != 0) {
             pfrom->PushMessage("reject", strCommand, REJECT_DUPLICATE, string("Duplicate version message"));
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 1, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 1);
             return false;
         }
 
-        // PDG: We use certain sporks during IBD, so check to see if they are
+        // PIVX: We use certain sporks during IBD, so check to see if they are
         // available. If not, ask the first peer connected for them.
         bool fMissingSporks = !pSporkDB->SporkExists(SPORK_14_NEW_PROTOCOL_ENFORCEMENT) &&
                 !pSporkDB->SporkExists(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2) &&
@@ -5918,7 +6609,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     else if (pfrom->nVersion == 0) {
         // Must have a version message before anything else
         LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 1, __FILE__, __LINE__);
+        Misbehaving(pfrom->GetId(), 1);
         return false;
     }
 
@@ -5943,7 +6634,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             return true;
         if (vAddr.size() > 1000) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 20);
             return error("message addr size() = %u", vAddr.size());
         }
 
@@ -6002,7 +6693,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> vInv;
         if (vInv.size() > MAX_INV_SZ) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 20);
             return error("message inv size() = %u", vInv.size());
         }
 
@@ -6014,9 +6705,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             const CInv& inv = vInv[nInv];
 
             boost::this_thread::interruption_point();
-
-            if (!IsMsgFile(inv.type))
-                pfrom->AddInventoryKnown(inv);
+            pfrom->AddInventoryKnown(inv);
 
             bool fAlreadyHave = AlreadyHave(inv);
             LogPrint("net", "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->id);
@@ -6037,214 +6726,40 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (inv.type == MSG_HAS_FILE) {
                 if (!fImporting && !fReindex) {
                     if (!fAlreadyHave) {
-                        LogPrint("file", "%s - FILES. MSG_HAS_FILE. Add new file known. node: %d. hash: %s.\n", __func__, pfrom->GetId(), inv.hash.ToString());
-                        AddNewFileKnown(inv.hash, pfrom->GetId());
+                        vector<FileKnown> fileKnown;
+                        fileKnown.emplace_back(new FileKnown(pfrom->GetId(), 1));
+                        knownHasFilesMap.insert(std::make_pair(inv.hash, fileKnown));
                     } else {
-                        LogPrint("file", "%s - FILES. MSG_HAS_FILE. File known found. node: %d. hash: %s.\n", __func__, pfrom->GetId(), inv.hash.ToString());
-                        LOCK(cs_KnownHasFilesMap);
+//                    if (FileKnown fileKnown = knownHasFilesMap[inv.hash]) {
+                        vector<FileKnown> &vfileKnown = knownHasFilesMap[inv.hash].second;
+                        BOOST_FOREACH (FileKnown &fileKnown, vfileKnown) {
+                                if (fileKnown.events > NODE_FILE_EVENTS_MAX_COUNT) {
 
-                        pair<int64_t, vector<FileKnown>> &fileKnownByHash = knownHasFilesMap[inv.hash];
-
-                        bool nodeFound = false;
-                        BOOST_FOREACH (FileKnown &fileKnown, fileKnownByHash.second) {
-                            if (fileKnown.node != pfrom->GetId())
-                                continue;
-
-                            nodeFound = true;
-
-                            if (fileKnown.events > HAS_FILE_EVENTS_MAX_COUNT) {
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE. Node max events exceeded. Misbehaving.\n", __func__);
-
-                                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
-                                RemoveKnownFileHashesByNode(pfrom->GetId());
-                            } else {
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE. Node already notified file known.\n", __func__);
-
+                                    //todo: what to do with fileKnown->node and pfrom->getId();
+                                    Misbehaving(fileKnown.node, 50);
+                                    RemoveKnownFileHashesByNode(fileKnown.node);
+                                }
                                 fileKnown.events++;
-                                fileKnownByHash.first = CalcKnownExpirationDate();
-                            }
-                            break;
-                        }
-
-                        if (!nodeFound) {
-                            LogPrint("file", "%s - FILES. MSG_HAS_FILE. New node detected for file known.\n", __func__);
-
-                            fileKnownByHash.second.emplace_back(FileKnown(pfrom->GetId(), 1));
-                            fileKnownByHash.first = CalcKnownExpirationDate();
                         }
                     }
 
-                    // TODO: PDG2 позже предусмотреть, если этот тот хеш который мы ждали, запустить pending сразу
+                    // TODO: позже предусмотреть, если этот тот хеш который мы ждали, запустить pending сразу
                 }
             }
 
             if (inv.type == MSG_HAS_FILE_REQUEST) {
-                if (!fImporting && !fReindex) {
-                    const uint256& fileTxHash = inv.hash;
-                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST: fileTxHash: %s. nodeId: %d\n", __func__, fileTxHash.ToString(), pfrom->id);
-
-                    if (knownFileTxesInDb.count(fileTxHash)) {
-                        LogPrint("file", "%s - FILES. File known in DB. SendFileAvailable to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                        SendFileAvailable(pfrom, fileTxHash);
+//                if (!fAlreadyHave && !fImporting && !fReindex && IsFileExistByTx(inv.hash)) {
+                if (knownFilesInDb.count(inv.hash)) {
+                    SendFileAvailable(pfrom, inv.hash);
+                } else {
+                    // если файл уже кто-то запрашивал, добавляет нового нода туда же
+                    if (hasFileRequestedNodesMap.count(inv.hash)) {
+                        hasFileRequestedNodesMap[inv.hash].insert(pfrom->id);
                     } else {
-                        LOCK(cs_HasFileRequestedNodesMap);
-
-                        LogPrint("file", "%s - FILES. File unknown in DB\n", __func__);
-
-                        // если нод уже запрашивал этот хеш, проверяем на лимиты
-                        if (hasFileRequestedNodesMap.count(fileTxHash)) {
-                            LogPrint("file", "%s - FILES. Node already request this file. Check limits. to node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                            FileRequest *fileRequest = nullptr;
-
-                            //region Find file request by node
-                            vector<FileRequest> &vfileRequests = hasFileRequestedNodesMap[fileTxHash];
-                            BOOST_FOREACH(FileRequest &fileRequestIt, vfileRequests) {
-                                if (fileRequestIt.node == pfrom->GetId()) {
-                                    fileRequest = &fileRequestIt;
-                                    break;
-                                }
-                            }
-                            //endregion
-
-                            if (fileRequest != nullptr) {
-                                LogPrint("file", "%s - FILES. File request found. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                                if (fileRequest->events > HAS_FILE_REQUEST_EVENTS_MAX_COUNT) {
-                                    LogPrint("file", "%s - FILES. HAS_FILE_REQUEST_EVENTS_MAX_COUNT. Misbehaving. node: %d , fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                                    Misbehaving(fileRequest->node, 10, __FILE__, __LINE__);
-                                    RemoveHasFileRequestsByNode(fileRequest->node);
-                                } else {
-                                    LogPrint("file", "%s - FILES. update data at file request. node: %d, fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                                    fileRequest->events++;
-                                    fileRequest->date = GetTimeMicros(); // обновить дату
-                                }
-                            } else {
-                                LogPrint("file", "%s - FILES. File request not found. node: %d, fileTxHash: %s\n", __func__, pfrom->GetId(), fileTxHash.ToString());
-                                vfileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                            }
-                        } else {
-                            // TODO: PDG 3 позже ввести проверку всех запросов по ноду, если их больше порога, банить
-
-                            // TODO: PDG 3 refactor
-                            //region Check and response or add to map
-                            CTransaction tx;
-                            uint256 blockHash;
-                            // TODO: PDG 2 refactor
-                            if (!GetTransaction(fileTxHash, tx, blockHash, true)) { // TODO: optimize, make caching
-                                if (fMasterNode) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Transaction not found. Adding to requests map.\n", __func__);
-                                    vector<FileRequest> vnewFileRequests;
-                                    vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                    hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
-                                }
-                            } else
-                            if (tx.type != TX_FILE_TRANSFER) {
-                                LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. Invalid transaction type. Misbehaving.\n", __func__);
-                                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
-                            } else {
-                                bool hasBlock = (bool) mapBlockIndex.count(blockHash);
-                                if (!hasBlock) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
-                                }
-
-                                if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
-                                    Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
-                                } else
-                                if (!IsFileExist(tx.vfiles[0].fileHash)) {
-                                    if (fMasterNode) {
-                                        LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File not found. Adding to has file requested node map.\n", __func__);
-                                        vector<FileRequest> vnewFileRequests;
-                                        vnewFileRequests.emplace_back(FileRequest(pfrom->GetId(), GetTimeMicros()));
-                                        hasFileRequestedNodesMap[fileTxHash] = vnewFileRequests;
-                                    }
-                                } else {
-                                    LogPrint("file", "%s - FILES. MSG_HAS_FILE_REQUEST. File exists, sending response.\n", __func__);
-                                    {
-                                        LOCK(cs_KnownFileTxesInDb);
-                                        knownFileTxesInDb.insert(fileTxHash);
-                                    }
-                                    SendFileAvailable(pfrom, fileTxHash);
-                                }
-                            }
-                            //endregion
+                        if (IsFileExistByTx(inv.hash)) {
+                            hasFileRequestedNodesMap.insert(std::make_pair(inv.hash, pfrom->id));
+                            SendFileAvailable(pfrom, inv.hash);
                         }
-                    }
-                }
-            }
-
-
-            if (inv.type == MSG_FILE_REQUEST) {
-                if (!fImporting && !fReindex) {
-                    LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. node: %d. txHash: %s.\n", __func__, pfrom->GetId(), inv.hash.ToString());
-
-                    const uint256 &txHash = inv.hash;
-
-                    LOCK(cs_FileRequestedNodesMap);
-
-                    if (fileRequestedNodesMap.count(txHash)) {
-                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File already requested by another node.\n", __func__);
-
-                        map<NodeId, FileRequest> &nodesMap = fileRequestedNodesMap[txHash];
-
-                        if (nodesMap.count(pfrom->GetId())) {
-                            FileRequest *fileRequest = &nodesMap[pfrom->GetId()];
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File request found by this node. events: %d.\n", __func__, fileRequest->events);
-
-                            if (fileRequest->events > FILE_REQUEST_EVENTS_BAN_THRESHOLD) {
-                                // ban
-                                Misbehaving(fileRequest->node, 50, __FILE__, __LINE__);
-                                RemoveFileRequestsByNode(fileRequest->node);
-                            } else {
-                                // update date and increment counter
-                                fileRequest->date = GetTimeMicros();
-                                fileRequest->events++;
-                            }
-                        } else {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Adding new node to requested file map.\n", __func__);
-
-                            // add new
-                            FileRequest *anotherFileRequest = &nodesMap.begin()->second;
-                            nodesMap[pfrom->GetId()] = FileRequest(pfrom->GetId(), GetTimeMicros(), anotherFileRequest->fileHash.get(), anotherFileRequest->fileTxHash.get());
-                            fileRequestsOrder.push_back(make_pair(txHash, pfrom->GetId()));
-                        }
-                    } else {
-                        LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File doesn't requested before. Validating.\n", __func__);
-
-                        //region Validation
-                        CTransaction tx;
-                        uint256 blockHash;
-
-                        if (!GetTransaction(txHash, tx, blockHash, true)) { // TODO: optimize, make caching
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Transaction by fileTxHash not found. Misbehaving.\n", __func__);
-                            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
-                        } else
-                        if (tx.type != TX_FILE_TRANSFER) {
-                            LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Invalid transaction type: %d. Misbehaving.\n", __func__, tx.type);
-                            Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
-                        } else {
-                            const uint256 &fileHash = tx.vfiles[0].fileHash;
-                            bool hasBlock = (bool) mapBlockIndex.count(blockHash);
-                            if (!hasBlock) {
-                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. FileTx block not found. It looks like the transaction in mempool. Block hash: %s.\n", __func__, blockHash.ToString());
-                            }
-
-                            if (hasBlock && IsFileTransactionExpired(tx, mapBlockIndex[blockHash]->GetBlockTime())) {
-                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File expired. Block hash: %d. Misbehaving.\n", __func__, blockHash.ToString());
-                                Misbehaving(pfrom->GetId(), 5, __FILE__, __LINE__);
-                            } else if (!IsFileExist(fileHash)) {
-                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. File not found. Misbehaving.\n", __func__);
-                                Misbehaving(pfrom->GetId(), 10, __FILE__, __LINE__);
-                            } else {
-                                LogPrint("file", "%s - FILES. MSG_FILE_REQUEST. Validate OK. Adding to file requests map.\n", __func__);
-
-                                // all validation OK
-                                map<NodeId, FileRequest> nodesMap;
-                                nodesMap[pfrom->GetId()] = FileRequest(pfrom->GetId(), GetTimeMicros(), fileHash, txHash);
-                                fileRequestedNodesMap[txHash] = nodesMap;
-                                fileRequestsOrder.emplace_back(make_pair(txHash, pfrom->GetId()));
-                            }
-                        }
-                        //endregion
                     }
                 }
             }
@@ -6253,7 +6768,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             GetMainSignals().Inventory(inv.hash);
 
             if (pfrom->nSendSize > (SendBufferSize() * 2)) {
-                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
+                Misbehaving(pfrom->GetId(), 50);
                 return error("send buffer size() = %u", pfrom->nSendSize);
             }
         }
@@ -6268,7 +6783,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> vInv;
         if (vInv.size() > MAX_INV_SZ) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 20);
             return error("message getdata size() = %u", vInv.size());
         }
 
@@ -6455,7 +6970,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         int nDos = 0;
                         if(stateDummy.IsInvalid(nDos) && nDos > 0) {
                             // Punish peer that gave us an invalid orphan tx
-                            Misbehaving(fromPeer, nDos, __FILE__, __LINE__);
+                            Misbehaving(fromPeer, nDos);
                             setMisbehaving.insert(fromPeer);
                             LogPrint("mempool", "   invalid orphan tx %s\n", orphanHash.ToString());
                         }
@@ -6506,7 +7021,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                 state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0)
-                Misbehaving(pfrom->GetId(), nDoS, __FILE__, __LINE__);
+                Misbehaving(pfrom->GetId(), nDoS);
         }
     }
 
@@ -6519,7 +7034,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         unsigned int nCount = ReadCompactSize(vRecv);
         if (nCount > MAX_HEADERS_RESULTS) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 20);
             return error("headers message size = %u", nCount);
         }
         headers.resize(nCount);
@@ -6538,7 +7053,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         BOOST_FOREACH (const CBlockHeader& header, headers) {
             CValidationState state;
             if (pindexLast != NULL && header.hashPrevBlock != pindexLast->GetBlockHash()) {
-                Misbehaving(pfrom->GetId(), 20, __FILE__, __LINE__);
+                Misbehaving(pfrom->GetId(), 20);
                 return error("non-continuous headers sequence");
             }
 
@@ -6549,7 +7064,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 int nDoS;
                 if (state.IsInvalid(nDoS)) {
                     if (nDoS > 0)
-                        Misbehaving(pfrom->GetId(), nDoS, __FILE__, __LINE__);
+                        Misbehaving(pfrom->GetId(), nDoS);
                     std::string strError = "invalid header received " + header.GetHash().ToString();
                     return error(strError.c_str());
                 }
@@ -6571,91 +7086,89 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
 
     //file region
-    else if (strCommand == "file" && !fImporting && !fReindex) {
+    else if (strCommand == "file")//todo: fImporting??? fReindex???
+    {
         CDBFile file;
-        uint256 fileTxHash;
-        vRecv >> fileTxHash >> file;
+        vRecv >> file;
 
-        LogPrint("file", "FILES. Received file of tx %s from peer=%d\n", fileTxHash.ToString(), pfrom->id);
+        uint256 fileHash = file.fileHash;
+        // TODO: check file hash
+        LogPrint("net", "received file %s peer=%d\n", fileHash.ToString(), pfrom->id);
 
-        {
-            LOCK(cs_FilesInFlightMap);
-            filesInFlightMap.erase(fileTxHash);
-            LogPrint("file", "FILES. File in flight removed from order\n"); // TODO: PDG 2 remove after debug
+        //file isNeeded
+        if (IsFileReceivePending(fileHash)) {
+            //file validate
+            if (fileHash == file.CalcFileHash()) {
+                //save file
+                unsigned int nFileSize = ::GetSerializeSize(file, SER_DISK, CLIENT_VERSION);
+                CDiskFileBlockPos filePos;
+                CValidationState state;
+                if (!FindFileBlockPos(state, filePos, nFileSize + 8, 0))
+                    return error("LoadBlockIndex() : FindBlockPos failed");
+
+                if (!WriteFileBlockToDisk(file, filePos))
+                    return state.Abort("Failed to write file");
+
+                if (!pblockfiletree->WriteFileIndex(file.CalcFileHash(), filePos))
+                        return state.Abort("Failed to write file position");
+
+                UpdateFileBlockPosData(filePos);
+                RemoveFileReceivePendingByHash(fileHash);
+            }
         }
+    }
 
-        if (!requiredFilesMap.count(fileTxHash)) {
-            LogPrint("file", "FILES. Received file not required %s\n", fileTxHash.ToString());
-            // TODO: protect ddos
-            Misbehaving(pfrom->GetId(), 2, __FILE__, __LINE__);
-        } else {
-            const uint256 &fileHash = file.fileHash;
+    else if (strCommand == "fileRequest")
+    {
+        uint256 fileHash;
+        vRecv >> fileHash;
 
-            LogPrint("file", "FILES. File hash %s\n", fileHash.ToString());
+        if (fileHash != NULL) {
+            //this node search this file to. ignore.
+            if (!IsFileReceivePending(fileHash)) {
+                bool isResultHasData = false;
+                CDBFile file;
+                CDiskFileBlockPos postx;
+                if (pblockfiletree->ReadFileIndex(fileHash, postx)) {
 
-            if (fileHash != file.CalcFileHash()) {
-                LogPrint("file", "FILES. File hash mismatch. Misbehaving\n");
-
-                LOCK(cs_KnownHasFilesMap);
-                RemoveKnownFileHashesByNode(pfrom->GetId());
-                Misbehaving(pfrom->GetId(), 50, __FILE__, __LINE__);
-            } else {
-                LogPrint("file", "FILES. File hash OK\n");
-
-                //mark file as ours
-                CTransaction tx;
-                uint256 blockHash;
-                if (GetTransaction(fileTxHash, tx, blockHash, true) && pwalletMain->IsMine(tx)) {
-                    file.isMine = true;
+                    if (ReadFileBlockFromDisk(file, postx)) {
+                        //add file to result
+                        isResultHasData = true;
+                    } else {
+                        LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
+                    }
+                } else {
+                    LogPrintf("File not found in DB. fileHash %s\n", fileHash);
                 }
 
-                if (!SaveFileDB(file)) {
-                    LogPrint("file", "FILES. File save to DB error\n");
-                    // TODO: PDG 3 stop all request for 5 min
-
-#ifdef ENABLE_WALLET
-                    if (pwalletMain) {
-                        uiInterface.ThreadSafeMessageBox(_("Failed to save received file. Check disk space and see log for details"), _("File transfer error"), CClientUIInterface::MSG_ERROR | CClientUIInterface::GUI_ONLY);
-                    }
-#endif
-                } else {
-                    LogPrint("file", "FILES. File save OK\n");
-
-                    {
-                        LOCK(cs_FilesPendingMap);
-                        filesPendingMap.erase(fileTxHash);
-                    }
-
-                    {
-                        LOCK(cs_KnownHasFilesMap);
-                        knownHasFilesMap.erase(fileTxHash);
-                    }
-
-                    {
-                        LOCK(cs_RequiredFilesMap);
-                        requiredFilesMap.erase(fileTxHash);
-                    }
-
-                    // если кто-то ждал файл, шлем ему, что он у нас появился
-                    if (fileRequestedNodesMap.count(fileTxHash)) {
-                        LogPrint("file", "FILES. We have %d nodes requested received file\n", fileRequestedNodesMap[fileTxHash].size());
-                        //processFileRequests(); // TODO: PDG 3 optimize, run process file
-                    }
-
-#ifdef ENABLE_WALLET
-                    if (pwalletMain && pwalletMain->IsMine(tx)) {
-                        uiInterface.ThreadSafeMessageBox(_("File received"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
-                    }
-#endif
+                if (isResultHasData) {
+                    //push file hash
+                    pfrom->PushMessage("fileAvailable", fileHash);
                 }
             }
         }
-
     }
 
+    else if (strCommand == "fileAvailable")
+    {
+        uint256 fileHash;
+        uint256 txConfirmed;
+        vRecv >> fileHash >> txConfirmed;
+
+        if (fileHash != NULL) {
+            if(IsFileReceivePending(fileHash)) {
+                //TODO: добавить проверку на сессию скачивания файла
+
+                pfrom->PushMessage("getfile", fileHash);
+            } else {
+                AddFileReceivePending(fileHash, pfrom->id);
+            }
+        }
+    }
     //end fileregion
 
-    else if (strCommand == "block" && !fImporting && !fReindex) {// Ignore blocks received while importing
+    else if (strCommand == "block" && !fImporting && !fReindex) // Ignore blocks received while importing
+    {
         CBlock block;
         vRecv >> block;
         uint256 hashBlock = block.GetHash();
@@ -6832,7 +7345,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 // peer might be an older or different implementation with
                 // a different signature key, etc.
                 LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), 10, __FILE__, __LINE__);
+                Misbehaving(pfrom->GetId(), 10);
             }
         }
     }
@@ -6843,7 +7356,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                  strCommand == "filterclear")) {
         LogPrintf("bloom message=%s\n", strCommand);
         LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
+        Misbehaving(pfrom->GetId(), 100);
     }
 
     else if (strCommand == "filterload") {
@@ -6853,7 +7366,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (!filter.IsWithinSizeConstraints()) {
             // There is no excuse for sending a too-large filter
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 100);
         } else {
             LOCK(pfrom->cs_filter);
             delete pfrom->pfilter;
@@ -6872,14 +7385,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         // and thus, the maximum size any matched object can have) in a filteradd message
         if (vData.size() > MAX_SCRIPT_ELEMENT_SIZE) {
             LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
+            Misbehaving(pfrom->GetId(), 100);
         } else {
             LOCK(pfrom->cs_filter);
             if (pfrom->pfilter)
                 pfrom->pfilter->insert(vData);
             else {
                 LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), 100, __FILE__, __LINE__);
+                Misbehaving(pfrom->GetId(), 100);
             }
         }
     }
@@ -7054,6 +7567,94 @@ bool ProcessMessages(CNode* pfrom)
         pfrom->vRecvMsg.erase(pfrom->vRecvMsg.begin(), it);
 
     return fOk;
+}
+
+
+
+bool SendFileAvailable(CNode* pto, uint256 fileTxHash) {
+    pto->PushInventory(CInv(MSG_HAS_FILE, fileTxHash));
+    return true;
+}
+
+bool SendHasFileRequest(CNode* pto, uint256 fileTxHash) {
+    pto->PushInventory(CInv(MSG_HAS_FILE_REQUEST, fileTxHash));
+    return true;
+}
+
+bool SendFileMessages(CNode* pto, bool fSendTrickle, uint256 fileHash) {
+    // Don't send anything until we get their version message
+    if (pto->nVersion == 0)
+        return true;
+
+    //
+    // Message: ping
+    //
+    bool pingSend = false;
+    if (pto->fPingQueued) {
+        // RPC ping request by user
+        pingSend = true;
+    }
+    if (pto->nPingNonceSent == 0 && pto->nPingUsecStart + PING_INTERVAL * 1000000 < GetTimeMicros()) {
+        // Ping automatically sent as a latency probe & keepalive.
+        pingSend = true;
+    }
+    if (pingSend) {
+        uint64_t nonce = 0;
+        while (nonce == 0) {
+            GetRandBytes((unsigned char*)&nonce, sizeof(nonce));
+        }
+        pto->fPingQueued = false;
+        pto->nPingUsecStart = GetTimeMicros();
+        if (pto->nVersion > BIP0031_VERSION) {
+            pto->nPingNonceSent = nonce;
+            pto->PushMessage("ping", nonce);
+        } else {
+            // Peer is too old to support ping command with nonce, pong will never arrive.
+            pto->nPingNonceSent = 0;
+            pto->PushMessage("ping");
+        }
+    }
+
+    TRY_LOCK(cs_main, lockMain); // Acquire cs_main for IsInitialBlockDownload() and CNodeState()
+    if (!lockMain)
+        return true;
+
+    //
+    // Message: addr
+    //
+    if (fSendTrickle) {
+        vector<CAddress> vAddr;
+        vAddr.reserve(pto->vAddrToSend.size());
+        BOOST_FOREACH (const CAddress& addr, pto->vAddrToSend) {
+            // returns true if wasn't already contained in the set
+            if (pto->setAddrKnown.insert(addr).second) {
+                vAddr.push_back(addr);
+                // receiver rejects addr messages larger than 1000
+                if (vAddr.size() >= 1000) {
+                    pto->PushMessage("addr", vAddr);
+                    vAddr.clear();
+                }
+            }
+        }
+        pto->vAddrToSend.clear();
+        if (!vAddr.empty())
+            pto->PushMessage("addr", vAddr);
+    }
+
+    CDiskFileBlockPos posFile;
+    if (!pblockfiletree->ReadFileIndex(fileHash, posFile)) {
+        LogPrintf("File not found in DB. fileHash %s\n", fileHash);
+        return false;
+    }
+
+    CDBFile file;
+    if(!ReadFileBlockFromDisk(file, posFile)) {
+        LogPrintf("File not found at DiskSpace. fileHash %s\n", fileHash);
+        return false;
+    }
+
+    pto->PushMessage("file", file);
+    return true;
 }
 
 bool SendMessages(CNode* pto, bool fSendTrickle)
@@ -7260,14 +7861,14 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             }
         }
 
-        // TODO: ?
-        /*
+        // TODO:
         //!pto->fClient ??
         if (!pto->fDisconnect &&  fFetch && state.nFilesInFlight < MAX_FILES_IN_TRANSIT_PER_PEER) {
+            //реализация выбора очереди файлов у данного нода
 
-        }*/
+        }
 
-        //
+            //
         // Message: getdata (non-blocks)
         //
         while (!pto->fDisconnect && !pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow) {
@@ -7289,608 +7890,13 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
     return true;
 }
 
-bool SendFileAvailable(CNode* pto, const uint256& fileTxHash) {
-    pto->PushInventory(CInv(MSG_HAS_FILE, fileTxHash));
-    return true;
-}
-
-bool SendHasFileRequest(CNode* pto, const uint256& fileTxHash) {
-    pto->PushInventory(CInv(MSG_HAS_FILE_REQUEST, fileTxHash));
-    return true;
-}
-
-void RemoveKnownFileHashesByNode(const NodeId pNode) {
-    LogPrint("file", "%s - FILES. RemoveKnownFileHashesByNode. Remove File Known. nodeId: %d\n", __func__, pNode);
-    for (KnownHasFilesMap::iterator it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); ) {
-        vector<FileKnown> &vFileKnown = it->second.second;
-
-        vector<FileKnown>::iterator it2 = vFileKnown.begin();
-        while (it2 != vFileKnown.end()) {
-            if (it2->node == pNode) {
-                LogPrint("file", "%s - FILES. File Known found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
-
-                it2 = vFileKnown.erase(it2);
-                continue;
-            }
-
-            it2++;
-        }
-
-        // if empty, remove from map
-        if (vFileKnown.empty()) {
-            LogPrint("file", "%s - FILES. vFileKnown is empty. Remove knownHasFilesMap. fileTxHash: %s\n", __func__, it->first.ToString());
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void RemoveKnownFileHashesByHash(uint256& hash) {
-    knownHasFilesMap.erase(hash);
-}
-
-void RemoveHasFileRequestsByNode(const NodeId pNode) {
-    LogPrint("file", "%s - FILES. RemoveHasFileRequestsByNode. Remove Has File Request. nodeId: %d\n", __func__, pNode);
-    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end(); ) {
-        vector<FileRequest> &vHasFileRequests = it->second;
-
-        vector<FileRequest>::iterator it2 = vHasFileRequests.begin();
-        while (it2 != vHasFileRequests.end()) {
-            if (it2->node == pNode) {
-                LogPrint("file", "%s - FILES. Has File Requests found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
-                it2 = vHasFileRequests.erase(it2);
-                continue;
-            }
-
-            it2++;
-        }
-
-        // if empty, remove from map
-        if (vHasFileRequests.empty()) {
-            LogPrint("file", "%s - FILES. vHasFileRequests is empty. Remove hasFileRequestedNodesMap. fileTxHash: %s\n", __func__, it->first.ToString());
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void RemoveFileRequestsByNode(const NodeId pNode) {
-    LogPrint("file", "%s - FILES. RemoveFileRequestsByNode. Remove File Request. nodeId: %d\n", __func__, pNode);
-    for (auto it = fileRequestedNodesMap.begin(); it != fileRequestedNodesMap.end(); ) {
-        if (it->second.count(pNode)) {
-            it->second.erase(pNode);
-
-            auto it2 = fileRequestsOrder.begin();
-            while (it2 != fileRequestsOrder.end()) {
-                pair<uint256, NodeId> &pair = *it2;
-                if (pair.first == it->first && pair.second == pNode) {
-                    it2 = fileRequestsOrder.erase(it2);
-                    LogPrint("file", "%s - FILES. File Requests found and remove. fileTxHash: %s\n", __func__, it->first.ToString());
-                    break;
-                }
-
-                it2++;
-            }
-
-            if (it->second.empty()) {
-                LogPrint("file", "%s - FILES. map<NodeId, FileRequest> is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString()); // TODO: PDG 2 remove
-                it = fileRequestedNodesMap.erase(it);
-                continue;
-            }
-        }
-
-        ++it;
-    }
-}
-
-void RemoveHasFileRequestsByHash(const uint256 &hash) {
-    hasFileRequestedNodesMap.erase(hash);
-}
-
-void ProcessMarkRemoveFilesScheduler() {
-    fileRepositoryManager.FindAndRecycleExpiredFiles();
-}
-
-void ProcessFilesEraseScheduler() {
-    fileRepositoryManager.ShrinkRecycledFiles();
-}
-
-void ProcessFilesRequestsScheduler() {
-    ProcessHasFileRequests();
-    ProcessFileRequests();
-}
-
-void ProcessHasFileRequests() {
-    LogPrint("file", "%s - FILES. ProcessHasFileRequests: %d.\n", __func__, hasFileRequestedNodesMap.size());
-    LOCK(cs_HasFileRequestedNodesMap);
-
-    for (auto it = hasFileRequestedNodesMap.begin(); it != hasFileRequestedNodesMap.end();) {
-        vector<FileRequest> &vfileRequest = it->second;
-
-        auto it2 = vfileRequest.begin();
-        while (it2 != vfileRequest.end()) {
-            if (GetTimeMicros() > (it2->date + HAS_FILE_REQUEST_TIMEOUT)) {
-                it2 = vfileRequest.erase(it2);
-                LogPrint("file", "%s - FILES. HAS_FILE_REQUEST_TIMEOUT. Remove Has File Request. fileTxHash: %s\n", __func__, it->first.ToString());
-                continue;
-            }
-
-            it2++;
-        }
-
-        if (vfileRequest.empty()) {
-            LogPrint("file", "%s - FILES. vfileRequest is empty. Remove FileRequestMap. fileTxHash: %s\n", __func__, it->first.ToString());
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        const uint256 &fileTxHash = it->first;
-
-        // is file appeared
-        if (IsFileExistByTx(fileTxHash)) {
-            LogPrint("file", "%s - FILES. IsFileExistByTx. Remove HasFileRequests. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-            {
-                LOCK(cs_KnownFileTxesInDb);
-                knownFileTxesInDb.insert(fileTxHash);
-            }
-
-            auto it2 = vfileRequest.begin();
-            while (it2 != vfileRequest.end()) {
-                CNode *pNode = FindNode(it2->node);
-                if (pNode == NULL || pNode->fDisconnect) {
-                    LogPrint("file", "%s - FILES. pNode is NULL or Disconnected. Remove HasFileRequest. pNode: %d, fileTxHash: %s\n", __func__, it2->node, fileTxHash.ToString());
-                    it2 = vfileRequest.erase(it2);
-                    continue;
-                }
-
-                LogPrint("file", "%s - FILES. SendFileAvailable. pNode: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
-                SendFileAvailable(pNode, fileTxHash);
-                it2++;
-            }
-
-            LogPrint("file", "%s - FILES. Remove Has File Request at map. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-            it = hasFileRequestedNodesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-}
-
-void ProcessFileRequests() {
-    LogPrint("file", "%s - FILES. ProcessFileRequests. Requests order: %d, map: %d\n", __func__, fileRequestsOrder.size(), fileRequestedNodesMap.size());
-
-    // проверка не привышел ли лимит на одновременную отправку файлов
-    int availableToSend = GetAvailableToSendFilesCount();
-    LogPrint("file", "%s - FILES. Available to send file. count: %d\n", __func__, availableToSend);
-    if (availableToSend == 0)
-        return;
-
-    LOCK(cs_FileRequestedNodesMap);
-
-    for (auto it = fileRequestsOrder.begin(); it != fileRequestsOrder.end(); ) {
-        const pair<uint256, NodeId> &pair = *it;
-        map<NodeId, FileRequest> &requestMap = fileRequestedNodesMap[pair.first];
-        FileRequest &fileRequest = requestMap[pair.second];
-
-        CNode *pNode = FindNode(fileRequest.node);
-
-        // if node already disconnected. remove it
-        if (pNode == NULL || pNode->fDisconnect || IsFileRequestExpired(fileRequest.date)) {
-            LogPrint("file", "%s - FILES. pNode - NULL or Disconnected. Remove Has File Request. pNode: %d, fileTxHash: %s\n", __func__, fileRequest.node, pair.first.ToString());
-            requestMap.erase(pair.second);
-            if (requestMap.empty()) {
-                fileRequestedNodesMap.erase(pair.first);
-            }
-            it = fileRequestsOrder.erase(it);
-            continue;
-        }
-
-        // TODO: убедиться что запушенный файл тут же попадает в vSend и эта проверка сработает, чтобы не отправить несколько файлов подряд одному ноду
-        if (!CanSendToNode(pNode)) {
-            LogPrint("file", "%s - FILES. pNode - Can send to node. pNode: %d.\n", __func__, pNode->id);
-            it++;
-            continue;
-        }
-
-        // достаем файл и отправляем
-        const uint256& fileTxHash = it->first;
-
-        CTransaction tx;
-        uint256 hashBlock;
-        if (!GetTransaction(fileTxHash, tx, hashBlock, true)) {
-            LogPrint("file", "%s - FILES. File tx not found. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
-            it++;
-            continue;
-        }
-
-        CDBFile dbFile;
-        if (!GetFile(tx.vfiles[0].fileHash, dbFile)) {
-            LogPrint("file", "%s - FILES. File not found in DB. fileTxHash: %s.\n", __func__, fileTxHash.ToString());
-            it++;
-            continue;
-        }
-
-        // send
-        LogPrint("file", "%s - FILES. Sending file. fileTxHash: %s. to nodeId: %d\n", __func__, fileTxHash.ToString(), pNode->id);
-        pNode->PushMessage("file", fileTxHash, dbFile);
-        LogPrint("file", "%s - FILES. File sent\n", __func__);
-
-#ifdef ENABLE_WALLET
-        if (pwalletMain) {
-            uiInterface.ThreadSafeMessageBox(_("File sending started"), _("File transfer"), CClientUIInterface::MSG_INFORMATION | CClientUIInterface::GUI_ONLY);
-        }
-#endif
-
-        // remove
-        requestMap.erase(pair.second);
-        if (requestMap.empty()) {
-            fileRequestedNodesMap.erase(pair.first);
-        }
-        it = fileRequestsOrder.erase(it);
-
-        --availableToSend;
-        if (availableToSend <= 0)
-            break;
-    }
-}
-
-void ProcessFilesPendingScheduler() {
-    LogPrint("file", "%s - FILES. Process files pending: %d\n", __func__, filesPendingMap.size());
-
-    {
-        TRY_LOCK(cs_FilesInFlightMap, isInFligthLock);
-        if (!isInFligthLock) {
-            LogPrint("file", "%s - FILES. Files In fligth lock hold failed. Skipping\n", __func__);
-            return;
-        }
-
-        TRY_LOCK(cs_FilesPendingMap, isFilePendingLock);
-        if (!isFilePendingLock) {
-            LogPrint("file", "%s - FILES. Files pending lock hold failed. Skipping\n", __func__);
-            return;
-        }
-
-        LogPrint("file", "%s - FILES. Files pending locks held: %d\n", __func__, filesPendingMap.size());
-
-        for (std::map<uint256, FilePending>::iterator it = filesPendingMap.begin(); it != filesPendingMap.end(); ) {
-            const uint256 &fileTxHash = it->first;
-
-            // already in flight
-            if (filesInFlightMap.count(fileTxHash)) {
-                LogPrint("file", "%s - FILES. File in flight. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-                QueuedFile &fileInFlight = filesInFlightMap[fileTxHash];
-                // if fail in flight and wait timeout
-                if (GetTimeMicros() > fileInFlight.nTime + FILE_STALLING_TIMEOUT) {
-                    LogPrint("file", "%s - FILES. FILE_STALLING_TIMEOUT. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-
-                    // resend file, change node id
-                    it->second.nodes.erase(fileInFlight.nodeId); // удаляем из известных нодов тот с которым произошел таймаут
-
-                    if (it->second.nodes.empty()) {
-                        it = filesPendingMap.erase(it);
-                        continue;
-                    }
-
-                    CNode *pNode = FindFreeNode(it->second.nodes);
-                    // if node not found (disconnected), remove it and then request for new nodes that have file
-                    if (pNode == nullptr) {
-                        LogPrint("file", "%s - FILES. node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
-                        it = filesPendingMap.erase(it);
-                        continue;
-                    }
-
-                    LogPrint("file", "%s - FILES. Sending file request to node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
-                    SendFileRequest(fileTxHash, pNode);
-                    // update data
-                    fileInFlight.nodeId = pNode->id;
-                    fileInFlight.nTime = CalcFlightTimeout();
-                }
-
-                it++;
-                continue;
-            }
-
-            LogPrint("file", "%s - FILES. File not in flight. Trying to request file. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-            if (CanRequestFile()) {
-                CNode *pNode = FindFreeNode(it->second.nodes);
-                if (pNode == nullptr) {
-                    LogPrint("file", "%s - FILES. node not found (disconnected), remove it and then request for new nodes that have file, fileTxHash: %s\n", __func__, fileTxHash.ToString());
-                    it = filesPendingMap.erase(it);
-                    continue;
-                }
-
-                LogPrint("file", "%s - FILES. Sending file request to node: %d, fileTxHash: %s\n", __func__, pNode->id, fileTxHash.ToString());
-                SendFileRequest(fileTxHash, pNode);
-                filesInFlightMap[fileTxHash] = QueuedFile(fileTxHash, pNode->id, CalcFlightTimeout());
-            } else {
-                LogPrint("file", "%s - FILES. File cannot be requested now\n", __func__);
-            }
-
-            it++;
-        }
-
-        LogPrint("file", "%s - FILES. Process files pending done\n", __func__);
-    }
-
-    ProcessRequiredFiles();
-    ProcessKnownHashes();
-}
-
-void ProcessRequiredFiles() {
-    LogPrint("file", "%s - FILES. Files required: %d\n", __func__, requiredFilesMap.size());
-    vector<uint256> vRequiredToBroadcast;
-
-    bool requiredFilesChange = false;
-
-    {
-        LOCK2(cs_RequiredFilesMap, cs_KnownHasFilesMap);
-
-        for (auto it = requiredFilesMap.begin(); it != requiredFilesMap.end(); ) {
-            if (GetAdjustedTime() > it->second.fileExpirationTime) {
-                LogPrint("file", "%s - FILES. Required file expired. File not required anymore. Deleting from list. txFileHash: %s, expiration date: %d, now: %d\n", __func__, it->first.ToString(), it->second.fileExpirationTime, GetAdjustedTime());
-                requiredFilesChange = true;
-
-                it = requiredFilesMap.erase(it);
-                continue;
-            }
-
-            const uint256 &fileTxHash = it->first;
-
-            if (filesPendingMap.count(fileTxHash)) {
-                it++;
-                continue;
-            }
-
-            if (knownHasFilesMap.count(fileTxHash)) {
-                std::vector<FileKnown> &vFileKnown = knownHasFilesMap[fileTxHash].second;
-
-                LogPrint("file", "%s - FILES. Required file has known nodes. txFileHash: %s. nodes: %d \n", __func__, it->first.ToString(), vFileKnown.size());
-
-                FilePending filePending;
-                filePending.fileTxHash = fileTxHash;
-
-                // collect nodes
-                BOOST_FOREACH (const FileKnown &fileKnown, vFileKnown) {
-                    LogPrint("file", "%s - FILES. Adding file to pending, nodeId: %d from file Known\n", __func__, fileKnown.node);
-                    filePending.nodes.insert(fileKnown.node);
-                }
-
-                filesPendingMap[fileTxHash] = filePending;
-
-                knownHasFilesMap.erase(fileTxHash);
-
-                it++;
-                continue;
-            }
-
-            // если не получили ответ за заданное время,
-            // бродкастим сообщение всем еще раз, обновляем таймаут
-            if (GetTimeMicros() > it->second.requestExpirationTime) {
-                LogPrint("file", "%s - FILES. File request time expired. Broadcasting new request to every node. txFileHash: %s\n", __func__, fileTxHash.ToString());
-                vRequiredToBroadcast.emplace_back(fileTxHash);
-
-                if (vRequiredToBroadcast.size() > MAX_FILE_SEND_COUNT)
-                    break;
-            }
-
-            it++;
-        }
-    }
-
-    {
-        LOCK(cs_RequiredFilesMap);
-
-        BOOST_FOREACH(const uint256 &fileTxHash, vRequiredToBroadcast) {
-            if (!BroadcastHasFileRequest(fileTxHash))
-                break;
-
-            if (!requiredFilesMap.count(fileTxHash)) continue; // TODO: PDG2 make sure that it will not change and remove
-
-            requiredFilesMap[fileTxHash].requestExpirationTime = CalcRequiredFileRequestExpirationDate();
-            requiredFilesChange = true;
-        }
-
-        //TODO: PDG 3 Optimize
-        if (requiredFilesChange && !pblockfiletree->WriteRequiredFiles(requiredFilesMap))
-            LogPrint("file", "%s - Error write required files in db. Required files map size: %d", __func__, requiredFilesMap.size());
-    }
-}
-
-void ProcessKnownHashes() {
-    LogPrint("file", "%s - FILES. processKnownHashes: %d.\n", __func__, knownHasFilesMap.size());
-
-    LOCK(cs_KnownHasFilesMap);
-
-    std::set<NodeId> misbehavingNodes;
-
-    int processed = 0;
-    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); ) {
-        if (++processed % 100 == 0) {
-            LogPrint("file", "%s - FILES. thread interruption point. Processed: %d\n", __func__, processed);
-            boost::this_thread::interruption_point();
-        }
-
-        BOOST_FOREACH (const FileKnown &fileKnown, it->second.second) {
-            if (CountNotRequiredHashesByNode(fileKnown.node) > TOTAL_HASHES_PER_NODE_THRESHOLD) {
-                LogPrint("file", "%s - FILES. TOTAL_HASHES_PER_NODE_THRESHOLD. node: %d  add to misbehaving nodes.\n", __func__, fileKnown.node);
-                misbehavingNodes.insert(fileKnown.node);
-            }
-        }
-
-        const uint256 &fileTxHash = it->first;
-        if (GetTimeMicros() > it->second.first) {
-            LogPrint("file", "%s - FILES. Known file remove at map by time expired. time: %d fileTxHash: %s\n", __func__, it->second.first, fileTxHash.ToString());
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-
-        if (IsFileExistByTx(fileTxHash)) {
-            LogPrint("file", "%s - FILES. File exist at DB. fileTxHash: %s\n", __func__, fileTxHash.ToString());
-            it = knownHasFilesMap.erase(it);
-            continue;
-        }
-
-        it++;
-    }
-
-    BOOST_FOREACH (const NodeId &nodeId, misbehavingNodes) {
-        LogPrint("file", "%s - FILES. Node: %d - misbehaving. \n", __func__, nodeId);
-        Misbehaving(nodeId, 10, __FILE__, __LINE__);
-        RemoveKnownFileHashesByNode(nodeId);
-    }
-}
-
-void AddNewFileKnown(const uint256& hash, const NodeId id) {
-    LogPrint("file", "%s - FILES. Add new known has file: fileTxHash: %s\n", __func__, hash.ToString());
-    std::vector<FileKnown> vFileKnown;
-    vFileKnown.emplace_back(FileKnown(id, 1));
-
-    {
-        LOCK(cs_KnownHasFilesMap);
-        knownHasFilesMap[hash] = std::make_pair(CalcKnownExpirationDate(), vFileKnown);
-    }
-}
-
-int64_t CalcKnownExpirationDate() {
-    return GetTimeMicros() + KNOWN_FILE_TIMEOUT;
-}
-
-int64_t CalcRequiredFileRequestExpirationDate() {
-    return GetTimeMicros() + REQUIRED_FILE_REQUEST_TIMEOUT;
-}
-
-int64_t CalcFlightTimeout() {
-    return GetTimeMicros() + FLIGHT_FILE_TIMEOUT;
-}
-
-bool CanRequestFile() {
-    return filesInFlightMap.size() <= MAX_FILES_IN_TRANSIT_PER_PEER;
-}
-
-bool IsFileRequestExpired(int64_t requestDate) {
-    return GetTimeMicros() > (requestDate + FILE_REQUEST_TIMEOUT);
-}
-
-int CountNotRequiredHashesByNode(const NodeId id) {
-    int count = 0;
-
-    for (auto it = knownHasFilesMap.begin(); it != knownHasFilesMap.end(); it++) {
-        BOOST_FOREACH(const FileKnown& fileKnown, it->second.second) {
-            if (fileKnown.node == id)
-                ++count;
-        }
-    }
-
-    return count;
-}
-
-
 bool IsMsgFile(int type) {
     return type == MSG_HAS_FILE_REQUEST ||
            type == MSG_HAS_FILE ||
-           type == MSG_FILE_REQUEST;
+           type == MSG_FILE_REQUEST ||
+           type == MSG_FILE;
 }
 
-template <typename Item>
-Item* FindByNodeIn(vector<Item> &items, NodeId nodeId) {
-    BOOST_FOREACH(Item &item, items) {
-        if (item.node == nodeId)
-            return &item;
-    }
-
-    return nullptr;
-}
-
-bool SaveMaturationTransactions() {
-    AssertLockHeld(cs_MapMaturationPaymentConfirmTransactions); // TODO: PDG 5 check
-
-    if (pwalletMain == nullptr)
-        return true;
-
-    LogPrint("file", "%s - FILES. Write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-
-    CWalletDB walletdb(pwalletMain->strWalletFile);
-    if (!walletdb.WriteMaturationPaymentConfirmTx(mapMaturationPaymentConfirmTransactions)) {
-        LogPrint("file", "%s - FILES. Error write maturation payment confirm transactions in db. Confirm transactions size: %d\n", __func__, mapMaturationPaymentConfirmTransactions.size());
-        return error("Failed to write maturation payment confirm transactions in db.\n");
-    }
-
-    return true;
-}
-
-bool SaveFileDB(CDBFile& file) {
-    return fileRepositoryManager.SaveFile(file);
-}
-
-bool EraseFileDB(CDBFile& file) {
-    return fileRepositoryManager.EraseFile(file);
-}
-
-bool SaveFileRepositoryState() {
-    return fileRepositoryManager.SaveFileRepositoryState();
-}
-
-bool LoadFileManagerState() {
-    return fileRepositoryManager.LoadManagerState();
-}
-
-bool IsFileTransactionExpired(const CTransaction &tx, const int64_t blockTime) {
-    return GetAdjustedTime() > (blockTime + tx.vfiles[0].nLifeTime);
-}
-
-uint64_t CalcEncodedFileSize(uint64_t srcSize) {
-    const uint64_t blockSize = (uint64_t) AES_BLOCK_SIZE;
-    // according to encryption out
-    // iv + src + padding to AES_BLOCK_SIZE
-    return blockSize + srcSize + ((srcSize % blockSize) == 0 ? blockSize : (blockSize - (srcSize % blockSize)));
-}
-
-CAmount GetFileFee(const CPaymentConfirm &paymentConfirm) {
-    CTransaction requestTx;
-    uint256 blockHash;
-    if (GetTransaction(paymentConfirm.requestTxid, requestTx, blockHash, true)) {
-        CPaymentRequest &paymentRequest = requestTx.meta.get<CPaymentRequest>();
-        LogPrint("file", "%s - FILES. txFilePaymentConfirm fee. File size: %d\n", __func__, paymentRequest.nFileSize);
-        return minFileFee.GetFee(paymentRequest.nFileSize, (uint32_t) round((float) paymentConfirm.nLifeTime / 86400));
-    }
-
-    return 0;
-}
-
-CNode *FindFreeNode(const set<NodeId> &nodes) {
-    LogPrint("file", "FindFreeNode : searching free node\n");// TODO: PDG 2 remove after debug
-
-    // и запрашиваем у нового
-    CNode *pNode = nullptr;
-    BOOST_FOREACH(const NodeId& nodeId, nodes) {
-        // region Check if this node in use
-        bool alreadyUse = false;
-        for (auto it = filesInFlightMap.begin(); it != filesInFlightMap.end(); ++it) {
-            if (nodeId == it->second.nodeId) {
-                alreadyUse = true;
-                break;
-            }
-        }
-        if (alreadyUse)
-            continue;
-        // endregion
-
-        pNode = FindNode(nodeId);
-        if (pNode == nullptr || pNode->fDisconnect)
-            continue;
-
-        break;
-    }
-
-
-    LogPrint("file", "FindFreeNode : free node %s\n", (pNode ? (std::string("found ") + std::to_string(pNode->id)) : "not found"));// TODO: PDG 2 remove after debug
-    return pNode;
-}
 
 bool CBlockUndo::WriteToDisk(CDiskBlockPos& pos, const uint256& hashBlock)
 {
@@ -7944,33 +7950,17 @@ bool CBlockUndo::ReadFromDisk(const CDiskBlockPos& pos, const uint256& hashBlock
 
     return true;
 }
-FileRequest::FileRequest(const NodeId node, const int64_t date, const uint256& fileHash, const uint256& fileTxHash) :
-    node(node), date(date), fileHash(make_optional(fileHash)), fileTxHash(make_optional(fileTxHash)), events(1) {}
 
 std::string CBlockFileInfo::ToString() const
 {
-    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)",
-                     nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
+    return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
 
-
-
-std::string CFileRepositoryBlockInfo::ToString() const
+std::string CFileBlockFileInfo::ToString() const
 {
-    return strprintf("CFileRepositoryBlockInfo(nBlockSize=%u, nFilesCount=%u, time=%s...%s)",
-                     nBlockSize, nFilesCount, DateTimeStrFormat("%Y-%m-%d", firstWriteTime), DateTimeStrFormat("%Y-%m-%d", lastWriteTime));
+    return strprintf("CFileBlockFileInfo(numberBytesSize=%u, numberFiles=%u, time=%s...%s)", numberBytesSize, numberFiles, DateTimeStrFormat("%Y-%m-%d", firstRecordTime), DateTimeStrFormat("%Y-%m-%d", lastRecordTime));
 }
 
-std::string CDBFileRepositoryState::ToString() const
-{
-    return strprintf(
-            "CDBFileRepositoryState(nTotalFileStorageSize=%d. nBlocksCount=%d. removeCandidatesTotalSize=%d. removeCandidatesFilesCount=%d)",
-            nTotalFileStorageSize,
-            nBlocksCount,
-            removeCandidatesTotalSize,
-            removeCandidatesFilesCount
-    );
-}
 
 class CMainCleanup
 {
@@ -7989,6 +7979,3 @@ public:
         mapOrphanTransactionsByPrev.clear();
     }
 } instance_of_cmaincleanup;
-
-
-

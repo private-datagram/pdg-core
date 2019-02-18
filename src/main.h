@@ -727,6 +727,7 @@ bool TestBlockValidity(CValidationState& state, const CBlock& block, CBlockIndex
 /** Store block on disk. If dbp is provided, the file is known to already reside on disk */
 bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** pindex, CDiskBlockPos* dbp = NULL, bool fAlreadyCheckedBlock = false);
 bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex** ppindex = NULL);
+bool IsMsgFile(int type);
 
 
 bool IsMsgFile(int type);
