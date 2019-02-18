@@ -1453,6 +1453,73 @@ QDialog#SendCoinsDialog QLabel#labelBalance {
     font-size: 17px;
 }
 
+/**************************** SEND FILES DIALOG ***********************************************/
+
+QDialog#SendFilesDialog {
+    background-color:transparent;
+}
+
+QDialog#SendFilesDialog .QFrame#frameFileSend { /* Coin Control Section */
+    background-color:#ffffff;
+    border-radius: 6px;
+    padding: 0px, 15px, 0, 15px;
+}
+
+QDialog#SendFilesDialog .QFrame#frameFileTabs { /* Coin Control Section */
+    background-color:#ffffff;
+    border-radius: 6px;
+    padding: 0px, 15px, 0, 15px;
+}
+
+QDialog#SendFilesDialog .QFrame#frameFileSend > .QLabel { /* Default Font Color and  Size */
+    font-weight:normal;
+}
+
+QDialog#SendFilesDialog .QFrame#frameFileTabs > .QLabel { /* Default Font Color and  Size */
+    font-weight:normal;
+}
+
+/*QDialog#SendFilesDialog .QFrame#frameCoinControl .QLabel#labelCoinControlFeatures { !* Coin Control Header *!
+    qproperty-alignment: 'AlignVCenter | AlignLeft';
+    min-width:160px;
+    background-color:transparent;
+    color:#37474F;
+    font-weight:bold;
+    font-size:17px;
+    margin-right:5px;
+    padding-right:5px;
+}*/
+
+QDialog#SendFilesDialog .QFrame#frameCoinControl .QWidget#widgetCoinControl { /* Coin Control Inputs */
+}
+
+QDialog#SendFilesDialog .QFrame#frameCoinControl .QWidget#widgetCoinControl > .QLabel { /* Coin Control Inputs Labels */
+    padding:2px;
+}
+
+QDialog#SendFilesDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
+    background-color:#ffffff;
+    border-radius: 6px;
+    padding: 0px, 15px, 0, 15px;
+}
+
+QDialog#SendFilesDialog .QCheckBox#checkSwiftTX { /* SwiftTX Checkbox */
+    color:#37474F;
+    border-radius:5px;
+    padding-top:20px;
+    padding-bottom:18px;
+    margin-left:10px;
+    margin-right:20px;
+}
+
+/* This QLabel uses name = "label" which conflicts with Address Book -> New Address */
+/* To maximize backwards compatibility this formatting has been removed */
+
+QDialog#SendFilesDialog QLabel#label {
+    color:#37474F;
+    min-height:27px;
+}
+
 /**************************** SEND COINS ENTRY ******************************************/
 
 QStackedWidget#SendCoinsEntry .QFrame#SendCoins > .QLabel { /* Send Coin Entry Labels */
