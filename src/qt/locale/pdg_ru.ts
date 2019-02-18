@@ -1961,11 +1961,11 @@ https://www.transifex.com/pdg-project/pdg-project-translations</translation>
     </message>
     <message>
         <source>Enable automatic minting of PDG units to zPDG</source>
-        <translation>Невозможно автоматически отчеканить единицы PDG для zPDG</translation>
+        <translation>Включить автоматическую чеканку PDG в zPDG</translation>
     </message>
     <message>
         <source>Enable zPDG Automint</source>
-        <translation>Невозможно авточеканка  zPDG</translation>
+        <translation>Включить авточеканку zPDG</translation>
     </message>
     <message>
         <source>Percentage of incoming PDG which get automatically converted to zPDG via Zerocoin Protocol (min: 10%)</source>
@@ -4164,6 +4164,10 @@ Either mint higher denominations (so fewer inputs are needed) or reduce the amou
     <message>
         <source>Amount:</source>
         <translation>Сумма:</translation>
+    </message>
+    <message>
+        <source>Use SwiftX (fast confirmations, extra fee)</source>
+        <translation>Использовать SwiftX (быстрые подтверждения, доп. комиссия)</translation>
     </message>
     <message>
         <source>Priority:</source>
