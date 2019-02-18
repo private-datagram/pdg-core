@@ -112,7 +112,7 @@ map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
+map<uint256, const CWalletTx*> mapMaturationPaymentConfirmTransactions;
 CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
 
 template <typename Item> Item* FindByNodeIn(const vector<Item> &items, const NodeId nodeId);
@@ -4773,6 +4773,8 @@ void HandleFileTransferTx(const CBlock *pblock) {
             continue;
 
         const uint256& txHash = tx.GetHash();
+
+        // TODO: PDG5 check payment valid
 
         LogPrint("file", "%s - FILES. Detected file transaction. txHash: %s\n", __func__, txHash.ToString());
 

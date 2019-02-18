@@ -196,8 +196,8 @@ public:
     bool ReadWalletFileTxSent(const uint256& hashPaymentRequestTx, bool& outIsSent);
     bool EraseWalletFileTxSent(const uint256& hashPaymentRequestTx);
 
-    bool WriteMaturationPaymentConfirmTx(const map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
-    bool ReadMaturationPaymentConfirmTx(map<uint256, CPaymentMatureTx> &mapMaturationPaymentConfirmTx);
+    bool WriteMaturationPaymentConfirmTx(const map<uint256, const CWalletTx*> &mapMaturationPaymentConfirmTx);
+    bool ReadMaturationPaymentConfirmTx(const CWallet* pwallet, map<uint256, const CWalletTx*> &mapMaturationPaymentConfirmTx);
 
     bool WriteFileEncryptKeys(const uint256& hashPaymentRequestTx, const vector<char>& publicKey, const vector<char>& privateKey);
     bool ReadFileEncryptKeys(const uint256& hashPaymentRequestTx, vector<char>& outvchPublicKey, vector<char>& outvchPrivateKey);

@@ -60,6 +60,7 @@ class CInv;
 class CScriptCheck;
 class CValidationInterface;
 class CValidationState;
+class CWalletTx;
 
 struct CBlockTemplate;
 struct CNodeStateStats;
@@ -358,7 +359,7 @@ extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
-extern std::map<uint256, CPaymentMatureTx> mapMaturationPaymentConfirmTransactions;
+extern std::map<uint256, const CWalletTx*> mapMaturationPaymentConfirmTransactions;
 extern CCriticalSection cs_MapMaturationPaymentConfirmTransactions;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
