@@ -30,12 +30,16 @@ WalletFrame {
 
 QStatusBar {
     background-color: #111922;
-    color: #fff;
+    color: #949494;
+}
+
+.QStatusBar::item {
+    border: 0;
 }
 
 .QFrame {
     background-color: transparent;
-    border: 0px solid #fff;
+    border: 0px solid #343434;
 }
 
 QMenuBar {
@@ -100,7 +104,7 @@ QToolBar > QToolButton:checked {
 QToolBar > QToolButton:hover:!checked {
     background-color: #263238;
     color: #81C784;
-    border-left: 5px solid #37474F;
+    border-left: 5px solid #2a363c;
     padding: 0;
     margin: 0;
 }
@@ -114,10 +118,10 @@ QMessageBox {
 }
 
 QProgressBar {
-    color: #fff;
-    border: 0px solid #111922;
-    border-radius: 5px;
-    background-color: transparent;
+    color: #6e6e6e;
+    border: 0;
+    border-radius: 3px;
+    background-color: #090913;
     padding-left: 0px;
     padding-right: 0px;
 }
@@ -155,7 +159,7 @@ QTabBar::tab:hover:!selected {
 
 QWidget {
     selection-background-color:#81C784; /* Object highlight color */
-    selection-color:#fff;
+    selection-color: #7d7d7d;
     outline:0; /* Remove Annoying Focus Rectangle */
 }
 
@@ -467,7 +471,7 @@ QTableView::item { /* Table Item */
 }
 
 QTableView::item:selected { /* Table Item Selected */
-    background-color:#DCEDC8;
+    background-color: #81c784; /*#546e7a*/
     color:#fff;
 }
 
@@ -957,6 +961,11 @@ QLabel#labelOverviewHeaderLeft {
     font-size:20px;
     background-color:#ffffff;
     padding-left: 15px;
+    border-radius: 4px;
+}
+
+QFrame#frame_Header {
+    border-radius: 4px;
 }
 
 QLabel#labelOverviewHeaderRight {
@@ -987,23 +996,23 @@ QWidget .QFrame#frame_Content { /* Actual Content */
 
 QWidget .QFrame#frame_Balances { /* Upper left side */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
 }
 
 QWidget .QFrame#frame_ZerocoinBalances { /* Lower left side */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
 }
 
 QWidget .QFrame#frame_CombinedBalances { /* Lower left side */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     color: #898989;
 }
 
 QWidget .QFrame#frame_RecentTransactions { /* Right side */
     background: #fff;
-    border-radius: 6px;
+    border-radius: 3px;
 }
 
 QWidget .QFrame#frame_Balances > .QLabel {
@@ -1344,19 +1353,19 @@ QDialog#SendCoinsDialog {
 
 QDialog#SendCoinsDialog .QFrame#frameCoinControl { /* Coin Control Section */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
 QDialog#SendCoinsDialog .QFrame#frameFee { /* Coin Control Section */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
 QDialog#SendCoinsDialog .QFrame#frame_Send { /* Coin Control Section */
     background-color:#fff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
@@ -1404,7 +1413,7 @@ QDialog#SendCoinsDialog .QFrame#frameCoinControl .QLabel#labelCoinControlChangeL
 
 QDialog#SendCoinsDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
@@ -1461,13 +1470,13 @@ QDialog#SendFilesDialog {
 
 QDialog#SendFilesDialog .QFrame#frameFileSend { /* Coin Control Section */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
 QDialog#SendFilesDialog .QFrame#frameFileTabs { /* Coin Control Section */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
@@ -1499,7 +1508,7 @@ QDialog#SendFilesDialog .QFrame#frameCoinControl .QWidget#widgetCoinControl > .Q
 
 QDialog#SendFilesDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 0px, 15px, 0, 15px;
 }
 
@@ -1695,13 +1704,13 @@ QWidget#ReceiveCoinsDialog {
 
 QWidget#ReceiveCoinsDialog .QFrame#frame {
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 15px;
 }
 
 QWidget#ReceiveCoinsDialog .QFrame#frame2 {
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 15px;
 }
 
@@ -1790,13 +1799,13 @@ QWidget#PrivacyDialog .QFrame#frame_Content {
 
 QWidget#PrivacyDialog .QFrame#verticalFrameLeft {
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 15px;
 }
 
 QWidget#PrivacyDialog .QFrame#verticalFrameRight {
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 15px;
 }
 
@@ -1809,7 +1818,7 @@ QWidget#PrivacyDialog .QToolButton {
 /**************************** MASTERNODE LIST *******************************************/
 QWidget#MasternodeList .QFrame#frameList {
     background-color:#ffffff;
-    border-radius: 6px;
+    border-radius: 3px;
 }
 
 
@@ -1843,7 +1852,7 @@ QCalendarWidget QAbstractItemView:disabled { /* Calendar widget days not in mont
 
 QLabel#content{
     background-color: #fff;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 9px;
 
 }
