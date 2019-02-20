@@ -485,7 +485,7 @@ void TransactionView::computeSum()
         amount += index.data(TransactionTableModel::AmountRole).toLongLong();
     }
     QString strAmount(BitcoinUnits::formatWithUnit(nDisplayUnit, amount, true, BitcoinUnits::separatorAlways));
-    if (amount < 0) strAmount = "<span style='color:red;'>" + strAmount + "</span>";
+    if (amount < 0) strAmount = "<span style='color:#ff8888;'>" + strAmount + "</span>";
     emit trxAmount(strAmount);
 }
 

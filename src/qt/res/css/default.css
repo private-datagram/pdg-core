@@ -1770,12 +1770,12 @@ TransactionView QComboBox {
 }
 
 QLabel#transactionSumLabel { /* Example of setObjectName for widgets without name */
-    color:#333333;
+    color: #d5d5d5;
     font-weight:bold;
 }
 
 QLabel#transactionSum { /* Example of setObjectName for widgets without name */
-    color:#333333;
+    color:#d5d5d5;
 }
 
 /**************************** TRANSACTION DETAILS DIALOG ********************************/
@@ -1850,17 +1850,13 @@ QCalendarWidget QAbstractItemView:disabled { /* Calendar widget days not in mont
 
 /*****************************************/
 
-QLabel#content{
+QLabel#content {
     background-color: #fff;
     border-radius: 3px;
     padding: 9px;
 
 }
 
-QLabel#transactionSumLabel {
-    color: #fff;
-}
-
-#tableTransactionHistory QTableView{
+#tableTransactionHistory QTableView {
     background: #fff;
 }
