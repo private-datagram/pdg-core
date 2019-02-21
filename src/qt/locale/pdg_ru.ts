@@ -2531,11 +2531,11 @@ zPDG are mature when they have more than 20 confirmations AND more than 2 mints 
     </message>
     <message>
         <source>Minimize Change</source>
-        <translation>Сведение к минимуму изменений</translation>
+        <translation>Минимизировать сдачу</translation>
     </message>
     <message>
         <source>Information about the available Zerocoin funds.</source>
-        <translation>Информация о доступных фондах Зерокоина.</translation>
+        <translation>Информация о доступном балансе Zerocoin.</translation>
     </message>
     <message>
         <source>Zerocoin Stats:</source>
